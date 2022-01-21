@@ -1,0 +1,5 @@
+text.c:46:6:glcd_set_font	16	static
+text.c:61:6:glcd_font	16	static
+text.c:73:9:glcd_draw_char_xy	48	static
+text.c:273:6:glcd_draw_string_xy	24	static
+text.c:289:6:glcd_draw_string_xy_P	24	static

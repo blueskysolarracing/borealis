@@ -1,0 +1,7 @@
+graphs.c:39:6:glcd_bar_graph_horizontal	32	static
+graphs.c:48:6:glcd_bar_graph_horizontal_no_border	32	static
+graphs.c:56:6:glcd_bar_graph_vertical	40	static
+graphs.c:62:6:glcd_bar_graph_vertical_no_border	32	static
+graphs.c:67:6:glcd_scrolling_bar_graph	40	static
+graphs.c:99:6:glcd_scrolling_bar_graph_timing	40	static
+graphs.c:117:16:glcd_map	16	static

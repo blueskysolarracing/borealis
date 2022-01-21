@@ -1,0 +1,9 @@
+glcd.c:69:6:glcd_update_bbox	16	static
+glcd.c:101:6:glcd_reset_bbox	4	static
+glcd.c:110:6:glcd_bbox_reset	8	static
+glcd.c:114:6:glcd_bbox_refresh	4	static
+glcd.c:122:6:glcd_clear	8	static
+glcd.c:128:6:glcd_clear_buffer	8	static
+glcd.c:133:6:glcd_select_screen	16	static
+glcd.c:139:6:glcd_scroll	24	static
+glcd.c:153:6:glcd_scroll_line	16	static

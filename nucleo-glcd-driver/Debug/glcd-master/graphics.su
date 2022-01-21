@@ -1,0 +1,12 @@
+graphics.c:46:6:glcd_set_pixel	16	static
+graphics.c:64:9:glcd_get_pixel	16	static
+graphics.c:76:6:glcd_invert_pixel	16	static
+graphics.c:85:6:glcd_draw_line	40	static
+graphics.c:128:6:glcd_fill_rect	32	static
+graphics.c:140:6:glcd_draw_rect	32	static
+graphics.c:154:6:glcd_draw_rect_thick	32	static
+graphics.c:183:6:glcd_draw_rect_shadow	32	static
+graphics.c:190:6:glcd_draw_circle	32	static
+graphics.c:229:6:glcd_fill_circle	32	static
+graphics.c:267:6:glcd_invert_area	32	static
+graphics.c:279:6:glcd_draw_bitmap	16	static
