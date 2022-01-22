@@ -239,6 +239,7 @@ void glcd_test_rectangles(void)
 	glcd_write();
 	delay_ms(200);
 	
+
 	while(1) {
 		
 		glcd_clear();

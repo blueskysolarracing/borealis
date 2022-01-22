@@ -5,5 +5,5 @@ unit_tests.c:152:6:glcd_test_text_up_down	24	static
 unit_tests.c:189:6:glcd_test_tiny_text	48	static
 unit_tests.c:223:6:glcd_test_hello_world	16	static
 unit_tests.c:234:6:glcd_test_rectangles	24	static
-unit_tests.c:286:6:glcd_test_scrolling_graph	24	static
-unit_tests.c:308:6:glcd_test_bitmap_128x64	8	static
+unit_tests.c:287:6:glcd_test_scrolling_graph	24	static
+unit_tests.c:309:6:glcd_test_bitmap_128x64	8	static

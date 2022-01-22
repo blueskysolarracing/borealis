@@ -64,7 +64,7 @@ void glcd_init(void)
 //
 //	/* Configuring CS, DC (A0) and RST pin */
 //	/* Peripheral clock init. */
-//	RCC_AHB1PeriphClockCmd(CONTROLLER_SPI_DC_RCC | CONTROLLER_SPI_SS_RCC | \
+//	RCC_AHB1PeriphClockCmd(CONTROLLER_SPI_DC_RCC | CONTROLLER_SPI_SS_RCC |
 //			CONTROLLER_SPI_RST_RCC, ENABLE);
 //	/* CS pin */
 //	GPIO_InitStructure.GPIO_Pin   = CONTROLLER_SPI_SS_PIN;

@@ -398,7 +398,36 @@ void startDefaultTask(void *argument)
   /* USER CODE BEGIN 5 */
 	glcd_init();
 	//glcd_test_hello_world();
-	glcd_test_rectangles();
+	//glcd_test_rectangles();
+
+	// my stuff
+	while(1){
+		glcd_clear();
+
+		for(uint8_t x = 0; x < 128; x+=2){
+			for(uint8_t y = 0; y < 64; y+=2){
+				glcd_set_pixel(x, y, 1);
+				glcd_set_pixel(x, y+1, 1);
+				glcd_set_pixel(x+1, y, 1);
+				glcd_set_pixel(x+1, y+1, 1);
+				glcd_write();
+				delay_ms(10);
+			}
+		}
+
+		for(uint8_t x = 0; x < 128; x++){
+			for(uint8_t y = 0; y < 64; y+=2){
+				glcd_set_pixel(x, y, 0);
+				glcd_set_pixel(x, y+1, 0);
+				glcd_set_pixel(x+1, y, 0);
+				glcd_set_pixel(x+1, y+1, 0);
+				glcd_write();
+				delay_ms(10);
+			}
+		}
+	}
+	// my stuff
+
 
   /* Infinite loop */
   for(;;)

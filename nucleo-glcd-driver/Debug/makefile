@@ -66,8 +66,8 @@ all: main-build
 main-build: nucleo-glcd-driver.elf secondary-outputs
 
 # Tool invocations
-nucleo-glcd-driver.elf: $(OBJS) $(USER_OBJS) D:\Documents\Skule\BSSR\nucleo-glcd-driver\STM32F446RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "nucleo-glcd-driver.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\Documents\Skule\BSSR\nucleo-glcd-driver\STM32F446RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="nucleo-glcd-driver.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+nucleo-glcd-driver.elf: $(OBJS) $(USER_OBJS) D:\Documents\Skule\BSSR\gen11_blueskyelec\nucleo-glcd-driver\STM32F446RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "nucleo-glcd-driver.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\Documents\Skule\BSSR\gen11_blueskyelec\nucleo-glcd-driver\STM32F446RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="nucleo-glcd-driver.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

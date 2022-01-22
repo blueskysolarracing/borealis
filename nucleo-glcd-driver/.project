@@ -29,11 +29,4 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>glcd-master</name>
-			<type>2</type>
-			<location>C:/Users/milon/STM32CubeIDE/workspace_1.6.0/nucleo-glcd-driver/glcd-master</location>
-		</link>
-	</linkedResources>
 </projectDescription>
