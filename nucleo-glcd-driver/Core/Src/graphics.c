@@ -49,6 +49,9 @@ void glcd_set_pixel(uint8_t x, uint8_t y, uint8_t color) {
 		return;
 	}
 
+	y = (y+16)%GLCD_LCD_HEIGHT;	// bandage sol for y=0 not starting at top
+
+
 	if (color) {
 		/* Set black */
 		glcd_buffer[x+ (y/8)*GLCD_LCD_WIDTH] |= ( 1 << (y%8));

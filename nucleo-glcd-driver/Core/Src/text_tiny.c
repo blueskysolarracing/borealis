@@ -83,6 +83,9 @@ void glcd_tiny_draw_string(uint8_t x, uint8_t line, char *str)
 	if (font_current.height >= 8) {
 		return;
 	}
+
+	line = (line+2)%8; // bandage solution to y not starting from top
+
 	while (*str) {
 		glcd_tiny_draw_char(x, line, *str++);
 		x += (font_current.width + 1);

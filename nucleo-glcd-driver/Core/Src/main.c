@@ -401,31 +401,50 @@ void startDefaultTask(void *argument)
 	//glcd_test_rectangles();
 
 	// my stuff
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear();
+	int hz = 8;
+	int t = 1000/hz;
 	while(1){
-		glcd_clear();
-
-		for(uint8_t x = 0; x < 128; x+=2){
-			for(uint8_t y = 0; y < 64; y+=2){
-				glcd_set_pixel(x, y, 1);
-				glcd_set_pixel(x, y+1, 1);
-				glcd_set_pixel(x+1, y, 1);
-				glcd_set_pixel(x+1, y+1, 1);
-				glcd_write();
-				delay_ms(10);
-			}
+		for(int i = 0; i < hz; i++){
+			glcd_clear_buffer();
+			glcd_tiny_draw_char_xy(0, 0, '1'+i);
+			glcd_write();
+			delay_ms(t);
 		}
 
-		for(uint8_t x = 0; x < 128; x++){
-			for(uint8_t y = 0; y < 64; y+=2){
-				glcd_set_pixel(x, y, 0);
-				glcd_set_pixel(x, y+1, 0);
-				glcd_set_pixel(x+1, y, 0);
-				glcd_set_pixel(x+1, y+1, 0);
-				glcd_write();
-				delay_ms(10);
-			}
-		}
+//		for(uint8_t x = 0; x < 128; x+=2){
+//			glcd_set_pixel(x, y, 1);
+//			glcd_set_pixel(x, y+1, 1);
+//			glcd_set_pixel(x+1, y, 1);
+//			glcd_set_pixel(x+1, y+1, 1);
+//			glcd_write();
+//			delay_ms(10);
+//		}
+//
+//		for(uint8_t x = 0; x < 128; x+=2){
+//			for(uint8_t y = 0; y < 64; y+=2){
+//				glcd_set_pixel(x, y, 1);
+//				glcd_set_pixel(x, y+1, 1);
+//				glcd_set_pixel(x+1, y, 1);
+//				glcd_set_pixel(x+1, y+1, 1);
+//				glcd_write();
+//				delay_ms(10);
+//			}
+//		}
+//
+//		for(uint8_t x = 0; x < 128; x++){
+//			for(uint8_t y = 0; y < 64; y+=2){
+//				glcd_set_pixel(x, y, 0);
+//				glcd_set_pixel(x, y+1, 0);
+//				glcd_set_pixel(x+1, y, 0);
+//				glcd_set_pixel(x+1, y+1, 0);
+//				glcd_write();
+//				delay_ms(10);
+//			}
+//		}
 	}
+
 	// my stuff
 
 

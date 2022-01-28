@@ -224,7 +224,14 @@ void glcd_test_hello_world(void)
 {
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
-	glcd_tiny_draw_string(0,0,"Hello World!");
+	glcd_tiny_draw_string(0,0,"Hello World!0");
+	glcd_tiny_draw_string(0,1,"Hello World!1");
+	glcd_tiny_draw_string(0,2,"Hello World!2");
+	glcd_tiny_draw_string(0,3,"Hello World!3");
+	glcd_tiny_draw_string(0,4,"Hello World!4");
+	glcd_tiny_draw_string(0,5,"Hello World!5");
+	glcd_tiny_draw_string(0,6,"Hello World!6");
+	glcd_tiny_draw_string(0,7,"Hello World!7");
 	glcd_write();
 	while(1) {
 		DEMO_RETURN();

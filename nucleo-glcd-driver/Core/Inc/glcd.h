@@ -203,7 +203,7 @@ typedef struct {
  * GLCD_NUMBER_OF_BANKS is typically GLCD_LCD_HEIGHT/8
  * Don't adjust these below unless required.
  */
-#define GLCD_NUMBER_OF_BANKS (GLCD_LCD_WIDTH / 8)
+#define GLCD_NUMBER_OF_BANKS (GLCD_LCD_HEIGHT / 8)
 #define GLCD_NUMBER_OF_COLS  GLCD_LCD_WIDTH
 
 /**@}*/
