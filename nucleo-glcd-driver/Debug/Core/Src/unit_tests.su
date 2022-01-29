@@ -1,9 +1,0 @@
-unit_tests.c:67:6:glcd_test_circles	16	static
-unit_tests.c:101:6:glcd_test_counter_and_graph	32	static
-unit_tests.c:132:6:glcd_test_glcdutils	32	static
-unit_tests.c:152:6:glcd_test_text_up_down	24	static
-unit_tests.c:189:6:glcd_test_tiny_text	48	static
-unit_tests.c:223:6:glcd_test_hello_world	16	static
-unit_tests.c:241:6:glcd_test_rectangles	24	static
-unit_tests.c:294:6:glcd_test_scrolling_graph	24	static
-unit_tests.c:316:6:glcd_test_bitmap_128x64	8	static
