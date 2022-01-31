@@ -1,0 +1,8 @@
+lv_draw_line.c:78:6:lv_draw_line	72	static
+lv_draw_line.c:183:13:line_draw_hor	48	static
+lv_draw_line.c:204:13:line_draw_ver	48	static
+lv_draw_line.c:225:13:line_draw_skew	128	static
+lv_draw_line.c:573:13:line_init	24	static
+lv_draw_line.c:592:13:line_next	16	static
+lv_draw_line.c:612:13:line_next_y	24	static
+lv_draw_line.c:628:13:line_next_x	24	static

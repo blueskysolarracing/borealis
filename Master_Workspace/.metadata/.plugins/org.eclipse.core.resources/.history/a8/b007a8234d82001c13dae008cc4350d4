@@ -1,0 +1,7 @@
+lv_font_fmt_txt.c:54:17:lv_font_get_bitmap_fmt_txt	32	static
+lv_font_fmt_txt.c:76:6:lv_font_get_glyph_dsc_fmt_txt	48	static
+lv_font_fmt_txt.c:110:17:get_glyph_dsc_id	72	static
+lv_font_fmt_txt.c:165:15:get_kern_value	88	static
+lv_font_fmt_txt.c:220:16:kern_pair_8_compare	24	static
+lv_font_fmt_txt.c:231:16:kern_pair_16_compare	24	static
+lv_font_fmt_txt.c:254:16:unicode_list_compare	16	static

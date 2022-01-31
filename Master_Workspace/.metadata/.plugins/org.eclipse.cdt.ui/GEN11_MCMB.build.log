@@ -1,0 +1,10 @@
+23:42:46 **** Incremental Build of configuration Release for project GEN11_MCMB ****
+make -j8 all 
+arm-none-eabi-size   GEN11_MCMB.elf 
+   text	   data	    bss	    dec	    hex	filename
+  47340	    216	 166296	 213852	  3435c	GEN11_MCMB.elf
+Finished building: default.size.stdout
+ 
+
+23:42:46 Build Finished. 0 errors, 0 warnings. (took 468ms)
+

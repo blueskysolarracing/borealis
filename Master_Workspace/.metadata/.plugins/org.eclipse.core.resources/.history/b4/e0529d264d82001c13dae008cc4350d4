@@ -1,0 +1,12 @@
+lv_img.c:327:13:lv_img_design	128	static
+lv_img.c:122:6:lv_img_set_src	56	static
+lv_img.c:56:12:lv_img_create	24	static
+lv_img.c:385:17:lv_img_signal	24	static
+lv_img.c:207:6:lv_img_set_auto_size	8	static
+lv_img.c:220:6:lv_img_set_offset_x	16	static
+lv_img.c:236:6:lv_img_set_offset_y	16	static
+lv_img.c:255:14:lv_img_get_src	8	static
+lv_img.c:267:14:lv_img_get_file_name	8	static
+lv_img.c:282:6:lv_img_get_auto_size	8	static
+lv_img.c:294:12:lv_img_get_offset_x	8	static
+lv_img.c:306:12:lv_img_get_offset_y	8	static

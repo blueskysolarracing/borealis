@@ -1,0 +1,16 @@
+main.c:1647:13:accResetCallback	0	static
+main.c:1664:13:motCallback	0	static
+main.c:1973:13:steeringWheelTask	328	static
+main.c:1713:13:mc2StateTmr	24	static
+main.c:1668:13:lightsTmr	16	static
+main.c:1657:13:vfmDownCallback	8	static
+main.c:1650:13:vfmUpCallback	8	static
+main.c:278:6:SystemClock_Config	144	static
+main.c:179:5:main	136	static
+main.c:1783:6:ignition_check	40	static
+main.c:1810:6:array_check	32	static
+main.c:2030:13:sidePanelTask	312	static
+main.c:2072:6:serialParse	0	static
+main.c:2104:6:StartDefaultTask	8	static
+main.c:2123:6:HAL_TIM_PeriodElapsedCallback	0	static
+main.c:2140:6:Error_Handler	0	static

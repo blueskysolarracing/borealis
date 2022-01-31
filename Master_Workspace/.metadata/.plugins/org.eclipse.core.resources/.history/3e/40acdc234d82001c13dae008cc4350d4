@@ -1,0 +1,14 @@
+lv_spinbox.h:85:20:lv_spinbox_set_style	24	static
+lv_spinbox.c:50:12:lv_spinbox_create	32	static
+lv_spinbox.c:122:6:lv_spinbox_set_value	24	static
+lv_spinbox.c:142:6:lv_spinbox_set_digit_format	24	static
+lv_spinbox.c:162:6:lv_spinbox_set_step	24	static
+lv_spinbox.c:176:6:lv_spinbox_set_range	32	static
+lv_spinbox.c:199:6:lv_spinbox_set_padding_left	24	static
+lv_spinbox.c:215:9:lv_spinbox_get_value	24	static
+lv_spinbox.c:230:6:lv_spinbox_step_next	24	static
+lv_spinbox.c:247:6:lv_spinbox_step_prev	32	static
+lv_spinbox.c:262:6:lv_spinbox_increment	24	static
+lv_spinbox.c:282:6:lv_spinbox_decrement	24	static
+lv_spinbox.c:308:17:lv_spinbox_signal	56	static
+lv_spinbox.c:378:13:lv_spinbox_updatevalue	144	static

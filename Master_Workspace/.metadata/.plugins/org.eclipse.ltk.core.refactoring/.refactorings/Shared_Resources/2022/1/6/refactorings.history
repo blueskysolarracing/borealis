@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename resource &apos;Shared_Resources/BlueSkyTransmissionProtocol/readme/btcp_demo.txt&apos; to &apos;btcp_demo.c&apos;" description="Rename resource &apos;btcp_demo.txt&apos;" flags="7" id="org.eclipse.ltk.core.refactoring.rename.resource" input="BlueSkyTransmissionProtocol/readme/btcp_demo.txt" name="btcp_demo.c" stamp="1643526047650" updateReferences="true"/>
+</session>

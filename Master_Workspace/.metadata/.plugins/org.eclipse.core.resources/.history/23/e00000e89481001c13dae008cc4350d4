@@ -1,0 +1,2 @@
+h7Boot.c:3:6:arm_boot	4	static
+h7Boot.c:14:6:disarm_boot	4	static

@@ -1,0 +1,17 @@
+lv_btn.h:151:20:lv_btn_set_layout	16	static
+lv_btn.c:72:12:lv_btn_create	32	static
+lv_btn.c:159:6:lv_btn_set_toggle	24	static
+lv_btn.c:171:6:lv_btn_set_state	24	static
+lv_btn.c:184:6:lv_btn_toggle	24	static
+lv_btn.c:201:6:lv_btn_set_ink_in_time	16	static
+lv_btn.c:219:6:lv_btn_set_ink_wait_time	16	static
+lv_btn.c:238:6:lv_btn_set_ink_out_time	16	static
+lv_btn.c:257:6:lv_btn_set_style	32	static
+lv_btn.c:282:16:lv_btn_get_state	24	static
+lv_btn.c:293:6:lv_btn_get_toggle	24	static
+lv_btn.c:305:10:lv_btn_get_ink_in_time	16	static
+lv_btn.c:321:10:lv_btn_get_ink_wait_time	16	static
+lv_btn.c:336:10:lv_btn_get_ink_out_time	16	static
+lv_btn.c:353:20:lv_btn_get_style	32	static
+lv_btn.c:397:13:lv_btn_design	24	static
+lv_btn.c:479:17:lv_btn_signal	56	static

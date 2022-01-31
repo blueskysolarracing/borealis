@@ -1,0 +1,2 @@
+lv_async.c:68:13:lv_async_task_cb	8	static
+lv_async.c:38:10:lv_async_call	24	static

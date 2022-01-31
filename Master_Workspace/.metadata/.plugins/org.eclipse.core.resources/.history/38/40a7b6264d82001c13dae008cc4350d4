@@ -1,0 +1,4 @@
+lv_theme_material.c:831:13:style_mod_edit	24	static
+lv_theme_material.c:806:13:style_mod	24	static
+lv_theme_material.c:869:14:lv_theme_material_init	40	static
+lv_theme_material.c:927:14:lv_theme_get_material	0	static

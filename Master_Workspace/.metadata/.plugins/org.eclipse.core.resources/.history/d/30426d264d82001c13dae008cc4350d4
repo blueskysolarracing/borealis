@@ -1,0 +1,3 @@
+lv_draw_arc.c:257:13:deg_test_norm	0	static
+lv_draw_arc.c:265:13:deg_test_inv	0	static
+lv_draw_arc.c:54:6:lv_draw_arc	144	static

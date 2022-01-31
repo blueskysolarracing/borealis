@@ -1,0 +1,3 @@
+lv_img_cache.c:64:24:lv_img_cache_open	48	static
+lv_img_cache.c:155:6:lv_img_cache_set_size	24	static
+lv_img_cache.c:185:6:lv_img_cache_invalidate_src	24	static

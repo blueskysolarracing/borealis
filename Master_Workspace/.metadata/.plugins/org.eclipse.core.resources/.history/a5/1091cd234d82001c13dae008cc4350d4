@@ -1,0 +1,16 @@
+lv_gauge.h:107:20:lv_gauge_set_critical_value	16	static
+lv_gauge.h:129:20:lv_gauge_set_style	24	static
+lv_gauge.h:159:23:lv_gauge_get_min_value	16	static
+lv_gauge.h:169:23:lv_gauge_get_max_value	16	static
+lv_gauge.h:217:34:lv_gauge_get_style	16	static
+lv_gauge.c:62:12:lv_gauge_create	40	static
+lv_gauge.c:132:6:lv_gauge_set_needle_count	40	static
+lv_gauge.c:165:6:lv_gauge_set_value	24	static
+lv_gauge.c:194:6:lv_gauge_set_scale	24	static
+lv_gauge.c:213:9:lv_gauge_get_value	24	static
+lv_gauge.c:228:9:lv_gauge_get_needle_count	24	static
+lv_gauge.c:239:9:lv_gauge_get_label_count	24	static
+lv_gauge.c:259:13:lv_gauge_design	104	static
+lv_gauge.c:313:17:lv_gauge_signal	40	static
+lv_gauge.c:342:13:lv_gauge_draw_scale	120	static
+lv_gauge.c:392:13:lv_gauge_draw_needle	208	static

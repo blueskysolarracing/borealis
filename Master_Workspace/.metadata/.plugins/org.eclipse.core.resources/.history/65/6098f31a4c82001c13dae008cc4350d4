@@ -1,0 +1,12 @@
+lv_area.h:83:26:lv_area_get_width	16	static
+lv_area.h:93:26:lv_area_get_height	16	static
+lv_area.c:50:6:lv_area_set	24	static
+lv_area.c:63:6:lv_area_set_width	16	static
+lv_area.c:73:6:lv_area_set_height	16	static
+lv_area.c:84:6:lv_area_set_pos	24	static
+lv_area.c:99:10:lv_area_get_size	24	static
+lv_area.c:115:6:lv_area_intersect	32	static
+lv_area.c:137:6:lv_area_join	24	static
+lv_area.c:151:6:lv_area_is_point_on	24	static
+lv_area.c:168:6:lv_area_is_on	16	static
+lv_area.c:183:6:lv_area_is_in	24	static
