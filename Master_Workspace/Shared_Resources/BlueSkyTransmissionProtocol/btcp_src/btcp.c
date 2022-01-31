@@ -32,7 +32,8 @@ static void tcpRxTask(void *pv);
 /** B_tcpStart
   * @brief  Function which creates a rxTask that will be constantly looking for received data.
 			Any relevant info will be stored in B_tcpHandle_t, which is allocated in this function and then returned.
-  * @param  transmitBuarts : a pointer to a pointer to B_uartHandle_t, or equivalently, an array of B_uartHandle_t* used to transmit messages. 
+  * @param  senderID: the ID of your motherboard. See protocol.h for your board's corresponding ID. 
+			transmitBuarts : a pointer to a pointer to B_uartHandle_t, or equivalently, an array of B_uartHandle_t* used to transmit messages. 
 				This parameter can also be written as: B_uartHandle_t* transmitBuarts[]
 				The reason transmitBuarts is an array is to be able to transmit the same message over multiple uart ports when calling B_tcpSend()
 			rxBuart : a pointer to B_uartHandle_t used to receive messages. 

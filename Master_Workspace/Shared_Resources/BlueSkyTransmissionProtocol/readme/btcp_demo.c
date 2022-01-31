@@ -13,7 +13,7 @@
 // INCLUDE THESE TWO HEADERS IN ORDER TO USE BSSR'S TCP PROTOCOL
 #include "buart.h"
 #include "btcp.h"
-#include "protocol_ids.h" //Not truely necessary, already included by "btcp.h"
+#include "protocol_ids.h" //Not truely necessary, already included by "btcp.h", but included here for clarity
 
 /* Private Defines */
 // for bitwise operations later on
