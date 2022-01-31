@@ -1,4 +1,0 @@
-btcp.c:51:16:B_tcpStart	40	static
-btcp.c:85:6:B_tcpSend	48	static
-btcp.c:168:13:tcpRxTask	856	static
-btcp.c:256:13:serialParse	16	static

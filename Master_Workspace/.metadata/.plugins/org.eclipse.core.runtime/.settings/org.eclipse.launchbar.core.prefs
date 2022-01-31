@@ -1,7 +1,0 @@
-LaunchTargetManager/org.eclipse.launchbar.core.launchTargetType.local,Local/arch=x86_64
-LaunchTargetManager/org.eclipse.launchbar.core.launchTargetType.local,Local/name=Local
-LaunchTargetManager/org.eclipse.launchbar.core.launchTargetType.local,Local/os=win32
-configDescList=org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:GEN11_MCMB Debug,org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:DCMB.elf,org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:PPTMB.elf,org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:BBMB.elf
-eclipse.preferences.version=1
-org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:GEN11_MCMB\ Debug/activeLaunchMode=run
-org.eclipse.cdt.dsf.gdb.gdbRemotedescriptorType\:GEN11_MCMB\ Debug/activeLaunchTarget=null\:---

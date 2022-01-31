@@ -1,7 +1,0 @@
-lv_imgbtn.c:339:17:lv_imgbtn_signal	32	static
-lv_imgbtn.c:252:13:lv_imgbtn_design	40	static
-lv_imgbtn.c:48:12:lv_imgbtn_create	24	static
-lv_imgbtn.c:113:6:lv_imgbtn_set_src	24	static
-lv_imgbtn.c:154:6:lv_imgbtn_set_style	0	static
-lv_imgbtn.c:170:14:lv_imgbtn_get_src	8	static
-lv_imgbtn.c:225:20:lv_imgbtn_get_style	0	static

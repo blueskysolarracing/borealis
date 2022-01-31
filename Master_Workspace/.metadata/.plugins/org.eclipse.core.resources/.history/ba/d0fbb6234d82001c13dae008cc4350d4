@@ -1,3 +1,0 @@
-lv_color.h:389:26:lv_color_make	24	static
-lv_color.c:46:12:lv_color_hsv_to_rgb	32	static
-lv_color.c:114:16:lv_color_rgb_to_hsv	32	static

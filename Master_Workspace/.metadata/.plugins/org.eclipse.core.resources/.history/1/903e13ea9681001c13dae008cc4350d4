@@ -1,9 +1,0 @@
-buart.c:54:17:B_uartStart	32	static
-buart.c:75:5:B_uartSend	40	static
-buart.c:84:16:B_uartRead	24	static
-buart.c:90:6:B_uartDoneRead	16	static
-buart.c:103:13:txTask	32	static
-buart.c:116:13:rxTask	32	static
-buart.c:152:13:processCriticalFrame	16	static
-buart.c:166:6:HAL_UART_TxCpltCallback	24	static
-buart.c:176:6:HAL_UART_RxCpltCallback	24	static,ignoring_inline_asm

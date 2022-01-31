@@ -1,7 +1,0 @@
-lv_style.c:335:13:style_animation_common_end_cb	8	static
-lv_style.c:319:13:style_animator	20	static
-lv_style.c:67:6:lv_style_init	48	static
-lv_style.c:220:6:lv_style_copy	12	static
-lv_style.c:232:6:lv_style_mix	24	static
-lv_style.c:279:6:lv_style_anim_init	24	static
-lv_style.c:300:6:lv_style_anim_set_styles	24	static

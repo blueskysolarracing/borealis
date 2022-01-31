@@ -1,9 +1,0 @@
-lv_sw.c:260:17:lv_sw_signal	40	static
-lv_sw.c:53:12:lv_sw_create	24	static
-lv_sw.c:130:6:lv_sw_on	24	static
-lv_sw.c:145:6:lv_sw_off	24	static
-lv_sw.c:161:6:lv_sw_toggle	16	static
-lv_sw.c:182:6:lv_sw_set_style	16	static
-lv_sw.c:200:6:lv_sw_set_anim_time	8	static
-lv_sw.c:221:20:lv_sw_get_style	16	static
-lv_sw.c:237:10:lv_sw_get_anim_time	8	static

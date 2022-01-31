@@ -1,2 +1,0 @@
-lv_color.c:46:12:lv_color_hsv_to_rgb	12	static
-lv_color.c:114:16:lv_color_rgb_to_hsv	16	static

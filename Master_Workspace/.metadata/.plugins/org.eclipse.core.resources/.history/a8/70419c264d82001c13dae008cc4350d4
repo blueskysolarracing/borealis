@@ -1,9 +1,0 @@
-lv_gauge.c:259:13:lv_gauge_design	352	static
-lv_gauge.c:313:17:lv_gauge_signal	24	static
-lv_gauge.c:132:6:lv_gauge_set_needle_count	32	static
-lv_gauge.c:62:12:lv_gauge_create	24	static
-lv_gauge.c:165:6:lv_gauge_set_value	24	static
-lv_gauge.c:194:6:lv_gauge_set_scale	16	static
-lv_gauge.c:213:9:lv_gauge_get_value	16	static
-lv_gauge.c:228:9:lv_gauge_get_needle_count	8	static
-lv_gauge.c:239:9:lv_gauge_get_label_count	8	static
