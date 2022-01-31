@@ -53,8 +53,8 @@
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Device/ST/STM32H7xx/Include"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/PSM/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_MCMB/psm_inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_MCMB/btcp_inc}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1759477462" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -92,6 +92,7 @@
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.target_board.1367469214.1035371769" name="Board" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.target_board.1367469214"/>
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.defaults.560555946.1308579398" name="Defaults" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.defaults.560555946"/>
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.nanoprintffloat.827430014.1778144627" name="Use float with printf from newlib-nano (-u _printf_float)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.nanoprintffloat.827430014"/>
+							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform" isAbstract="false" osList="all" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform"/>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.865182206" name="MCU GCC Assembler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.1355419085">
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input.114196470" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input"/>
 							</tool>
@@ -137,8 +138,8 @@
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Device/ST/STM32H7xx/Include"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/PSM/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_MCMB/psm_inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_MCMB/btcp_inc}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1046985977" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -213,8 +214,10 @@
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Device/ST/STM32H7xx/Include"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/PSM/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/Shared_Resources/PSM/psm_inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_MCMB/psm_inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_MCMB/btcp_inc}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1038302060" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -251,6 +254,7 @@
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.floatabi.430715418.1101976461" name="Floating-point ABI" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.floatabi.430715418"/>
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.target_board.857835205.20157574" name="Board" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.target_board.857835205"/>
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.defaults.1642094967.1870821221" name="Defaults" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.defaults.1642094967"/>
+							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform" isAbstract="false" osList="all" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform"/>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.1289202259" name="MCU GCC Assembler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.669904771">
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input.2055575991" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input"/>
 							</tool>
