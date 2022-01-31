@@ -1,0 +1,8 @@
+lv_disp.c:42:12:lv_disp_get_scr_act	16	static
+lv_disp.c:57:6:lv_disp_load_scr	24	static
+lv_disp.c:71:12:lv_disp_get_layer_top	16	static
+lv_disp.c:88:12:lv_disp_get_layer_sys	16	static
+lv_disp.c:104:6:lv_disp_assign_screen	24	static
+lv_disp.c:124:13:lv_disp_get_refr_task	16	static
+lv_disp.c:140:10:lv_disp_get_inactive_time	24	static
+lv_disp.c:165:6:lv_disp_trig_activity	16	static

@@ -1,0 +1,8 @@
+lv_color.h:326:26:lv_color_mix	24	static
+lv_area.h:83:26:lv_area_get_width	16	static
+lv_draw_basic.c:72:6:lv_draw_px	72	static
+lv_draw_basic.c:123:6:lv_draw_fill	72	static
+lv_draw_basic.c:233:6:lv_draw_letter	152	static
+lv_draw_basic.c:386:6:lv_draw_map	112	static
+lv_draw_basic.c:567:13:sw_mem_blend	40	static
+lv_draw_basic.c:587:13:sw_color_fill	72	static

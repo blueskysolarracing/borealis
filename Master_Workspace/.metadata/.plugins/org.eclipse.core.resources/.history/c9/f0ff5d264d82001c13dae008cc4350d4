@@ -1,0 +1,3 @@
+bspi.c:67:13:spiTask	24	static
+bspi.c:48:16:B_spiStart	32	static
+bspi.c:86:1:HAL_SPI_TxRxCpltCallback	16	static

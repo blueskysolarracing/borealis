@@ -1,0 +1,5 @@
+lv_draw_triangle.c:46:6:lv_draw_triangle	40	static
+lv_draw_triangle.c:89:6:lv_draw_polygon	40	static
+lv_draw_triangle.c:112:6:tri_draw_flat	88	static
+lv_draw_triangle.c:223:6:tri_draw_tall	88	static
+lv_draw_triangle.c:333:13:point_swap	24	static

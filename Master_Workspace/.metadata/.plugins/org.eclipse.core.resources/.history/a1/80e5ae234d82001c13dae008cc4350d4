@@ -1,0 +1,17 @@
+lv_hal_disp.c:55:6:lv_disp_drv_init	16	static
+lv_hal_disp.c:101:6:lv_disp_buf_init	24	static
+lv_hal_disp.c:117:13:lv_disp_drv_register	24	static
+lv_hal_disp.c:163:6:lv_disp_drv_update	32	static
+lv_hal_disp.c:178:6:lv_disp_remove	24	static
+lv_hal_disp.c:203:6:lv_disp_set_default	16	static
+lv_hal_disp.c:212:13:lv_disp_get_default	4	static
+lv_hal_disp.c:222:12:lv_disp_get_hor_res	16	static
+lv_hal_disp.c:237:12:lv_disp_get_ver_res	16	static
+lv_hal_disp.c:252:6:lv_disp_get_antialiasing	16	static
+lv_hal_disp.c:268:31:lv_disp_flush_ready	16	static
+lv_hal_disp.c:285:13:lv_disp_get_next	16	static
+lv_hal_disp.c:298:17:lv_disp_get_buf	16	static
+lv_hal_disp.c:307:10:lv_disp_get_inv_buf_size	16	static
+lv_hal_disp.c:316:6:lv_disp_pop_from_inv_buf	16	static
+lv_hal_disp.c:330:6:lv_disp_is_double_buf	16	static
+lv_hal_disp.c:344:6:lv_disp_is_true_double_buf	24	static

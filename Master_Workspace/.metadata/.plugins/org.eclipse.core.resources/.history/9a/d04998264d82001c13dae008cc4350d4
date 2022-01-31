@@ -1,0 +1,9 @@
+lv_cb.c:223:13:lv_cb_design	24	static
+lv_cb.c:256:13:lv_bullet_design	24	static
+lv_cb.c:296:17:lv_cb_signal	24	static
+lv_cb.c:51:12:lv_cb_create	40	static
+lv_cb.c:127:6:lv_cb_set_text	16	static
+lv_cb.c:139:6:lv_cb_set_static_text	16	static
+lv_cb.c:151:6:lv_cb_set_style	24	static
+lv_cb.c:180:14:lv_cb_get_text	8	static
+lv_cb.c:192:20:lv_cb_get_style	8	static

@@ -1,0 +1,5 @@
+lv_draw.c:53:8:lv_draw_get_buf	16	static
+lv_draw.c:75:6:lv_draw_free_buf	8	static
+lv_draw.c:93:10:lv_draw_aa_get_opa	16	static
+lv_draw.c:143:6:lv_draw_aa_ver_seg	40	static
+lv_draw.c:169:6:lv_draw_aa_hor_seg	40	static

@@ -1,0 +1,10 @@
+lv_color.h:326:26:lv_color_mix	24	static
+lv_led.h:91:20:lv_led_set_style	24	static
+lv_led.c:53:12:lv_led_create	32	static
+lv_led.c:110:6:lv_led_set_bright	24	static
+lv_led.c:126:6:lv_led_on	16	static
+lv_led.c:135:6:lv_led_off	16	static
+lv_led.c:144:6:lv_led_toggle	24	static
+lv_led.c:162:9:lv_led_get_bright	24	static
+lv_led.c:182:13:lv_led_design	120	static
+lv_led.c:226:17:lv_led_signal	32	static

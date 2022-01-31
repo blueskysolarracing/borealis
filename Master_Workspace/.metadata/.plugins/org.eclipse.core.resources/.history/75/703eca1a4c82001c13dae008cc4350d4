@@ -1,0 +1,14 @@
+SSD1322.c:26:6:SSD_init	16	static
+SSD1322.c:131:6:SSD_init_hack	8	static
+SSD1322.c:147:6:SSD_writeRegion	32	static
+SSD1322.c:174:6:SSD_writeRegion_hack	40	static
+SSD1322.c:188:6:SSD_test	352	static
+SSD1322.c:357:6:my_rounder_cb	16	static
+SSD1322.c:364:6:my_disp_flush	56	static
+SSD1322.c:394:6:my_disp_flush_hack	56	static
+SSD1322.c:424:6:SSD_clearDisplay	24	static
+SSD1322.c:452:13:setCS	16	static
+SSD1322.c:456:13:setDC	16	static
+SSD1322.c:460:13:spiSendByte	16	static
+SSD1322.c:464:13:spiSendBuf	16	static
+SSD1322.c:469:6:HAL_SPI_TxCpltCallback	16	static

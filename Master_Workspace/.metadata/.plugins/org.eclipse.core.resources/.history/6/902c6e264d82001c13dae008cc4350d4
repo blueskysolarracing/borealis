@@ -1,0 +1,4 @@
+lv_draw_basic.c:72:6:lv_draw_px	48	static
+lv_draw_basic.c:123:6:lv_draw_fill	104	static
+lv_draw_basic.c:233:6:lv_draw_letter	176	static
+lv_draw_basic.c:386:6:lv_draw_map	136	static

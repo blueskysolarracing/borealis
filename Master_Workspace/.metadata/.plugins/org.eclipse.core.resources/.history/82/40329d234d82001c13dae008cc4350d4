@@ -1,0 +1,6 @@
+lv_draw_arc.c:54:6:lv_draw_arc	88	static
+lv_draw_arc.c:165:17:fast_atan2	40	static
+lv_draw_arc.c:241:13:ver_line	48	static
+lv_draw_arc.c:249:13:hor_line	48	static
+lv_draw_arc.c:257:13:deg_test_norm	16	static
+lv_draw_arc.c:265:13:deg_test_inv	16	static

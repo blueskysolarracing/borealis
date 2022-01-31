@@ -1,0 +1,3 @@
+bgpio.c:23:13:B_gpioSet	16	static
+bgpio.c:27:13:B_gpioReset	16	static
+bgpio.c:31:22:B_gpioRead	16	static
