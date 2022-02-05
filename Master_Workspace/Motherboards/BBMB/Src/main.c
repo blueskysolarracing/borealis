@@ -132,6 +132,12 @@ static void MX_CRC_Init(void);
 static void MX_FDCAN1_Init(void);
 void StartDefaultTask(void const * argument);
 
+
+/* USER CODE BEGIN PFP */
+static void highPowerTask(const void *pv);
+static void adcTask(const void *pv);
+static void busPwrSendTmr(TimerHandle_t xTimer);
+
 void my_MX_TIM1_Init(double period_master);
 void my_MX_TIM2_Init(double pulse_slave, double period_slave);
 void my_MX_TIM5_Init(double pulse);
@@ -153,11 +159,6 @@ void setup_motor(void);
 void rotate(int clockwise, int left_or_right);
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
-
-/* USER CODE BEGIN PFP */
-static void highPowerTask(const void *pv);
-static void adcTask(const void *pv);
-static void busPwrSendTmr(TimerHandle_t xTimer);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
