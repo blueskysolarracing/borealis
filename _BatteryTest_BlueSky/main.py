@@ -3,9 +3,9 @@ import DL3000 as DLwrapper
 import visa as pv
 import time
 
-def constantCharge(inBatteryObj, device):
+def constantTest(inBatteryObj, device):
 
-    targetVoltage = ((inBatteryObj.m_setting == 1)*inBatteryObj.voltageBound[0] + (inBatteryObj.m_setting == -1)*inBatteryObj.voltageBound[1])
+    targetVoltage = ((inBatteryObj.m_setting == 1)*inBatteryObj.voltageBound[1] + (inBatteryObj.m_setting == -1)*inBatteryObj.voltageBound[0])
     inputCurrent = inBatteryObj.m_inputCurrent[0]
 
     currVoltage = 0
@@ -13,6 +13,7 @@ def constantCharge(inBatteryObj, device):
 
     # save initial voltage without applying current (need to check if it is done like this)
     device.enable()
+    currVoltage = device.voltage()
     inBatteryObj.logMeasurement(0, currVoltage)
     device.disable()
     
@@ -42,7 +43,7 @@ def execute(inBatteryObj, device):
 
     if abs(inBatteryObj.m_setting) == 1:
 
-        constantCharge(inBatteryObj, device)
+        constantTest(inBatteryObj, device)
         return True
 
     print("Input setting {} to BatteryObj type is invalid... \n".format(inBatteryObj.m_setting))
@@ -55,7 +56,7 @@ if __name__ == '__main__':
     targetID = "USB0::6833::3601::DL3A192600119::0::INSTR"
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
-    testSetting = 1                                             # -1: constant discharge | 1: charge
+    testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: dynamic
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
     CRate = 0.5
 
