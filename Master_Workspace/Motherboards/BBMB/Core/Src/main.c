@@ -6,12 +6,13 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
+  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
+  * All rights reserved.</center></h2>
   *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
+  * This software component is licensed by ST under Ultimate Liberty license
+  * SLA0044, the "License"; You may not use this file except in compliance with
+  * the License. You may obtain a copy of the License at:
+  *                             www.st.com/SLA0044
   *
   ******************************************************************************
   */
@@ -22,7 +23,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "buart.h"
+#include "badc.h"
+#include "btcp.h"
+#include "h7Boot.h"
+#include "BSSR_CAN_H7.h"
+#include "TMC5160_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,6 +38,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -63,6 +70,8 @@ SPI_HandleTypeDef hspi4;
 SPI_HandleTypeDef hspi5;
 DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
+DMA_HandleTypeDef hdma_spi5_tx;
+DMA_HandleTypeDef hdma_spi5_rx;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
@@ -85,7 +94,14 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
-
+B_uartHandle_t* buart;
+B_adcHandle_t* badc;
+uint8_t foobar;
+B_tcpHandle_t* btcp;
+QueueHandle_t hpQ;
+SemaphoreHandle_t adcMutex;
+uint32_t adcSum;
+uint16_t adcCount;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -120,7 +136,28 @@ static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
+static void highPowerTask(const void *pv);
+static void adcTask(const void *pv);
+static void busPwrSendTmr(TimerHandle_t xTimer);
 
+void my_MX_TIM1_Init(double period_master);
+void my_MX_TIM2_Init(double pulse_slave, double period_slave);
+void my_MX_TIM5_Init(double pulse);
+
+void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_rate, double on_period);
+void turn_off_indicators(void);
+
+void turn_on_DRL(double pwm_duty_cycle);
+void turn_off_DRL(void);
+
+void turn_on_brake_lights(double pwm_duty_cycle);
+void turn_off_brake_lights(void);
+
+void turn_on_hazard_lights(double pwm_duty_cycle, double blink_rate);
+
+void turn_on_fault_indicator(void);
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -144,7 +181,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  arm_boot();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -173,7 +210,24 @@ int main(void)
   MX_FDCAN1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); //BSD
+  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET); //PRE
+  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_RESET); // GND
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET); // ON
 
+  adcMutex = xSemaphoreCreateMutex();
+  xSemaphoreGive(adcMutex);
+  buart = B_uartStart(&huart4);
+  btcp = B_tcpStart(BBMB_ID, &buart, buart, 1, &hcrc);
+  //badc = B_adcStart(&hadc1, 1);
+  //BSSR_CAN_TASK_INIT(&hfdcan1, &huart2, btcp);
+
+
+  xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
+  xTaskCreate(adcTask, "adcTask", 1024, badc, 3, NULL);
+  //xTimerStart(xTimerCreate("busPwrSendTimer", 50, pdTRUE, NULL, busPwrSendTmr), 0);
+
+  hpQ = xQueueCreate(10, sizeof(uint8_t));
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -190,6 +244,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+#ifdef DEFAULT_TASK
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -198,6 +253,7 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
+#endif
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
@@ -923,7 +979,7 @@ static void MX_SPI5_Init(void)
   hspi5.Instance = SPI5;
   hspi5.Init.Mode = SPI_MODE_MASTER;
   hspi5.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi5.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi5.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi5.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi5.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi5.Init.NSS = SPI_NSS_SOFT;
@@ -1495,6 +1551,7 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream0_IRQn interrupt configuration */
@@ -1521,6 +1578,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream7_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+  /* DMA2_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
 
 }
 
@@ -1786,13 +1849,428 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void highPowerTask(const void* pv){
+	uint8_t power_state;
+	for(;;){
+		xQueueReceive(hpQ, &power_state, portMAX_DELAY);
+		if(power_state){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET);
+			vTaskDelay(200);
+			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET);
+			vTaskDelay(500);
+			HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+			vTaskDelay(500);
+			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET); //PRE
+
+		} else{
+			HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+			vTaskDelay(200);
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_RESET);
+
+		}
+	}
+}
+void serialParse(B_tcpPacket_t *pkt){
+	switch(pkt->sender){
+	case 0x04:
+		  if(pkt->payload[4] == 0x01){
+			  xQueueSend(hpQ, pkt->payload+5, 0);
+		  } else if(pkt->payload[4] == 0x04){
+			  if(pkt->payload[5]){
+				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
+			  } else {
+				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
+			  }
+		  }
+	}
+}
+static void adcTask(const void *pv){
+//	B_adcHandle_t *badc = pv;
+//	uint16_t *buf;
+//	for(;;){
+//		xQueueReceive(badc->adcQ, &buf, portMAX_DELAY);
+//        if( xSemaphoreTake( adcMutex, portMAX_DELAY ) == pdTRUE ){
+//        	adcSum += *buf;
+//        	adcCount++;
+//        	xSemaphoreGive(adcMutex);
+//        }
+//        vPortFree(buf);
+//
+//	}
+  int16_t spi_in;
+  uint8_t *buf;
+  int64_t voltage;
+  double adc_current = 0;
+  int32_t bat_current;
+  uint8_t sending_data[2] = {0,0};
+  for(;;){
+	  buf = pvPortMalloc(sizeof(uint8_t)*20);
+	  HAL_ADC_Start(&hadc1);
+	  HAL_ADC_PollForConversion(&hadc1, 100);
+	  bat_current = HAL_ADC_GetValue(&hadc1);
+	  adc_current = (double) (HAL_ADC_GetValue(&hadc1) -31000);
+	  adc_current = adc_current * 3 * 1000;
+	  //bat_current = (uint32_t) adc_current;
+	  HAL_ADC_Stop(&hadc1);
+    //HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
+    //HAL_GPIO_WritePin(GPIOD, GPIO_PIN_6, GPIO_PIN_RESET);
+    osDelay(1);
+    HAL_SPI_TransmitReceive(&hspi3, sending_data, &spi_in, 1, 50);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+    //spi_in = ~spi_in;
+    voltage = ((int64_t)spi_in*5*1000*41);
+    voltage = voltage >> 15;
+    voltage = spi_in;
+    //sprintf(buf, "SPI IN:%d mv\r\n", voltage);
+    #ifdef SPI_DEBUG
+    HAL_UART_Transmit_IT(&huart2, buf, strlen(buf));
+    #endif
+
+
+    buf[0] = 0x00;
+    buf[1] = 0x00;
+    buf[2] = 0x00;
+    buf[3] = 0x01;
+    buf[4] = (bat_current >>24) & 255;
+    buf[5] = (bat_current >>16) & 255;
+    buf[6] = (bat_current >>8) & 255;
+    buf[7] = bat_current & 255;
+    buf[8] = (voltage >> 24) & 255;
+    buf[9] = (voltage >> 16) & 255;
+    buf[10] = (voltage >> 8) & 255;
+    buf[11] = voltage & 255;
+    buf[12] = 0x00;
+    buf[13] = 0x00;
+    buf[14] = 0x00;
+    buf[15] = 0x00;
+    buf[16] = 0x00;
+    buf[17] = 0x00;
+    buf[18] = 0x00;
+    buf[19] = 0x00;
+    B_tcpSend(btcp, buf, 20);
+    vPortFree(buf);
+    vTaskDelay(100);
+  }
+}
+static void busPwrSendTmr(TimerHandle_t xTimer){
+	uint32_t adc;
+	for(;;){
+        if( xSemaphoreTake( adcMutex, portMAX_DELAY ) == pdTRUE ){
+        	//adcSum += *buf;
+        	//adcCount++;
+        	xSemaphoreGive(adcMutex);
+        }
+	}
+}
+
+
+void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_rate, double on_period)
+{
+	double frequency = blink_rate / 60; // blink_rate given in bpm
+	double period_master = frequency * 16000; // based on internal clock, pre-scaler
+
+	double pulse_slave = on_period; // 160 ticks
+	double period_slave = on_period / pwm_duty_cycle; // 160 / 0.10 = 1600
+
+
+	my_MX_TIM2_Init(period_master);
+	my_MX_TIM1_Init(pulse_slave, period_slave);
+	setup_motor(); // setup retractable light motor
+
+
+	if (left_or_right == 0){
+		rotate(0, 0); // anti-clockwise: out for left
+		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+		HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1); // Channel 1 is left light
+	}
+
+	else{
+		rotate(1, 1); // clockwise: out for right
+		HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+		HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); // Channel 2 is right light
+	}
+}
+
+void turn_off_indicators(void){
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
+	rotate(0, 1); // clockwise: in for right
+	rotate(1, 0); // anti-clockwise: in for left
+}
+
+
+void turn_on_DRL(double pwm_duty_cycle)
+{
+	double pulse = pwm_duty_cycle * 1600;
+
+	rotate(0, 0); // anti-clockwise: out for left
+	rotate(1, 1); // clockwise: out for right
+
+	my_MX_TIM5_Init(pulse);
+	HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1); // Channel 1 is DRL
+}
+
+void turn_off_DRL(void){
+	HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_1);
+	rotate(0, 1); // clockwise: in for right
+	rotate(1, 0); // anti-clockwise: in for left
+}
+
+void turn_on_brake_lights(double pwm_duty_cycle)
+{
+	double pulse = pwm_duty_cycle * 1600;
+
+	my_MX_TIM5_Init(pulse);
+	HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2); // Channel 2 is brake lights
+}
+
+void turn_off_brake_lights(void){
+	HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_2);
+}
+
+void turn_on_hazard_lights(double pwm_duty_cycle, double blink_rate)
+{
+	double frequency = blink_rate / 60; // blink_rate given in bpm
+	double period_master = frequency * 16000; // based on internal clock, pre-scaler
+
+	double on_period = 160; // Constant for hazard lights
+	double pulse_slave = on_period; // 160
+	double period_slave = on_period / pwm_duty_cycle; // 160 * 10 = 1600
+
+	my_MX_TIM2_Init(period_master);
+	my_MX_TIM1_Init(pulse_slave, period_slave);
+
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2); // Both left and right lights
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+}
+
+void turn_on_fault_indicator(void)
+{
+	// default initialization is okay
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+}
+
+void turn_off_fault_indicator(void)
+{
+	// default initialization is okay
+	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+}
+
+void my_MX_TIM1_Init(double period_master)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 1000;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = period_master; // Input by user
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC1REF;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 6750;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.BreakFilter = 0;
+  sBreakDeadTimeConfig.Break2State = TIM_BREAK2_DISABLE;
+  sBreakDeadTimeConfig.Break2Polarity = TIM_BREAK2POLARITY_HIGH;
+  sBreakDeadTimeConfig.Break2Filter = 0;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
+  HAL_TIM_MspPostInit(&htim1);
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+void my_MX_TIM2_Init(double pulse_slave, double period_slave)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = period_slave;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_GATED;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
+  if (HAL_TIM_SlaveConfigSynchro(&htim2, &sSlaveConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = pulse_slave;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
+
+}
+
+/**
+  * @brief TIM5 Initialization Function
+  * @param None
+  * @retval None
+  */
+
+
+void my_MX_TIM5_Init(double pulse)
+{
+
+  /* USER CODE BEGIN TIM5_Init 0 */
+
+  /* USER CODE END TIM5_Init 0 */
+
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM5_Init 1 */
+
+  /* USER CODE END TIM5_Init 1 */
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 0;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 1600;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_DISABLE;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR1;
+  if (HAL_TIM_SlaveConfigSynchro(&htim5, &sSlaveConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = pulse;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM5_Init 2 */
+
+  /* USER CODE END TIM5_Init 2 */
+  HAL_TIM_MspPostInit(&htim5);
+
+}
+
+
+// interrupt callback function for fault indicator
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == GPIO_PIN_4){
+	  turn_on_fault_indicator();
+  }
+
+}
+
 
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
+  * @param  argument: Not used 
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
@@ -1836,10 +2314,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -1855,7 +2330,7 @@ void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

@@ -1,18 +1,19 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file         stm32h7xx_hal_msp.c
-  * @brief        This file provides code for the MSP Initialization
-  *               and de-Initialization codes.
+  * File Name          : stm32h7xx_hal_msp.c
+  * Description        : This file provides code for the MSP Initialization 
+  *                      and de-Initialization codes.
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
+  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
+  * All rights reserved.</center></h2>
   *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
+  * This software component is licensed by ST under Ultimate Liberty license
+  * SLA0044, the "License"; You may not use this file except in compliance with
+  * the License. You may obtain a copy of the License at:
+  *                             www.st.com/SLA0044
   *
   ******************************************************************************
   */
@@ -28,6 +29,10 @@ extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_spi2_rx;
 
 extern DMA_HandleTypeDef hdma_spi2_tx;
+
+extern DMA_HandleTypeDef hdma_spi5_tx;
+
+extern DMA_HandleTypeDef hdma_spi5_rx;
 
 extern DMA_HandleTypeDef hdma_uart4_tx;
 
@@ -46,7 +51,7 @@ extern DMA_HandleTypeDef hdma_usart3_rx;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN Define */
-
+ 
 /* USER CODE END Define */
 
 /* Private macro -------------------------------------------------------------*/
@@ -956,6 +961,46 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     GPIO_InitStruct.Alternate = GPIO_AF5_SPI5;
     HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
 
+    /* SPI5 DMA Init */
+    /* SPI5_TX Init */
+    hdma_spi5_tx.Instance = DMA2_Stream0;
+    hdma_spi5_tx.Init.Request = DMA_REQUEST_SPI5_TX;
+    hdma_spi5_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_spi5_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_spi5_tx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_spi5_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_spi5_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_spi5_tx.Init.Mode = DMA_NORMAL;
+    hdma_spi5_tx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_spi5_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_spi5_tx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(hspi,hdmatx,hdma_spi5_tx);
+
+    /* SPI5_RX Init */
+    hdma_spi5_rx.Instance = DMA2_Stream1;
+    hdma_spi5_rx.Init.Request = DMA_REQUEST_SPI5_RX;
+    hdma_spi5_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_spi5_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_spi5_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_spi5_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_spi5_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_spi5_rx.Init.Mode = DMA_NORMAL;
+    hdma_spi5_rx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_spi5_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_spi5_rx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(hspi,hdmarx,hdma_spi5_rx);
+
+    /* SPI5 interrupt Init */
+    HAL_NVIC_SetPriority(SPI5_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(SPI5_IRQn);
   /* USER CODE BEGIN SPI5_MspInit 1 */
 
   /* USER CODE END SPI5_MspInit 1 */
@@ -1076,6 +1121,12 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
 
     HAL_GPIO_DeInit(GPIOK, GPIO_PIN_0|GPIO_PIN_1);
 
+    /* SPI5 DMA DeInit */
+    HAL_DMA_DeInit(hspi->hdmatx);
+    HAL_DMA_DeInit(hspi->hdmarx);
+
+    /* SPI5 interrupt DeInit */
+    HAL_NVIC_DisableIRQ(SPI5_IRQn);
   /* USER CODE BEGIN SPI5_MspDeInit 1 */
 
   /* USER CODE END SPI5_MspDeInit 1 */
