@@ -9,8 +9,6 @@ def constantCharge(inBatteryObj, device):
     inputCurrent = inBatteryObj.m_inputCurrent[0]
 
     currVoltage = 0
-
-    startTime = time.time()
     totalTime = 0
 
     # save initial voltage without applying current (need to check if it is done like this)
@@ -21,6 +19,8 @@ def constantCharge(inBatteryObj, device):
     while (True):
 
         device.set_cc_current(inputCurrent)
+            
+        prevTime = time.time()
         device.enable()
 
         time.sleep(0.85)
@@ -28,7 +28,7 @@ def constantCharge(inBatteryObj, device):
         currVoltage = device.voltage()
         device.disable()
 
-        timeDelta = startTime - time.time()
+        timeDelta = time.time() - prevTime
         totalTime += timeDelta
 
         inBatteryObj.logMeasurement(timeDelta, currVoltage)
