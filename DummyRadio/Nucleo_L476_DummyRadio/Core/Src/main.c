@@ -204,8 +204,7 @@ void Bus_Metrics_Generator(uint8_t* p){
 void MC2_State_Generator(uint8_t* p){
     *p = 0x00;
     insertRandomValue(p, 1, 1, 0, 30);
-    *(p+2) = 0xff * getRandomValue(0,1);
-    *(p+3) = 0x00;
+    insertRandomValue(p, 2, 2, 0, 255);
     *(p+4) = 0x00;
     *(p+5) = 0x00;
     *(p+6) = 0x00;
