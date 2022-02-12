@@ -19,7 +19,7 @@ class BatteryObj:
         if abs(self.m_setting) == 1:
             
             # set inputCurrent
-            self.m_inputCurrent = [self.m_setting*self.m_totalCapacity*CRate/1000]
+            self.m_inputCurrent = [self.m_totalCapacity*CRate/1000]
 
         else:
 

@@ -1,6 +1,6 @@
 import ClassBattery as Battery
 import DL3000 as DLwrapper
-import visa as pv
+import pyvisa as pv
 import time
 
 def constantTest(inBatteryObj, device):
@@ -56,12 +56,12 @@ if __name__ == '__main__':
     targetID = "USB0::6833::3601::DL3A192600119::0::INSTR"
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
-    testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: dynamic
+    testSetting = -1                                             # -1: constant discharge | 1: constant charge | 0: dynamic
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
     CRate = 0.5
 
     # initialize BatteryObject
-    batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting)
+    batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds)
     batteryObj.setupCurrentProfile(CRate)
 
     # initialize e-load
