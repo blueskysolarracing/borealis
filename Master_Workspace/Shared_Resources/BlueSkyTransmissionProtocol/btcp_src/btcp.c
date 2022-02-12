@@ -73,70 +73,90 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
   * @param  btcp : a pointer to B_tcpHandle_t
 			msg: an array of messages you want to transmit
 			length: the length of the array of messages
+			senderAddress: the address of the sender
   * @note	msg array can be up to MAX_PACKET_SIZE (256) bytes long if it does not contain values that must be escaped. 
 			If it contains values that need to be escaped, the msg array can be up to (MAX_PACKET_SIZE - number_of_values_to_be_escaped) bytes long
 
   * @retval B_tcpHandle_t*: pointer to a B_tcpHandle_t struct which stores uart, task handles and other transmission information 
   */
-void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
+void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length, uint8_t senderAddress){
 	
     uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8)); 
-	//Not sure why we don't do sizeof(uint8_t)*(MAX_PACKET_SIZE+8) * 2 just in case all characters need to be escaped 
-    
-	buf[0] = BSSR_SERIAL_START; //equal to 0xa5 (165)
+
+    //buf without escape character to generate crc
+	buf[0] = BSSR_SERIAL_START;
     buf[1] = length;
-    buf[2] = btcp->senderID;
+    buf[2] = senderAddress;
     buf[3] = btcp->tcpSeqNum;
-    memcpy(buf+4, msg, length); // Copies message into buffer
-	
-    // Note the crc_result takes the One's complement of HAL_CRC_Calculate. This is done using the "~" operator
+    memcpy(buf+4, msg, length);
     uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
-    uint16_t buf_pos = 4;
+
+    //buf with escape character
+    uint16_t buf_pos = 0;
 	
+    buf[buf_pos] = BSSR_SERIAL_START;
+    buf_pos++;
 	
-	
-	// Note: the following if statements are to check whether some values need to escaped. If so, an escape character will be placed before the value to be escaped.
-	// A value needs to be escaped if it is equal to BSSR_SERIAL_START (165) or BSSR_SERIAL_ESCAPE (90)
-	
-	// If length + 4 needs to be escaped, will store length + 4 in the buffer and insert BSSR_SERIAL_ESCAPE before it in the buffer
-    if((length + 4) == BSSR_SERIAL_START || (length + 4) == BSSR_SERIAL_ESCAPE){
-        buf_pos++;
-        buf[3] = length + 4;   //either serial start or escape
-        buf[2] = BSSR_SERIAL_ESCAPE; // equal to 0x5a (90)
-		// If true, buf_pos is 5
+    //check if length needs to be escaped
+	if(length == BSSR_SERIAL_START || length == BSSR_SERIAL_ESCAPE){
+    	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    	buf_pos++;
+    	buf[buf_pos] = length;
+    	buf_pos++;
+    } else{
+    	buf[buf_pos] = length;
+    	buf_pos++;
     }
 	
-	// Checks if tcpSeqNum needs to be escaped, and if so,inserts BSSR_SERIAL_ESCAPE before it in the buffer
+    buf[buf_pos] = senderAddress;
+    buf_pos++;
+
+    //check if sequence number needs to be escaped
     if(btcp->tcpSeqNum == BSSR_SERIAL_START || btcp->tcpSeqNum == BSSR_SERIAL_ESCAPE){
-		
-        buf[buf_pos -1] = BSSR_SERIAL_ESCAPE;  //either buf[3] or buf[4] is assigned escape
-        buf_pos++;
+    	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    	buf_pos++;
+    	buf[buf_pos] = btcp->tcpSeqNum;
+    	buf_pos++;
+    } else{
+    	buf[buf_pos] = btcp->tcpSeqNum;
+    	buf_pos++;
     }
-    buf[buf_pos -1] = btcp->tcpSeqNum; // buf_pos-1 could be 3, 4, 5
     btcp->tcpSeqNum++;
-    // at this point, buf_pos could be 4,5,6
-	
-	// Checks if msg[i] needs to be escaped, and if so, inserts BSSR_SERIAL_ESCAPE before it in the buffer
-    for(int i = 0; i < length; i++){
-        if(msg[i] == BSSR_SERIAL_ESCAPE || msg[i] == BSSR_SERIAL_START){ //if 90 or 165, escape
-            buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-            buf_pos++;
-        }
-        buf[buf_pos] = msg[i];
-        buf_pos++;
+
+    //check if each data needs to be escaped
+    for(int i=0; i<length; i++){
+    	if(msg[i] == BSSR_SERIAL_ESCAPE || msg[i] == BSSR_SERIAL_START){
+    		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    		buf_pos++;
+    		buf[buf_pos] = msg[i];
+    		buf_pos++;
+    	} else{
+    		buf[buf_pos] = msg[i];
+    		buf_pos++;
+    	}
     }
-	
-	// Computes, stores, and checks if each crc value needs to be escaped, and if so, inserts BSSR_SERIAL_ESCAPE before it. 
-    for(int i = 0; i < 4; i++){
-        buf[buf_pos] = (crc_result>>(8*(3-i))) &255;	// Don't understand this part. Not sure why bitwise right shift by so many bits would make sense. Wouldn't result be 0?
-        // It seems like only when i is 3, would the buf[buf_pos] be a value that isn't zero
-		if(buf[buf_pos] == BSSR_SERIAL_ESCAPE || buf[buf_pos] == BSSR_SERIAL_START){
-            buf[buf_pos+1] = buf[buf_pos];
-            buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-            buf_pos++;
-        }
-        buf_pos++;
+
+	//checks if each crc value needs to be escaped
+    for(int i=0; i<4; i++){
+    	uint8_t crc = (crc_result>>(8*(3-i))) & 255;
+    	if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
+    		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    		buf_pos++;
+    		buf[buf_pos] = crc;
+    		buf_pos++;
+    	} else{
+    		buf[buf_pos] = crc;
+    		buf_pos++;
+    	}
     }
+
+    if(buf_pos%4 != 0) {
+    	int paddingNum = 4 - buf_pos % 4;
+    	for (int i = paddingNum; i > 0; i--) {
+    	   buf[buf_pos] = 0x00;
+    	   buf_pos++;
+    	}
+   }
 	
 	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array 
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
