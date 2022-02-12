@@ -314,7 +314,15 @@ void Heartbeat_Generator(uint8_t* p){
 }
 
 void dummySend(uint8_t payloadLength, uint8_t senderAddress, uint8_t* seqNum, uint8_t* payload){
+
 	uint8_t buf[HEADER_LENGTH + MAX_PACKET_SIZE + CRC_LENGTH];
+
+	buf[0] = BSSR_SERIAL_START;
+	buf[1] = payloadLength;
+	buf[2] = senderAddress;
+	buf[3] = seqNum;
+	memcpy(buf+4, payload, payloadLength);
+	uint32_t crc_result = ~HAL_CRC_Calculate(&hcrc, (uint32_t*)buf, payloadLength+4);
 
 	uint16_t buf_pos = 0;
 
@@ -357,7 +365,6 @@ void dummySend(uint8_t payloadLength, uint8_t senderAddress, uint8_t* seqNum, ui
 		}
 	}
 
-	uint32_t crc_result = ~HAL_CRC_Calculate(&hcrc, (uint32_t*)buf, (uint32_t)buf_pos);
 	for(int i=0; i<4; i++){
 		uint8_t crc = (crc_result>>(8*(3-i))) & 255;
 		if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
@@ -724,7 +731,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 2000000;
+  huart2.Init.BaudRate = 500000;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
