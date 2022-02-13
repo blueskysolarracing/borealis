@@ -4,19 +4,25 @@ def fixLine(lineToChange)->str:
     thisFilePath = thisFilePath.replace("\\", "/")
 
     index = thisFilePath.rfind("/gen11_blueskyelec") + len("/gen11_blueskyelec")
+    if index == -1:
+        print("Error: Please make sure your top repository is gen11_blueskyelec")
+        quit()
 
     topRepoPath = thisFilePath[0:index].replace("c:/", "C:/")
     
     beginIdx = lineToChange.find("<location>") + len("<location>")
+    if beginIdx == -1:
+        print("Error: <location> not found in file")
+        quit()
     beginStr = lineToChange[0:beginIdx]
-    print(lineToChange[0:beginIdx])
 
     replaceToIdx = lineToChange.find("/Master_Workspace")
+    if replaceToIdx == -1:
+        print("Error: /Master_Workspace not found in file")
+        quit()
     endStr = lineToChange[replaceToIdx:]
-    print(endStr)
 
     newLine = beginStr + topRepoPath + endStr
-    print(newLine)
     return newLine
 
 def main():
