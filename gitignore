@@ -1,5 +1,8 @@
 # workspace data
 .metadata/
+*.xml
+*.bin
+*makefile
 
 # Prerequisites
 *.d
@@ -9,6 +12,8 @@
 *.ko
 *.obj
 *.elf
+*.list
+*.mk
 
 # Linker output
 *.ilk
@@ -53,6 +58,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+subdir.mk 
 
 # cscope with Vim
 cscope.*
