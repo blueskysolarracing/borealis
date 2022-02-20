@@ -91,6 +91,7 @@ void serialParse(B_tcpPacket_t *pkt){
 					}else if (pkt->data[0] == MCMB_BUS_METRICS_ID) {
 							// Process Bus Metrics
 					}
+					break;
 			case BBMB_ID: // If the packed comes from BBMB
 					// Same as before, use if statements to check for Data IDs
 	}
