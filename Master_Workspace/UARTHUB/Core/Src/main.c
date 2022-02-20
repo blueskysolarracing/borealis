@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2022 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under Ultimate Liberty license
@@ -20,16 +20,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdio.h"
-#include "h7Boot.h"
-#include "buart.h"
-#include "btcp.h"
-#include "psm.h"
-#include "protocol_ids.h"
-#include "math.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,12 +34,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MOTOR 16
-#define FWD_REV 8
-#define VFM_UP 4
-#define VFM_DOWN 2
-#define VFM_RESET 1
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,7 +57,6 @@ RTC_HandleTypeDef hrtc;
 SD_HandleTypeDef hsd1;
 
 SPI_HandleTypeDef hspi2;
-SPI_HandleTypeDef hspi3;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
@@ -77,14 +65,20 @@ TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim12;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart7;
 UART_HandleTypeDef huart8;
 UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_uart4_tx;
 DMA_HandleTypeDef hdma_uart4_rx;
+DMA_HandleTypeDef hdma_uart7_rx;
+DMA_HandleTypeDef hdma_uart7_tx;
 DMA_HandleTypeDef hdma_uart8_rx;
 DMA_HandleTypeDef hdma_uart8_tx;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
+DMA_HandleTypeDef hdma_usart3_rx;
+DMA_HandleTypeDef hdma_usart3_tx;
 
 WWDG_HandleTypeDef hwwdg1;
 
@@ -92,54 +86,8 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
-B_uartHandle_t *buart;
-B_uartHandle_t *radioBuart;
-B_tcpHandle_t *btcp;
-B_tcpHandle_t *radioBtcp;
-uint16_t accValue = 0;
-uint16_t regenValue = 0;
-uint8_t motorState = 0;
-uint8_t vfmUpState = 0;
-uint8_t fwdRevState = 0;
-uint8_t vfmDownState = 0;
-uint8_t vfmResetState = 0;
-long lastDcmbPacket = 0;
-uint8_t temperature = 0;
-
-// Struct for reading PWM input (in this case: speed pulse from motor)
-typedef struct {
-	uint32_t icValue1;
-	uint32_t icValue2;
-	uint32_t diffCapture;
-	uint16_t captureIndex;
-	float frequency;
-	uint32_t lastInterrupt;
-} PWM_INPUT_CAPTURE;
-PWM_INPUT_CAPTURE pwm_in = {0, 0, 1, 0, 0.0, 0};
-// diffCapture must not be set to zero as it needs to be used as division and dividing by zero causes undefined behaviour
-
-// Initialize psmPorts
-PSM_Ports psmPorts = {
-		.CSPort0 = GPIOI,
-		.CSPin0 = GPIO_PIN_0,
-
-		.CSPort1 = GPIOJ,
-		.CSPin1 = GPIO_PIN_13,
-
-		.CSPort2 = GPIOJ,
-		.CSPin2 = GPIO_PIN_14,
-
-		.CSPort3 = GPIOJ,
-		.CSPin3 = GPIO_PIN_15,
-
-		.LVDSPort = GPIOJ,
-		.LVDSPin = GPIO_PIN_12,
-
-		.DreadyPort = GPIOK,
-		.DreadyPin = GPIO_PIN_3
-};
-
-
+B_uartHandle_t buarts[5];
+UART_HandleTypeDef* huarts[5] = {&huart2, &huart4, &huart3, &huart7, &huart8};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -163,38 +111,15 @@ static void MX_HRTIM_Init(void);
 static void MX_TIM12_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_CRC_Init(void);
-static void MX_SPI3_Init(void);
 static void MX_UART8_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_USART3_UART_Init(void);
+static void MX_UART7_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-/* =================== Software Timers ========================*/
-static void motorTmr(TimerHandle_t xTimer);
-static void spdTmr(TimerHandle_t xTimer);
-static void tempSenseTmr(TimerHandle_t xTimer);
-/* ============================================================*/
-
-//Tasks for temperature reading and PSM
-void tempSenseTaskHandler(void* parameters);
-void PSMTaskHandler(void* parameters);
-
-// function which writes to the MCP4146 potentiometer on the MC^2
-void MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr);
-
-// Reads ADC by Polling. Note: the polling occurs in a separate thread to prevent blocking CPU.
-uint16_t ADC_poll_read(ADC_HandleTypeDef *hadcPtr);
-
-/*========== Helper functions for ADC and temperature reading ========== */
-float ADCMapToVolt(float ADCValue);
-float convertToTemp(float Vadc);
-float getTemperature(ADC_HandleTypeDef *hadcPtr);
-/*================================================================*/
-
-
-
-
+void uartRxParser(void* pv);
 
 /* USER CODE END PFP */
 
@@ -219,7 +144,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  arm_boot();
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -242,59 +167,12 @@ int main(void)
   MX_TIM12_Init();
   MX_TIM1_Init();
   MX_CRC_Init();
-  MX_SPI3_Init();
   MX_UART8_Init();
   MX_ADC1_Init();
   MX_SPI2_Init();
+  MX_USART3_UART_Init();
+  MX_UART7_Init();
   /* USER CODE BEGIN 2 */
-  //uint8_t SPI_START_VAL = 0b00010001;
-  //radioBuart = B_uartStart(&huart8);
-  //B_uartHandle_t * sendBuarts[2] = {buart, radioBuart};
-
-
-
-  buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
-  btcp = B_tcpStart(MCMB_ID, &buart, buart, 2, &hcrc);
-
-
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
-  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // ECO
-  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2, GPIO_PIN_SET); // CS0
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET); // CS1
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); // VFM RESET
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET); // MT3
-  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET); // MT2
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET); // MT1
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
-
-
-  // Note both regenValue and accValue are zero at the moment
-
-  //Gen11 regen write below:
-  MCP4161_Pot_Write(regenValue, GPIOG, GPIO_PIN_2, &hspi3);
-
-  //Gen11 accel write below:
-  MCP4161_Pot_Write(accValue, GPIOK, GPIO_PIN_2, &hspi3);
-
-  //Initialize PSM
-  PSM_Init(&psmPorts);
-
-
-  xTimerStart(xTimerCreate("motorStateTimer", 10, pdTRUE, NULL, motorTmr), 0);
-  xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
-  xTimerStart(xTimerCreate("tempSenseTimer", 1000, pdTRUE, NULL, tempSenseTmr), 0);
-
-
-  //HAL_TIM_Base_Start(&htim2); //not sure what this is for
-  //MX_TIM5_Init(); //CubeMX fails to generate this line, thus call manually
-  //HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_3);
-  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
-
-  //HAL_GPIO_WritePin(GPIOH, GPIO_PIN_12, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
@@ -312,7 +190,6 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-#ifdef DEFAULT_TASK
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -321,31 +198,22 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-#endif
   /* add threads, ... */
-
   BaseType_t status;
-  TaskHandle_t tempSense_handle;
+  status = xTaskCreate(uartRxParser, "UartRxParser1", 1024, (void*)0, 4, NULL);
+  configASSERT(status == pdPASS); // Error checking
 
-	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
-				"tempSenseTask", /* Text name for the task. */
-				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
-				"none", /* Parameter passed into the task. */
-				4, /* Priority at which the task is created. */ //Note must be 4 since btcp is 4
-				&tempSense_handle /* Used to pass out the created task's handle. */
-							  );
-	configASSERT(status == pdPASS); // Error checking
+  status = xTaskCreate(uartRxParser, "UartRxParser2", 1024, (void*)1, 4, NULL);
+  configASSERT(status == pdPASS); // Error checking
 
-	TaskHandle_t PSM_handle;
+  status = xTaskCreate(uartRxParser, "UartRxParser3", 1024, (void*)2, 4, NULL);
+  configASSERT(status == pdPASS); // Error checking
 
-	status = xTaskCreate(PSMTaskHandler,  /* Function that implements the task. */
-				"PSMTask", /* Text name for the task. */
-				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
-				"none", /* Parameter passed into the task. */
-				4, /* Priority at which the task is created. */ //Note must be 4 since btcp is 4
-				&PSM_handle /* Used to pass out the created task's handle. */
-							);
+  status = xTaskCreate(uartRxParser, "UartRxParser4", 1024, (void*)3, 4, NULL);
+  configASSERT(status == pdPASS); // Error checking
 
+  status = xTaskCreate(uartRxParser, "UartRxParser5", 1024, (void*)4, 4, NULL);
+  configASSERT(status == pdPASS); // Error checking
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -838,54 +706,6 @@ static void MX_SPI2_Init(void)
 }
 
 /**
-  * @brief SPI3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI3_Init(void)
-{
-
-  /* USER CODE BEGIN SPI3_Init 0 */
-
-  /* USER CODE END SPI3_Init 0 */
-
-  /* USER CODE BEGIN SPI3_Init 1 */
-
-  /* USER CODE END SPI3_Init 1 */
-  /* SPI3 parameter configuration*/
-  hspi3.Instance = SPI3;
-  hspi3.Init.Mode = SPI_MODE_MASTER;
-  hspi3.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
-  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
-  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi3.Init.CRCPolynomial = 0x0;
-  hspi3.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi3.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi3.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi3.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi3.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi3.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi3.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi3.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi3.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi3.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI3_Init 2 */
-
-  /* USER CODE END SPI3_Init 2 */
-
-}
-
-/**
   * @brief TIM1 Initialization Function
   * @param None
   * @retval None
@@ -1048,12 +868,14 @@ static void MX_TIM5_Init(void)
 {
 
   /* USER CODE BEGIN TIM5_Init 0 */
+
   /* USER CODE END TIM5_Init 0 */
 
   TIM_Encoder_InitTypeDef sConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
 
   /* USER CODE BEGIN TIM5_Init 1 */
+
   /* USER CODE END TIM5_Init 1 */
   htim5.Instance = TIM5;
   htim5.Init.Prescaler = 0;
@@ -1081,6 +903,7 @@ static void MX_TIM5_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM5_Init 2 */
+
   /* USER CODE END TIM5_Init 2 */
 
 }
@@ -1190,6 +1013,54 @@ static void MX_UART4_Init(void)
 }
 
 /**
+  * @brief UART7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART7_Init(void)
+{
+
+  /* USER CODE BEGIN UART7_Init 0 */
+
+  /* USER CODE END UART7_Init 0 */
+
+  /* USER CODE BEGIN UART7_Init 1 */
+
+  /* USER CODE END UART7_Init 1 */
+  huart7.Instance = UART7;
+  huart7.Init.BaudRate = 115200;
+  huart7.Init.WordLength = UART_WORDLENGTH_8B;
+  huart7.Init.StopBits = UART_STOPBITS_1;
+  huart7.Init.Parity = UART_PARITY_NONE;
+  huart7.Init.Mode = UART_MODE_TX_RX;
+  huart7.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart7.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart7.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart7.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart7.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart7, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart7, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART7_Init 2 */
+
+  /* USER CODE END UART7_Init 2 */
+
+}
+
+/**
   * @brief UART8 Initialization Function
   * @param None
   * @retval None
@@ -1286,6 +1157,54 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief USB_OTG_HS Initialization Function
   * @param None
   * @retval None
@@ -1344,6 +1263,7 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Stream0_IRQn interrupt configuration */
@@ -1364,6 +1284,18 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+  /* DMA1_Stream6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+  /* DMA1_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+  /* DMA2_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
 
 }
 
@@ -1545,14 +1477,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PD9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
   /*Configure GPIO pin : GPIO_IN10_Pin */
   GPIO_InitStruct.Pin = GPIO_IN10_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
@@ -1621,6 +1545,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PD6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI3;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PD7 */
   GPIO_InitStruct.Pin = GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -1677,329 +1609,18 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-/*
- * Function to set the wiper position of the MCP4146 potentiometer on the MC^2.
- * Pass in a wiperValue (range from 0 - 256) to set the wiper position of the potentiometer (which ranges from 0 - 256).
- * Must also pass in the appropriate GPIO port and pins for chip select and the address of SPI handle.
- *
- * Note: In cubeMx make sure SPI CLK is below 10Mhz (SPI CLK =
- * 		And, configure SPI to send MSB first, and send 8 bits at a time
-*/
-void MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr) {
-
-	uint8_t ninethDataBit = (wiperValue >> 8) & 0b1;
-	uint8_t potAddress = 0b0000;
-	uint8_t writeCommand = 0b00;
-
-	uint8_t commandByte  = (potAddress << 4) | (writeCommand << 2) | ninethDataBit;
-	uint8_t dataByte = wiperValue & 0xFF;
-
-	uint8_t fullCommand[2] = {commandByte, dataByte};
-
-	// Transmit using SPI
-	HAL_GPIO_WritePin(CSPort, CSPin, GPIO_PIN_RESET);
-	HAL_SPI_Transmit(hspiPtr, fullCommand, sizeof(fullCommand), 100);
-	HAL_GPIO_WritePin(CSPort, CSPin, GPIO_PIN_SET);
-}
-
-// Get ADC value by polling
-uint16_t ADC_poll_read(ADC_HandleTypeDef *hadcPtr) {
-
-	// enable ADC on appropriate channel
-	HAL_ADC_Start(hadcPtr);
-	// Poll ADC  & TimeOut = 1mSec
-	HAL_ADC_PollForConversion(hadcPtr, 1);
-	// Get ADC value
-	uint16_t adcVal = HAL_ADC_GetValue(hadcPtr);
-
-	// turn off ADC
-	HAL_ADC_Stop(hadcPtr);
-
-	return adcVal;
-}
-
-// This function maps the ADC value to the actual ADC input voltage
-float ADCMapToVolt(float ADCValue) {
-	float ADCResolution = 4096; //ADC resolution should be 2^12 = 4096
-	float ADCRefVoltage = 3.3;
-	return ADCValue / ADCResolution * ADCRefVoltage;
-}
-
-//Converts ADC input voltage to its corresponding temperature using LMT86's data-sheet equation
-float convertToTemp(float Vadc) {
-	// change Voltage unit from Volts to miliVolts
-	float Vadc_mV = Vadc *1000;
-
-	// use equation from PG 9 of the LMT86 temperature sensor data-sheet
-	float temperature = (10.888 - sqrtf(10.888*10.888 + 4*0.00347*(1777.3-Vadc_mV)))/(2*(-0.00347)) + 30;
-
-	return temperature;
-}
-
-//Function to call to get the temperature measured by the tempSensor
-float getTemperature(ADC_HandleTypeDef *hadcPtr) {
-	float Vadc = ADCMapToVolt(ADC_poll_read(hadcPtr));
-	float temperature = convertToTemp(Vadc);
-	return temperature;
-}
-
-
-static void motorTmr(TimerHandle_t xTimer){
-	static uint8_t currentMotorState = 0;
-	static uint8_t currentFwdRevState = 0;
-	static uint16_t currentAccValue = 1;
-	static uint16_t currentRegenValue = 1;
-	static uint8_t currentVfmUpState = 0;
-	static uint8_t currentVfmDownState = 0;
-	static uint8_t vfm_up_count = 0;
-	static uint8_t vfm_down_count = 0;
-	static uint8_t vfmCount = 0;
-	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //what does this mean? Stops accel if serialParse stops being called?
-		accValue = 0; // Just send here instead;
-	}
-	if(currentMotorState != motorState){
-		if(motorState){
-			HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-			currentMotorState = 1;
-		} else {
-			HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
-			currentMotorState = 0;
-		}
-	}
-
-	if(currentFwdRevState != fwdRevState){
-		if(fwdRevState){
-			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-			currentFwdRevState = 1;
-		} else {
-			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-			currentFwdRevState = 0;
-		}
-	}
-
-	// Local accValue and regenValue are necessary because we do not want the variables be changed by another thread in the following code
-	uint16_t localAccValue = accValue;
-	uint16_t localRegenValue = regenValue;
-	// Since the max you can send to potentiometer is 256 but the max value from DCMB is 255, we will just set 255 to 256 for simplicity
-	if (accValue == 255) {
-		localAccValue = 256;
-	}
-	if (regenValue == 255) {
-		localRegenValue = 256;
-	}
-
-	// The follow if statement is to prevent sending Accel and Regen signals to the motor at the same time
-	// Accel is prioritized at the moment (if both signals received from DCMB are not zero, we will force Regen to be zero)
-	if (localAccValue != 0 && localRegenValue != 0) {
-		localRegenValue = 0;
-	}
-
-
-	if(currentAccValue != localAccValue){
-
-		MCP4161_Pot_Write(localAccValue, GPIOK, GPIO_PIN_2, &hspi3);
-		currentAccValue = localAccValue;
-	}
-
-	if(currentRegenValue != localRegenValue){
-
-		MCP4161_Pot_Write(localRegenValue, GPIOG, GPIO_PIN_2, &hspi3);
-		currentRegenValue = localRegenValue;
-
-	}
-
-	// The VFMUpState comes from the DCMB
-	// Normally it is zero
-	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
-	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
-	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-	if(currentVfmUpState != vfmUpState){
-		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount < 8){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-			vfm_up_count++;
-			currentVfmUpState = 1;
-		} else if (vfm_up_count < 20){
-			vfm_up_count++;
-		} else if(vfm_up_count == 20){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
-				vfm_up_count++;
-		} else if(vfm_up_count < 40){
-			vfm_up_count++;
-		} else if(vfm_up_count == 40){
-			vfm_up_count = 0;
-			currentVfmUpState = 0;
-			vfmCount++;
-		}
-	}
-
-	if(currentVfmDownState != vfmDownState){
-		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount > 0){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-			vfm_down_count++;
-			currentVfmDownState = 1;
-		} else if (vfm_down_count < 20){
-			vfm_down_count++;
-		} else if(vfm_down_count == 20){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-				vfm_down_count++;
-		} else if(vfm_down_count < 40){
-			vfm_down_count++;
-		} else if(vfm_down_count == 40){
-			vfm_down_count = 0;
-			currentVfmDownState = 0;
-			vfmCount--;
+void uartRxParser(void* pv){
+	int port = (int)pv;
+	uint8_t buf[2048];
+	B_uartStart(&buarts[port], huarts[port]);
+	for(;;){
+		size_t len = B_uartRead(&buarts[port], buf);
+		for(size_t i = 0; i < 5; i++){
+			if(i == port) continue;
+			B_uartWrite(&buarts[i], buf, len);
 		}
 	}
 }
-
-// New implementation GEN11
-static void spdTmr(TimerHandle_t xTimer){
-	/* Frequency computation */
-	/* TIM5CLK = 1 MHz after prescalar is set to 75-1*/
-	//Note 16 pulse (16 PWM periods) per wheel rotation
-
-	if (xTaskGetTickCount() >= (pwm_in.lastInterrupt + pdMS_TO_TICKS(1000))){
-		//Note: if 1 second passed and still no pwm interrupt, the car's wheel is turning once every 16 seconds or more
-		//This is very slow and we will simply set frequency to zero to avoid diffCapture growing too large or even becoming infinite
-		pwm_in.frequency = 0.0;
-
-	}
-	else {
-		pwm_in.frequency = 1000000.0 / pwm_in.diffCapture;
-	}
-	//Note 16 pulse per rotation
-	static uint8_t buf[4] = {MCMB_SPEED_PULSE_ID, 0x00, 0x00, 0x00};
-	// Send frequency to DCMB (for now)
-	// Should divide by 16 and multiply by 60 for Rotation per min
-	buf[1] = pwm_in.frequency;
-	B_tcpSend(btcp, buf, 4);
-}
-
-void tempSenseTaskHandler(void* parameters) {
-	while(1) {
-		temperature = (uint8_t)getTemperature(&hadc1);
-		vTaskDelay(pdMS_TO_TICKS(200));
-	}
-}
-
-
-static void tempSenseTmr(TimerHandle_t xTimer){
-	static uint8_t buf[4] = {MCMB_MOTOR_TEMPERATURE_ID, 0x00, 0x00, 0x00};
-	buf[1] = temperature;
-
-	B_tcpSend(btcp, buf, 4);
-}
-
-
-void serialParse(B_tcpPacket_t *pkt){
-
-	// New way
-	switch(pkt->senderID){
-		  case DCMB_ID:
-		    if(pkt->data[0] == DCMB_MC2_STATE_ID){
-			  accValue = pkt->data[2];
-			  regenValue = pkt->data[3];
-			  motorState = pkt->data[1] & MOTOR; //Note MOTOR = 0b10000
-		   	  fwdRevState = pkt->data[1] & FWD_REV; //FWD_REV = 0b1000
-		   	  vfmUpState = pkt->data[1] & VFM_UP; //VFM_UP = 0b100
-		   	  vfmDownState = pkt->data[1] & VFM_DOWN; //VFM_DOWN = 0b10
-		   	  lastDcmbPacket = xTaskGetTickCount();
-	      }
-	}
-	// Old way (still supported if you need to do it this way)
-	/*switch(pkt->sender){
-	  case 0x04:
-	    if(pkt->payload[4] == 0x00){
-		  accValue = pkt->payload[6];
-		  regenValue = pkt->payload[7];
-		  motorState = pkt->payload[5] & MOTOR; //Note MOTOR = 0b10000
-	   	  fwdRevState = pkt->payload[5] & FWD_REV; //FWD_REV = 0b1000
-	   	  vfmUpState = pkt->payload[5] & VFM_UP; //VFM_UP = 0b100
-	   	  vfmDownState = pkt->payload[5] & VFM_DOWN; //VFM_DOWN = 0b10
-	   	  lastDcmbPacket = xTaskGetTickCount();
-      }
-	}*/
-}
-
-/** To read PWM diff capture from motor
-  * @brief  Input capture callback in non blocking mode.
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-	// the following will run if the handle is Timer 1 and channel 1 (the pwm input)
-	if (htim->Instance == TIM2 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
-	{
-		if (pwm_in.captureIndex == 0)
-		{
-			/* Get the 1st input capture value */
-			pwm_in.icValue1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-
-			pwm_in.captureIndex = 1;
-		}
-		else if (pwm_in.captureIndex == 1)
-		{
-			/* Get the 2nd input capture value */
-			pwm_in.icValue2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-
-			/* Capture computation */
-			if (pwm_in.icValue2 > pwm_in.icValue1)
-			{
-				pwm_in.diffCapture = pwm_in.icValue2 - pwm_in.icValue1;
-			}
-			else if (pwm_in.icValue2 < pwm_in.icValue1)
-			{
-				/* 0xFFFFFFFF is max TIM5 CCRx register value */
-				// Note TIM5 has counter period of 0xFFFFFFFF
-				pwm_in.diffCapture = ((0xFFFFFFFF-pwm_in.icValue1) + pwm_in.icValue2) + 1;
-				//Note the +1 is needed to include zero
-			}
-			else
-			{
-				/* If capture values are equal, we have reached the limit of
-				 * frequency measures */
-				//Error_Handler();
-				pwm_in.diffCapture = 1; // Needed to avoid undefined behavior in frequency computation below
-			}
-
-			/* Frequency computation */
-			//TIM2CLK is driven by APB1 which is 75MHz
-			/* After prescalar of 75-1, TIM2CLK = 1 MHz */
-			//pwm_in.frequency = 1000000.0 / pwm_in.diffCapture; // will compute this elsewhere
-
-			pwm_in.captureIndex = 0;
-		}
-		pwm_in.lastInterrupt = xTaskGetTickCount();
-	}
-}
-
-void PSMTaskHandler(void* parameters) {
-
-	enum measurementResult {VOLTAGE, CURRENT};
-	while (1) {
-		//vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
-		vTaskDelay(pdMS_TO_TICKS(1000));
-
-		double voltageCurrent[2] = {0};
-		//PSMRead will fill first element with voltage, second with current
-		PSMRead(&psmPorts, &hspi2, &huart2,
-				/*CLKOUT=*/ 1,
-				/*masterPSM=*/ 2,
-				/*channelNumber=*/ 2,
-				/*dataOut[]=*/voltageCurrent,
-				/*dataLen=*/sizeof(voltageCurrent));
-
-		uint8_t busMetrics[20] = {0};
-		busMetrics[0] = MCMB_BUS_METRICS_ID;
-		doubleToArray(voltageCurrent[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
-		doubleToArray(voltageCurrent[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
-
-		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
-	}
-}
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -2012,8 +1633,9 @@ void PSMTaskHandler(void* parameters) {
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
+
 	osThreadTerminate(defaultTaskHandle);
+
   /* USER CODE END 5 */
 }
 
@@ -2046,7 +1668,10 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-
+  __disable_irq();
+  while (1)
+  {
+  }
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -2062,7 +1687,7 @@ void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

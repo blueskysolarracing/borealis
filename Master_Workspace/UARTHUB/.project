@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>GEN11_MCMB</name>
+	<name>UARTHUB</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -24,27 +24,9 @@
 		<nature>org.eclipse.cdt.core.cnature</nature>
 		<nature>com.st.stm32cube.ide.mcu.MCUCubeIdeServicesRevAev2ProjectNature</nature>
 		<nature>com.st.stm32cube.ide.mcu.MCUAdvancedStructureProjectNature</nature>
-		<nature>com.st.stm32cube.ide.mcu.MCUEndUserDisabledTrustZoneProjectNature</nature>
 		<nature>com.st.stm32cube.ide.mcu.MCUSingleCpuProjectNature</nature>
 		<nature>com.st.stm32cube.ide.mcu.MCURootProjectNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>btcp_inc</name>
-			<type>2</type>
-			<location>C:/Users/Raymond/Documents/code/stm_/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
-		</link>
-		<link>
-			<name>btcp_src</name>
-			<type>2</type>
-			<location>C:/Users/Raymond/Documents/code/stm_/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
-		</link>
-		<link>
-			<name>psm_inc</name>
-			<type>2</type>
-			<location>C:/Users/Raymond/Documents/code/stm_/gen11_blueskyelec/Master_Workspace/Shared_Resources/PSM/psm_inc</location>
-		</link>
-	</linkedResources>
 </projectDescription>
