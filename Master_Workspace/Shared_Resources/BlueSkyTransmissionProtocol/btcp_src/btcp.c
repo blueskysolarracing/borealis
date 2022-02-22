@@ -79,14 +79,14 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
 
   * @retval B_tcpHandle_t*: pointer to a B_tcpHandle_t struct which stores uart, task handles and other transmission information 
   */
-void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length, uint8_t senderAddress){
+void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 	
     uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8)); 
 
     //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
     buf[1] = length;
-    buf[2] = senderAddress;
+    buf[2] = TCP_ID;
     buf[3] = btcp->tcpSeqNum;
     memcpy(buf+4, msg, length);
     uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
@@ -108,7 +108,7 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length, uint8_t sender
     	buf_pos++;
     }
 	
-    buf[buf_pos] = senderAddress;
+    buf[buf_pos] = TCP_ID;
     buf_pos++;
 
     //check if sequence number needs to be escaped

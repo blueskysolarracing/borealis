@@ -35,5 +35,4 @@ Src/lvgl/src/lv_misc \
 Src/lvgl/src/lv_objx \
 Src/lvgl/src/lv_themes \
 Startup \
-btcp_src \
 

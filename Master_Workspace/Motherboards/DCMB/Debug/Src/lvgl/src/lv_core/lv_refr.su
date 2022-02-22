@@ -1,0 +1,17 @@
+lv_area.h:73:20:lv_area_copy	16	static
+lv_area.h:83:26:lv_area_get_width	16	static
+lv_area.h:93:26:lv_area_get_height	16	static
+lv_refr.c:62:6:lv_refr_init	4	static
+lv_refr.c:74:6:lv_refr_now	24	static
+lv_refr.c:94:6:lv_inv_area	40	static
+lv_refr.c:141:13:lv_refr_get_disp_refreshing	4	static
+lv_refr.c:152:6:lv_refr_set_disp_refreshing	16	static
+lv_refr.c:161:6:lv_disp_refr_task	56	static
+lv_refr.c:232:13:lv_refr_join_area	32	static
+lv_refr.c:269:13:lv_refr_areas	16	static
+lv_refr.c:289:13:lv_refr_area	64	static
+lv_refr.c:374:13:lv_refr_area_part	32	static
+lv_refr.c:416:19:lv_refr_get_top_obj	32	static
+lv_refr.c:451:13:lv_refr_obj_and_children	32	static
+lv_refr.c:494:13:lv_refr_obj	64	static
+lv_refr.c:560:13:lv_refr_vdb_flush	16	static

@@ -1,0 +1,15 @@
+lv_color.h:326:26:lv_color_mix	24	static
+lv_area.h:73:20:lv_area_copy	16	static
+lv_area.h:83:26:lv_area_get_width	16	static
+lv_area.h:93:26:lv_area_get_height	16	static
+lv_draw_rect.c:79:6:lv_draw_rect	24	static
+lv_draw_rect.c:122:13:lv_draw_rect_main_mid	64	static
+lv_draw_rect.c:194:13:lv_draw_rect_main_corner	160	static
+lv_draw_rect.c:505:13:lv_draw_rect_border_straight	56	static
+lv_draw_rect.c:705:13:lv_draw_rect_border_corner	136	static
+lv_draw_rect.c:1115:13:lv_draw_shadow	40	static
+lv_draw_rect.c:1144:13:lv_draw_shadow_full	136	static
+lv_draw_rect.c:1310:13:lv_draw_shadow_bottom	112	static
+lv_draw_rect.c:1404:13:lv_draw_shadow_full_straight	72	static
+lv_draw_rect.c:1465:17:lv_draw_cont_radius_corr	24	static
+lv_draw_rect.c:1493:17:antialias_get_opa_circ	24	static

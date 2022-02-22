@@ -166,5 +166,3 @@
 "./Src/lvgl/src/lv_themes/lv_theme_templ.o"
 "./Src/lvgl/src/lv_themes/lv_theme_zen.o"
 "./Startup/startup_stm32h753bitx.o"
-"./btcp_src/btcp.o"
-"./btcp_src/buart.o"

@@ -26,6 +26,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -320,7 +321,7 @@ void dummySend(uint8_t payloadLength, uint8_t senderAddress, uint8_t* seqNum, ui
 	buf[0] = BSSR_SERIAL_START;
 	buf[1] = payloadLength;
 	buf[2] = senderAddress;
-	buf[3] = seqNum;
+	buf[3] = *seqNum;
 	memcpy(buf+4, payload, payloadLength);
 	uint32_t crc_result = ~HAL_CRC_Calculate(&hcrc, (uint32_t*)buf, payloadLength+4);
 

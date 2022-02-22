@@ -1,0 +1,2 @@
+lv_theme.c:56:6:lv_theme_set_current	16	static
+lv_theme.c:110:14:lv_theme_get_current	4	static
