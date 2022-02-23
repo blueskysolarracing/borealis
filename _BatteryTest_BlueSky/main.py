@@ -3,31 +3,49 @@ import DL3000 as DLwrapper
 import pyvisa as pv
 import time
 
-def constantTest(inBatteryObj, device):
+def executeDischarge(inBatteryObj, device):
 
-    targetVoltage = ((inBatteryObj.m_setting == 1)*inBatteryObj.voltageBound[1] + (inBatteryObj.m_setting == -1)*inBatteryObj.voltageBound[0])
+    if inBatteryObj.m_setting != -1:
+        return False
+
+    # Initialize variables
+    targetVoltage = inBatteryObj.m_voltageBounds[0]
     inputCurrent = inBatteryObj.m_inputCurrent[0]
-
     currVoltage = 0
     totalTime = 0
+    result = True
 
-    # save initial voltage without applying current (need to check if it is done like this)
-    device.enable()
+    # setup device to run constant battery discharge
+    device.reset()
+    device.simAPP_Key()
+
+    result = device.setBATT_Curr(inputCurrent)
+
+    if not result:
+        print("Discharge current is outside of the allowable range (40 A)! \n")
+        return False
+
+    result = device.setBATT_VStop(targetVoltage, inBatteryObj.m_VoltageBounds[0])
+
+    if not result:
+        print("Target voltage is lower than the cutoff voltage ({} V)! \n".format(inBatteryObj.m_voltageBounds[0]))
+        return False
+
     currVoltage = device.voltage()
+
+    if currVoltage > inBatteryObj.m_voltageBounds[1]:
+        print("Wrong Battery for the simulation setup ... \n")
+        return False
+
     inBatteryObj.logMeasurement(0, currVoltage)
-    device.disable()
     
     while (True):
-
-        device.set_cc_current(inputCurrent)
             
         prevTime = time.time()
-        device.enable()
 
-        time.sleep(0.85)
+        time.sleep(0.95)
 
         currVoltage = device.voltage()
-        device.disable()
 
         timeDelta = time.time() - prevTime
         totalTime += timeDelta
@@ -37,28 +55,21 @@ def constantTest(inBatteryObj, device):
         if (abs(currVoltage - targetVoltage) <= 0.05):
             break
 
+    device.disable()
+    device.reset()
+
     return True
-
-def execute(inBatteryObj, device):
-
-    if abs(inBatteryObj.m_setting) == 1:
-
-        constantTest(inBatteryObj, device)
-        return True
-
-    print("Input setting {} to BatteryObj type is invalid... \n".format(inBatteryObj.m_setting))
-
-    return False
 
 if __name__ == '__main__':
 
-    # initialize test sepcifications
-    targetID = "USB0::6833::3601::DL3A192600119::0::INSTR"
+    # initialize test sepcifications (ONLY CONSTANT CURRENT DISCHARGING FOR NOW)
+    targetID_eLoad = "USB0::6833::3601::DL3A192600119::0::INSTR"
+    targetID_DCSupply = ""
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
     testSetting = -1                                             # -1: constant discharge | 1: constant charge | 0: dynamic
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
-    CRate = 0.5
+    CRate = 1/30
 
     # initialize BatteryObject
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds)
@@ -66,12 +77,10 @@ if __name__ == '__main__':
 
     # initialize e-load
     resourceManager = pv.ResourceManager()
-    eLoad = DLwrapper.DL3000(resourceManager.open_resource(targetID))
-    eLoad.reset()
-    eLoad.set_mode("CURRENT")
-
-    # run battery unit test
-    result = execute(batteryObj, eLoad)
+    eLoad = DLwrapper.DL3000(resourceManager.open_resource(targetID_eLoad))
+    
+    # run battery unit tests
+    result = executeDischarge(batteryObj, eLoad)
 
     # log all accumulated data
     if result:
