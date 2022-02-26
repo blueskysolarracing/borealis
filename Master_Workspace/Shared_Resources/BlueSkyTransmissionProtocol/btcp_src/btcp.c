@@ -1,5 +1,6 @@
 #include "btcp.h"
-
+//#define PAD
+// Define pad if we need to pad buffer to multiple of 4
 
 // ########  ##     ##
 // ##     ## ##     ##
@@ -40,7 +41,6 @@ static void tcpRxTask(void *pv);
 			numTransmitBuarts: the size of the transmitBuarts array. In other words, this is the number of uart ports over which we are sending the same messages. 
 			crc: Pointer to hcrc - the crc handle. Understand CRC: https://www.youtube.com/watch?v=1WAtFzkfpLI
   * @note	Call this function in the setup section in main(). 
-
   * @retval B_tcpHandle_t*: pointer to a B_tcpHandle_t struct which stores uart, task handles and other transmission information 
   */
 B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
@@ -76,7 +76,6 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
 			senderAddress: the address of the sender
   * @note	msg array can be up to MAX_PACKET_SIZE (256) bytes long if it does not contain values that must be escaped. 
 			If it contains values that need to be escaped, the msg array can be up to (MAX_PACKET_SIZE - number_of_values_to_be_escaped) bytes long
-
   * @retval B_tcpHandle_t*: pointer to a B_tcpHandle_t struct which stores uart, task handles and other transmission information 
   */
 void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
@@ -86,7 +85,11 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
     buf[1] = length;
+<<<<<<< HEAD
     buf[2] = TCP_ID;
+=======
+    buf[2] = btcp->senderID;
+>>>>>>> 03d66fc9dd61414be8e6f154f7d034ab98ed6c93
     buf[3] = btcp->tcpSeqNum;
     memcpy(buf+4, msg, length);
     uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
@@ -108,7 +111,11 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     	buf_pos++;
     }
 	
+<<<<<<< HEAD
     buf[buf_pos] = TCP_ID;
+=======
+    buf[buf_pos] = btcp->senderID;;
+>>>>>>> 03d66fc9dd61414be8e6f154f7d034ab98ed6c93
     buf_pos++;
 
     //check if sequence number needs to be escaped
@@ -149,7 +156,7 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     		buf_pos++;
     	}
     }
-
+#ifdef PAD
     if(buf_pos%4 != 0) {
     	int paddingNum = 4 - buf_pos % 4;
     	for (int i = paddingNum; i > 0; i--) {
@@ -157,7 +164,7 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     	   buf_pos++;
     	}
    }
-	
+#endif
 	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array 
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
         B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
