@@ -59,5 +59,3 @@
 "./Src/sysmem.o"
 "./Src/system_stm32h7xx.o"
 "./Startup/startup_stm32h753bitx.o"
-"./btcp_src/btcp.o"
-"./btcp_src/buart.o"

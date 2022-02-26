@@ -9,7 +9,6 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
--include btcp_src/subdir.mk
 -include Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/subdir.mk
 -include Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/subdir.mk
 -include Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/subdir.mk
@@ -66,8 +65,8 @@ all: main-build
 main-build: GEN11_MCMB.elf secondary-outputs
 
 # Tool invocations
-GEN11_MCMB.elf: $(OBJS) $(USER_OBJS) C:\Users\goodb\Documents\code\stm\gen11_blueskyelec_new\Master_Workspace\Motherboards\GEN11_MCMB\STM32H753BITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "GEN11_MCMB.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\goodb\Documents\code\stm\gen11_blueskyelec_new\Master_Workspace\Motherboards\GEN11_MCMB\STM32H753BITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="GEN11_MCMB.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
+GEN11_MCMB.elf: $(OBJS) $(USER_OBJS) \\JENNY\Users\Jenny\gen11_blueskyelec\Master_Workspace\Motherboards\GEN11_MCMB\STM32H753BITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "GEN11_MCMB.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"\\JENNY\Users\Jenny\gen11_blueskyelec\Master_Workspace\Motherboards\GEN11_MCMB\STM32H753BITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="GEN11_MCMB.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

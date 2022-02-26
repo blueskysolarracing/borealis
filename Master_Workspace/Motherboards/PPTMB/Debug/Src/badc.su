@@ -1,0 +1,5 @@
+badc.c:40:16:B_adcStart	32	static
+badc.c:59:11:readAdc	24	static
+badc.c:65:6:doneReadAdc	16	static
+badc.c:78:13:adcTask	24	static
+badc.c:102:6:HAL_ADC_ConvCpltCallback	24	static
