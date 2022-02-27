@@ -1,6 +1,6 @@
 import ClassBattery as Battery
 import DL3000 as DLwrapper
-import pyvisa as pv
+import visa as pv
 import time
 
 def executeDischarge(inBatteryObj, device):
@@ -25,7 +25,7 @@ def executeDischarge(inBatteryObj, device):
         print("Discharge current is outside of the allowable range (40 A)! \n")
         return False
 
-    result = device.setBATT_VStop(targetVoltage, inBatteryObj.m_VoltageBounds[0])
+    result = device.setBATT_VStop(targetVoltage, targetVoltage)
 
     if not result:
         print("Target voltage is lower than the cutoff voltage ({} V)! \n".format(inBatteryObj.m_voltageBounds[0]))
@@ -37,7 +37,8 @@ def executeDischarge(inBatteryObj, device):
         print("Wrong Battery for the simulation setup ... \n")
         return False
 
-    inBatteryObj.logMeasurement(0, currVoltage)
+    inBatteryObj.logMeasurement(currVoltage,0)
+    device.enable()
     
     while (True):
             
@@ -50,7 +51,7 @@ def executeDischarge(inBatteryObj, device):
         timeDelta = time.time() - prevTime
         totalTime += timeDelta
 
-        inBatteryObj.logMeasurement(timeDelta, currVoltage)
+        inBatteryObj.logMeasurement(currVoltage, timeDelta)
 
         if (abs(currVoltage - targetVoltage) <= 0.05):
             break
