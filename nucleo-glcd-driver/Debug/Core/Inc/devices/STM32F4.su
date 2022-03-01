@@ -1,5 +1,0 @@
-STM32F4.c:55:6:glcd_init	8	static
-STM32F4.c:163:6:glcd_enable_backlight	16	static
-STM32F4.c:261:6:glcd_spi_write	16	static
-STM32F4.c:280:6:glcd_reset	8	static
-STM32F4.c:293:6:delay_ms	16	static

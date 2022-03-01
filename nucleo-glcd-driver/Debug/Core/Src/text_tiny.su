@@ -1,8 +1,0 @@
-text_tiny.c:40:6:glcd_tiny_set_font	16	static
-text_tiny.c:51:6:glcd_tiny_draw_char	32	static
-text_tiny.c:81:6:glcd_tiny_draw_string	16	static
-text_tiny.c:104:6:glcd_tiny_draw_string_P	24	static
-text_tiny.c:131:6:glcd_tiny_draw_string_ammend	16	static
-text_tiny.c:137:6:glcd_tiny_draw_string_ammend_P	16	static
-text_tiny.c:143:6:glcd_tiny_invert_line	16	static
-text_tiny.c:148:6:glcd_tiny_draw_char_xy	32	static
