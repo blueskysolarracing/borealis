@@ -25,6 +25,12 @@
 /* USER CODE BEGIN Includes */
 #include "glcd.h"
 #include "fonts/font5x7.h"
+#include "fonts/Liberation_Sans20x28_Numbers.h"
+#include "fonts/Liberation_Sans17x17_Alpha.h"
+#include <time.h>
+#include <stdlib.h>
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -345,10 +351,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, CS1_Pin|CS2_Pin|GPIO_PIN_6|GPIO_PIN_8
+                          |GPIO_PIN_9, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7|GPIO_PIN_8, GPIO_PIN_RESET);
@@ -359,19 +366,21 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : CS1_Pin CS2_Pin PC6 PC8
+                           PC9 */
+  GPIO_InitStruct.Pin = CS1_Pin|CS2_Pin|GPIO_PIN_6|GPIO_PIN_8
+                          |GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PC6 PC8 PC9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB7 PB8 */
   GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_8;
@@ -382,8 +391,165 @@ static void MX_GPIO_Init(void)
 
 }
 
-/* USER CODE BEGIN 4 */
+uint8_t correct_Y(uint8_t y){
+	return ((y+48)%64);
+}
 
+/* USER CODE BEGIN 4 */
+// draw p1 labels
+void drawP1(){
+	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
+	int labelsP1L = 3;
+	char* labelspeed = "km/h";
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 5;
+
+	// draw the labels
+	for(int i = 0; i < labelsP1L; i++){
+		char* label = labelsP1[i];
+		int j = 0;
+		// char by char cuz draw xy only with char
+		while(label[j] != 0){
+			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
+			j++;
+		}
+		glcd_tiny_draw_char_xy(72, correct_Y(y), 'w');
+		// go next rows, these value are just what I think will look good
+		y+=23;
+	}
+
+	// draw divider line
+	glcd_draw_line(81, 0,  81, 63, BLACK);
+	int x = 0;
+	// draw km/h
+	while(labelspeed[x] != 0){
+		glcd_tiny_draw_char_xy(94+(x*6), correct_Y(52), labelspeed[x]);
+		x++;
+	}
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+// pass in array of values in order of solar, motor, battery, and speed
+void updateP1(int value[4]){
+
+	char valueS[4][4];
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+
+	// get it in strings
+	for(int i = 0; i < 4; i++){
+		// sign
+		int v = value[i];
+		if(v<0){
+			valueS[i][0] = '-';
+			v *= -1;
+		}
+		else{
+			valueS[i][0] = '+';
+		}
+		// hundred
+		if(v/100 != 0){
+			valueS[i][1] = '0' + v/100;
+		}
+		else{
+			valueS[i][1] = ' ';
+		}
+		// tenth
+		if((v/10)%10 != 0 || valueS[i][1] != ' '){
+			valueS[i][2] = '0' + (v/10)%10;
+		}
+		else{
+			valueS[i][2] = ' ';
+		}
+		// ones
+		valueS[i][3] = '0' + v%10;
+	}
+
+	// write the 3 small values
+	int y = 5;
+	for(int i = 0; i < 3; i++){
+		for(int j = 0; j < 4; j++){
+			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+		}
+		y+=23;
+	}
+
+	// now write the big speed
+	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
+	glcd_draw_char_xy(85, 0, valueS[3][2]);
+	glcd_draw_char_xy(105, 0, valueS[3][3]);
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+// draw p2 labels
+void drawP2(){
+	char* labelsP2[] = {"Cruise:", "Light:"};
+	int labelsP2L = 2;
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	int y = 5;
+	for(int i = 0; i < labelsP2L; i++){
+		char* label = labelsP2[i];
+		int j = 0;
+		while(label[j] != 0){
+			glcd_tiny_draw_char_xy(50+j*6, correct_Y(y), label[j]);
+			j++;
+		}
+		y+=23;
+	}
+
+	glcd_draw_line(44, 0,  44, 63, BLACK);
+	glcd_tiny_draw_char_xy(19, correct_Y(52), '%');
+
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
+
+// pass in array of values in order of cruise, light, regen, battery
+void updateP2(int value[4]){
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+
+	// write the 2 on off
+	int y = 5;
+	for(int i = 0; i < 2; i++){
+		char* status = "OFF";
+		if(value[i]) status = " ON";
+		for(int j = 0; j < 3; j++){
+			glcd_tiny_draw_char_xy(95+(j*6), correct_Y(y), status[j]);
+		}
+		y+=23;
+	}
+
+	char* regen = "     ";
+	if(value[2]) regen = "REGEN";
+
+	glcd_set_font(Liberation_Sans17x17_Alpha, 17, 17, 'A', 'Z');
+	for(int i = 0; i < 5; i++){
+		glcd_draw_char_xy(49+i*15, 30, regen[i]);
+	}
+
+	// now write the big battery
+	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
+	glcd_draw_char_xy(0, 0, '0' + value[3]/10);
+	glcd_draw_char_xy(21, 0, '0' + value[3]%10);
+
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_startDefaultTask */
@@ -401,48 +567,53 @@ void startDefaultTask(void *argument)
 	//glcd_test_rectangles();
 
 	// my stuff
-	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear();
-	int hz = 8;
-	int t = 1000/hz;
-	while(1){
-		for(int i = 0; i < hz; i++){
-			glcd_clear_buffer();
-			glcd_tiny_draw_char_xy(0, 0, '1'+i);
-			glcd_write();
-			delay_ms(t);
-		}
+	srand(time(NULL));   // Initialization, should only be called once.
 
-//		for(uint8_t x = 0; x < 128; x+=2){
-//			glcd_set_pixel(x, y, 1);
-//			glcd_set_pixel(x, y+1, 1);
-//			glcd_set_pixel(x+1, y, 1);
-//			glcd_set_pixel(x+1, y+1, 1);
-//			glcd_write();
-//			delay_ms(10);
-//		}
+	int t = 500;
+	int p1values[4] = {420, 805, -404, 69};
+	int p2values[4] = {1, 1, 1, 87};
+
+	drawP2();
+	updateP2(p2values);
+
+	drawP1();
+	updateP1(p1values);
+	delay_ms(t);
+//	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+//	glcd_test_hello_world();
+//	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
 //
-//		for(uint8_t x = 0; x < 128; x+=2){
-//			for(uint8_t y = 0; y < 64; y+=2){
-//				glcd_set_pixel(x, y, 1);
-//				glcd_set_pixel(x, y+1, 1);
-//				glcd_set_pixel(x+1, y, 1);
-//				glcd_set_pixel(x+1, y+1, 1);
-//				glcd_write();
-//				delay_ms(10);
-//			}
-//		}
 //
-//		for(uint8_t x = 0; x < 128; x++){
-//			for(uint8_t y = 0; y < 64; y+=2){
-//				glcd_set_pixel(x, y, 0);
-//				glcd_set_pixel(x, y+1, 0);
-//				glcd_set_pixel(x+1, y, 0);
-//				glcd_set_pixel(x+1, y+1, 0);
-//				glcd_write();
-//				delay_ms(10);
-//			}
-//		}
+	while(1){
+		for(int i = 0; i < 3; i++){
+			int r = rand()%5;
+			if(rand()%2 == 0){
+				r*= -1;
+			}
+			p1values[i] += r;
+		}
+		int r = rand()%2;
+		if(rand()%2 == 0){
+			r*= -1;
+		}
+		p1values[3] += r;
+		drawP1();
+		updateP1(p1values);
+		delay_ms(t);
+
+		for(int i = 0; i < 3; i++){
+			int s = rand()%2;
+			p2values[i] = s;
+		}
+		int s = rand()%2;
+		if(rand()%2 == 0){
+			s*= -1;
+		}
+		p2values[3] += s;
+		drawP2();
+		updateP2(p2values);
+		delay_ms(t);
 	}
 
 	// my stuff
