@@ -254,7 +254,7 @@ int main(void)
 
 
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
-  btcp = B_tcpStart(MCMB_ID, &buart, buart, 2, &hcrc);
+  btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
 
 
   HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
@@ -338,13 +338,14 @@ int main(void)
 
 	TaskHandle_t PSM_handle;
 
-	status = xTaskCreate(PSMTaskHandler,  /* Function that implements the task. */
-				"PSMTask", /* Text name for the task. */
-				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
-				"none", /* Parameter passed into the task. */
-				4, /* Priority at which the task is created. */ //Note must be 4 since btcp is 4
-				&PSM_handle /* Used to pass out the created task's handle. */
+	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
+				"PSMTask",  //Text name for the task.
+				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+				"none",  //Parameter passed into the task.
+				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
+				&PSM_handle  //Used to pass out the created task's handle.
 							);
+	configASSERT(status == pdPASS);// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -1157,7 +1158,7 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 2000000;
+  huart4.Init.BaudRate = 500000;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
@@ -1253,7 +1254,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 500000;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;

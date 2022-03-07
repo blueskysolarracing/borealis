@@ -86,7 +86,7 @@ SRAM_HandleTypeDef hsram4;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 B_uartHandle_t buarts[5];
-UART_HandleTypeDef* huarts[5] = {&huart2, &huart4, &huart3, &huart7, &huart8};
+UART_HandleTypeDef* huarts[5] = {&huart2, &huart3, &huart4, &huart7, &huart8};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -198,6 +198,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  //TODO : disable all except 2 and 4, and test if transmission still works
+
   BaseType_t status;
   status = xTaskCreate(uartRxParser, "UartRxParser1", 1024, (void*)0, 4, NULL);
   configASSERT(status == pdPASS); // Error checking
@@ -1612,12 +1614,14 @@ void uartRxParser(void* pv){
 	int port = (int)pv;
 	uint8_t buf[2048];
 	B_uartStart(&buarts[port], huarts[port]);
+	int i = 0;
 	for(;;){
 		size_t len = B_uartRead(&buarts[port], buf);
 		for(size_t i = 0; i < 5; i++){
 			if(i == port) continue;
 			B_uartWrite(&buarts[i], buf, len);
 		}
+		i++;
 	}
 }
 /* USER CODE END 4 */

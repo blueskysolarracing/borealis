@@ -51,7 +51,7 @@ void B_uartStart(B_uartHandle_t* buart, UART_HandleTypeDef* huart){
 	buart->rxQ = xQueueCreate(RX_Q_LEN, sizeof(B_bufQEntry_t));
 	buart->txQ = xQueueCreate(TX_Q_LEN, sizeof(B_bufQEntry_t));
 	buart->txSem = xSemaphoreCreateBinary();
-	xTaskCreate(txTask, "BUARTTxTask", 512, buart, 5, &buart->txTask);
+	xTaskCreate(txTask, "BUARTTxTask", 512, buart, 6, &buart->txTask);
 	xTaskCreate(rxTask, "BUARTRxTask", 512, buart, 6, &buart->rxTask);
 }
 
@@ -65,6 +65,13 @@ void B_uartWrite(B_uartHandle_t* buart, uint8_t* buf, size_t len){
 	e.buf = buf;
 	e.len = len;
 	xQueueSendToBack(buart->txQ, &e, 0);
+
+	/*	B_bufQEntry_t e;
+	e.buf = pvPortMalloc(len);
+	memcpy(e.buf, buf, len);
+	e.len = len;
+	int sent = xQueueSendToBack(buart->txQ, &e, 0);
+	return sent;*/
 }
 
 size_t B_uartRead(B_uartHandle_t* buart, uint8_t* buf){
@@ -93,12 +100,23 @@ size_t B_uartRead(B_uartHandle_t* buart, uint8_t* buf){
 static void txTask(void* pv){
 	B_uartHandle_t* buart = pv;
 	B_bufQEntry_t e;
+
+	//Temp
+	uint8_t buf[40];
+
 	for(;;){
 		xQueueReceive(buart->txQ, &e, portMAX_DELAY);
+
+		//Temp
+		memcpy(&buf, e.buf, 40);
+
 		HAL_UART_Transmit_DMA(buart->huart, e.buf, e.len);
+		//HAL_UART_Transmit_IT(buart->huart, e.buf, e.len);
 
 		//Waits until transmit is complete (happens when HAL_UART_TxCpltCallback is triggered)
 		xSemaphoreTake(buart->txSem, portMAX_DELAY);
+		//xSemaphoreTake(buart->txSem, pdMS_TO_TICKS(1000));
+
 #ifdef BUART_USE_MALLOC
 		vPortFree(e.buf);
 #endif
@@ -116,13 +134,17 @@ static void txTask(void* pv){
 #endif
 //	buart->head = buart->tail = buf;
 	configASSERT(HAL_UART_Receive_DMA(buart->huart, buf, RX_DMA_BUFFER_SIZE) == HAL_OK);
-	TickType_t tick = xTaskGetTickCount();
+	//TickType_t tick = xTaskGetTickCount();
 	for(;;){
 		size_t bytesToRead;
 
 		vPortEnterCritical();
 		// no flags will update in this region. Capture head value at beginning.
-		buart->head = RX_DMA_BUFFER_SIZE - buart->huart->hdmarx->Instance->CNDTR; // 0 to MAX-1, cuz CNDTR is MAX to 1 in circular mode
+		//buart->head = RX_DMA_BUFFER_SIZE - buart->huart->hdmarx->Instance->CNDTR; // 0 to MAX-1, cuz CNDTR is MAX to 1 in circular mode
+
+		//temp
+		buart->head = RX_DMA_BUFFER_SIZE - __HAL_DMA_GET_COUNTER(buart->huart->hdmarx);
+
 		// head is address TO BE written next, tail is address TO BE read next
 		if(buart->topFlag){
 			bytesToRead = RX_DMA_BUFFER_SIZE - buart->tail;
@@ -141,9 +163,12 @@ static void txTask(void* pv){
 		e.buf = bufCpy;
 		e.len = bytesToRead;
 		xQueueSendToBack(buart->rxQ, &e, 0);
-		vTaskDelayUntil(&tick, 1);
+		//vTaskDelayUntil(&tick, 1);
+		vTaskDelay(1);
+
 	}
 }*/
+
 static void rxTask(void* pv){
 	B_uartHandle_t* buart = pv;
 	B_bufQEntry_t e;
@@ -153,7 +178,7 @@ static void rxTask(void* pv){
 		vTaskDelay(1);
 		buart->rxBuf = pvPortMalloc(RX_CIRC_BUF_SIZE);
 	}
-	HAL_UART_Receive_DMA(buart->huart, buart->rxBuf, RX_CIRC_BUF_SIZE);
+	configASSERT (HAL_UART_Receive_DMA(buart->huart, buart->rxBuf, RX_CIRC_BUF_SIZE) == HAL_OK);
 	for(;;){
 		e.len = 0;
 		vPortEnterCritical();
