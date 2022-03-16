@@ -1887,8 +1887,8 @@ void tempSenseTaskHandler(void* parameters) {
 
 static void tempSenseTmr(TimerHandle_t xTimer){
 	static uint8_t buf[4] = {MCMB_MOTOR_TEMPERATURE_ID, 0x00, 0x00, 0x00};
-	buf[1] = temperature;
 
+	buf[1] = temperature;
 	B_tcpSend(btcp, buf, 4);
 }
 

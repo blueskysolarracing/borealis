@@ -49,7 +49,7 @@ void B_uartStart(B_uartHandle_t* buart, UART_HandleTypeDef* huart){
 	buart->head = buart->tail = 0;
 	buart->rxBuf = NULL;
 	buart->rxQ = xQueueCreate(RX_Q_LEN, sizeof(B_bufQEntry_t));
-	buart->txQ = xQueueCreate(TX_Q_LEN, sizeof(B_bufQEntry_t));
+	buart->txQ = xQueueCreate(128, sizeof(B_bufQEntry_t));
 	buart->txSem = xSemaphoreCreateBinary();
 	xTaskCreate(txTask, "BUARTTxTask", 512, buart, 6, &buart->txTask);
 	xTaskCreate(rxTask, "BUARTRxTask", 512, buart, 6, &buart->rxTask);
@@ -102,13 +102,13 @@ static void txTask(void* pv){
 	B_bufQEntry_t e;
 
 	//Temp
-	uint8_t buf[40];
+	//uint8_t buf[40];
 
 	for(;;){
 		xQueueReceive(buart->txQ, &e, portMAX_DELAY);
 
 		//Temp
-		memcpy(&buf, e.buf, 40);
+		//memcpy(&buf, e.buf, 40);
 
 		HAL_UART_Transmit_DMA(buart->huart, e.buf, e.len);
 		//HAL_UART_Transmit_IT(buart->huart, e.buf, e.len);

@@ -120,6 +120,49 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 void uartRxParser(void* pv);
 
+
+/* =================== temp (for testing) =========================*/
+void uart4To8Parser(void* pv){
+	int port = (int)2; //port 2 = uart4
+	uint8_t buf[2048];
+	B_uartStart(&buarts[port], huarts[port]);
+
+	B_uartStart(&buarts[0], huarts[0]);
+	B_uartStart(&buarts[1], huarts[1]);
+
+
+	int i = 0;
+	for(;;){
+		size_t len = B_uartRead(&buarts[port], buf);
+		/*for(size_t i = 0; i < 5; i++){
+			if(i == port) continue;
+			B_uartWrite(&buarts[i], buf, len);
+		}*/
+		B_uartWrite(&buarts[4], buf, len); //port 4 = uart8
+		//B_uartWrite(&buarts[0], buf, len);
+		//B_uartWrite(&buarts[1], buf, len);
+
+		i++;
+	}
+}
+void uart8To4Parser(void* pv){
+	int port = (int)4;
+	uint8_t buf[2048];
+	B_uartStart(&buarts[port], huarts[port]);
+	int i = 0;
+	for(;;){
+		size_t len = B_uartRead(&buarts[port], buf);
+		/*for(size_t i = 0; i < 5; i++){
+			if(i == port) continue;
+			B_uartWrite(&buarts[i], buf, len);
+		}*/
+		B_uartWrite(&buarts[2], buf, len); //port 4 = uart8
+		i++;
+	}
+}
+/* ==================== END Temp (for testing) ==================*/
+
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -201,20 +244,24 @@ int main(void)
   //TODO : disable all except 2 and 4, and test if transmission still works
 
   BaseType_t status;
-  status = xTaskCreate(uartRxParser, "UartRxParser1", 1024, (void*)0, 4, NULL);
+  status = xTaskCreate(uartRxParser, "UartRxParser1", 4096, (void*)0, 4, NULL);
   configASSERT(status == pdPASS); // Error checking
 
-  status = xTaskCreate(uartRxParser, "UartRxParser2", 1024, (void*)1, 4, NULL);
+  status = xTaskCreate(uartRxParser, "UartRxParser2", 4096, (void*)1, 4, NULL);
   configASSERT(status == pdPASS); // Error checking
 
-  status = xTaskCreate(uartRxParser, "UartRxParser3", 1024, (void*)2, 4, NULL);
+  status = xTaskCreate(uartRxParser, "UartRxParser3", 4096, (void*)2, 4, NULL);
   configASSERT(status == pdPASS); // Error checking
 
-  status = xTaskCreate(uartRxParser, "UartRxParser4", 1024, (void*)3, 4, NULL);
+  status = xTaskCreate(uartRxParser, "UartRxParser4", 4096, (void*)3, 4, NULL);
   configASSERT(status == pdPASS); // Error checking
 
-  status = xTaskCreate(uartRxParser, "UartRxParser5", 1024, (void*)4, 4, NULL);
+  status = xTaskCreate(uartRxParser, "UartRxParser5", 4096, (void*)4, 4, NULL);
   configASSERT(status == pdPASS); // Error checking
+
+  //status = xTaskCreate(uart4To8Parser, "test4To8", 1024, (void*)2, 4, NULL);
+  //status = xTaskCreate(uart8To4Parser, "test8To4", 1024, (void*)4, 4, NULL);
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -1624,6 +1671,7 @@ void uartRxParser(void* pv){
 		i++;
 	}
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
