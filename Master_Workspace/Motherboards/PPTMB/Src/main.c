@@ -1642,7 +1642,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		  if(pkt->payload[4] == 0x02){
 			  xQueueSend(hpQ, pkt->payload+5, 0);
 		  } else if(pkt->payload[4] == 0x03){
-			  if(pkt->payload[5]){
+			  /*if(pkt->payload[5]){
 				  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET);
 			  } else {
 				  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_RESET);
@@ -1656,7 +1656,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
 			  } else {
 				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-			  }
+			  }*/
 		  }
 	}
 }
