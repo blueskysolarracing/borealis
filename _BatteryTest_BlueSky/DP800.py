@@ -51,7 +51,7 @@ class DP800(object):
         if currChannel != ChannelID:
 
             command = ":INST:NSEL " + ChannelID
-            result = (self.m_instance.write(command).strip() == "1")
+            result = self.m_instance.write(command)
         
         return result
 
