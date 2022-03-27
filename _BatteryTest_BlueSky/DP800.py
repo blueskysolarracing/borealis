@@ -22,10 +22,22 @@ class DP800(object):
         self.m_measureLUT = {"Current": "CURR",
                              "Voltage": "VOLT",
                              "Power": "POWE"}
+        
+        self.m_limitsCHCurr = {"CH1": 5,
+                               "CH2": 2,
+                               "CH3": 2}
+        
+        self.m_limitsCHCurr = {"CH1": 8,
+                               "CH2": 30,
+                               "CH3": -30}
     
     def queryChannel(self) -> int:
 
-        result = int(self.m_instance.query(":INST?").partition("\n"))
+        queryResult = self.m_instance.query(":INST?").partition("\n")
+        
+        result = int(queryResult[0][2])
+        
+        time.sleep(0.5)
 
         return result
     
@@ -50,34 +62,57 @@ class DP800(object):
 
         if currChannel != ChannelID:
 
-            command = ":INST:NSEL " + ChannelID
+            command = ":INST:NSEL " + str(ChannelID)
             result = self.m_instance.write(command)
+            time.sleep(0.5)
         
         return result
+    
+    def channelON(self):
+        
+        """
+        Enable the selected Channel.
+        """
+        
+        ID = self.queryChannel()
+        
+        command = ":OUTP CH" + str(ID) + ",ON"
+        self.m_instance.write(command)
+        
+        time.sleep(0.5)
+        
+        return
+    
+    def channelOFF(self):
+            
+        """
+        Disable the selected Channel.
+        """
+        
+        ID = self.queryChannel()
+        
+        command = ":OUTP CH" + str(ID) + ",OFF"
+        self.m_instance.write(command)
+        
+        time.sleep(0.5)
+        
+        return
+        
 
-    def measureValue(self, ChannelID, Value) -> float:
+    def measureValue(self, Value) -> float:
         
         """
         ChannelID: 1, 2 and 3 as integers.
         Value: Current, Voltage, Power as strings.
         """
 
-        if type(ChannelID) != int:
-            print("Enter the right type for Channel ID ... \n")
-            return -1000.0
-        else:
-            if ChannelID < 1 or ChannelID > 3:
-                print("ChannelID is not valid ... \n")
-                return -1000.0
-
-        if Value not in self.m_measureLUT:
-            print("Invalid value query ... \n")
-            return -1000.0
+        ID = self.queryChannel()
         
         key = self.m_measureLUT[Value]
-        command = "MEAS:" + key + "? CH" + str(ChannelID)
+        command = "MEAS:" + key + "? CH" + str(ID)
 
-        result = float(self.m_instance.query(command).partition("\n"))
+        resultSTR = self.m_instance.query(command).partition("\n")
+        result = float(resultSTR[0])
 
         return result
 
@@ -87,38 +122,108 @@ class DP800(object):
         Reset the settings to factory settings and clear the error
         queue.
         """
-        return self.m_instance.write("*RST")
-
-    def simKeyPress(self, KeyID):
-
-        """
-        Simulate key presses based on ID. 
-        """
-
-        commandON = ":SYST:KLOC " + KeyID + ",ON"
-        commandOFF = ":SYST:KLOC " + KeyID + ",OFF"
-        commandQuery = ":SYST:KLOC? " + KeyID
-
-        self.m_instance.write(commandON)
-
-        time.sleep(1)
-
-        status = int(self.m_instance.query(commandQuery).partition("\n"))
-
-        if status != 1:
-            print("Couldn't lock the key {} ...".format(KeyID))
-            return False
-
-        self.m_instance.write(commandOFF)
-
-        time.sleep(1)
-
-        status = int(self.m_instance.query(commandQuery).partition("\n"))
+    
+        value = self.m_instance.write("*RST")
         
-        if status != 0:
-            print("Couldn't unlock the key {} ...".format(KeyID))
+        return True 
+    
+    def setCURR(self, inCurr) -> bool:
+        
+        """
+        Set current based on the selected hannel.
+        """
+        
+        ID = self.queryChannel()
+        LUTId = "CH" + str(ID)
+        
+        if inCurr > self.m_limitsCHCurr[LUTId]:
+            
+            command = ":CURR " + str(5)
+            self.m_instance.write(command)
+            
             return False
-
+        
+        command = ":CURR " + str(inCurr)
+        self.m_instance.write(command)
+        
+        time.sleep(0.5)
+        
         return True
-
+    
+    def setVOLT(self, inVolt) -> bool:
         
+        """
+        Set voltage on the selected channel.
+        """
+        
+        ID = self.queryChannel()
+        LUTId = "CH" + str(ID)
+        
+        if ID <= 2:
+            if inVolt > self.m_limitsCHCurr[LUTId]:
+                return False
+        else:
+            if inVolt < self.m_limitsCHCurr[LUTId]:
+                return False
+                
+        command = ":VOLT " + str(inVolt)
+        self.m_instance.write(command)
+
+        time.sleep(0.5)
+        
+        return True
+    
+    def setOVP(self, voltOVP):
+        
+        """
+        Set over-voltage protetction.
+        """
+        
+        commandVal = "VOLT:PROT " + str(voltOVP)
+        commandON = "VOLT:PROT:STAT ON"
+        
+        self.m_instance.write(commandVal)
+        
+        time.sleep(0.5)
+        
+        self.m_instance.write(commandON)
+        
+        time.sleep(0.5)
+        
+        return
+    
+    def setOCP(self, currOCP):
+            
+        """
+        Set over-current protetction.
+        """
+        
+        commandVal = "CURR:PROT " + str(currOCP)
+        commandON = "CURR:PROT:STAT ON"
+        
+        self.m_instance.write(commandVal)
+        
+        time.sleep(0.5)
+        
+        self.m_instance.write(commandON)
+        
+        time.sleep(0.5)
+        
+        return
+    
+    def disableOP(self):
+        
+        """
+        Disable over protection options.
+        """
+        
+        commandOFF = "CURR:PROT:STAT OFF"
+        
+        self.m_instance.write(commandOFF)
+        
+        time.sleep(0.5)
+        
+        commandOFF = "VOLT:PROT:STAT OFF"
+        
+        self.m_instance.write(commandOFF)
+        return

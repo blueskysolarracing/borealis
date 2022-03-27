@@ -8,7 +8,7 @@ class BatteryObj:
         self.m_totalCapacity = numCells*cellCapacity
         self.m_setting = testSetting
         self.m_voltageBounds = voltageBounds
-        self.m_Crate = CRate
+        self.m_CRate = CRate
         self.m_HCCPRates = HCCPRates
 
         self.m_measuredVoltage = []
@@ -16,7 +16,7 @@ class BatteryObj:
         self.m_timeRec = []
 
 
-    def genInCurrent(self, HCCPRates):
+    def genInCurrent(self):
 
         if abs(self.m_setting) == 1:
             
@@ -24,7 +24,8 @@ class BatteryObj:
 
         elif self.m_setting == 0:
 
-            return [10]
+            return [self.m_totalCapacity*self.m_HCCPRates[0]/1000, \
+                    self.m_totalCapacity*self.m_HCCPRates[1]/1000]
 
         return 0
 

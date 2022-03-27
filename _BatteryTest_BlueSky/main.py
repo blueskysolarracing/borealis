@@ -1,17 +1,23 @@
 import ClassBattery as Battery
 import DL3000 as DLwrapper
 import DP800 as DPWrapper
-import visa as pv
+import pyvisa as pv
 import time
 
 def executeHCCP(inBatteryObj, eLoad, pSupply):
+
+    # Initialize variables
+    lowVolt = inBatteryObj.m_voltageBounds[0]
+    highVolt = inBatteryObj.m_voltageBounds[1]
+    currents = inBatteryObj.genInCurrent()
+
     return True
 
 def executeCharge(inBatteryObj, device):
 
     # Initialize variables
     targetVoltage = inBatteryObj.m_voltageBounds[1]
-    inputCurrent = inBatteryObj.m_inputCurrent
+    inputCurrent =  inBatteryObj.genInCurrent()
     currVoltage = 0
     totalTime = 0
     result = True
@@ -31,14 +37,61 @@ def executeCharge(inBatteryObj, device):
 
     # select channel 2 on the power supply since it has the 
     # range of interest
-    result = device.selectChannel(2)
+    result = device.selectChannel(1)
 
-    if device.queryChannel != 2:
+    if device.queryChannel() != 1:
         
         print("Could not select CH1 for battery testing ... \n")
         return False
 
-        
+    device.channelON()
+    currVoltage = device.measureValue("Voltage") 
+    device.channelOFF()
+
+    if (abs(currVoltage - targetVoltage) <= 0.05):
+        print("Cannot charge battery, near full capacity ... \n")
+        return False
+
+    # turn the power supply ON after saving the first set of data
+    inBatteryObj.logMeasurement(currVoltage, 0, 0)
+    
+    # set input current
+    result = device.setCURR(inputCurrent)
+
+    if not result:
+        print("Input current is too large - defaulted to maximum ... \n")
+    
+    # set voltage a bit higher to allow enough current to be drawn
+    result = device.setVOLT(targetVoltage + 0.5)
+    
+    if not result:
+        print("Voltage is out of bounds, please review your battery characteristics ... \n")
+        return False
+
+    # set OVP
+    device.setOVP(targetVoltage)
+    
+    # turn on DC Power Supply (selected Channel)
+    device.channelON()
+
+    while (True):
+
+        prevTime = time.time()
+
+        currVoltage = device.measureValue("Voltage")
+        currCurrent = device.measureValue("Current")
+
+        timeDelta = time.time() - prevTime
+        totalTime += timeDelta
+
+        inBatteryObj.logMeasurement(currVoltage, currCurrent, timeDelta)
+
+        if (abs(currVoltage - targetVoltage) <= 0.05):
+            break
+
+    # turn the power supply OFF
+    device.channelOFF() 
+    device.reset()
 
     return True
 
@@ -46,7 +99,7 @@ def executeDischarge(inBatteryObj, device):
 
     # Initialize variables
     targetVoltage = inBatteryObj.m_voltageBounds[0]
-    inputCurrent = inBatteryObj.m_inputCurrent[0]
+    inputCurrent = inBatteryObj.genInCurrent()
     currVoltage = 0
     totalTime = 0
     result = True
@@ -74,8 +127,8 @@ def executeDischarge(inBatteryObj, device):
 
     currVoltage = device.voltage()
 
-    if currVoltage > inBatteryObj.m_voltageBounds[1]:
-        print("Wrong Battery for the simulation setup ... \n")
+    if (abs(currVoltage - targetVoltage) <= 0.05):
+        print("Cannot discharge battery, near end of capacity ... \n")
         return False
 
     inBatteryObj.logMeasurement(currVoltage, 0, 0)
@@ -120,22 +173,21 @@ if __name__ == '__main__':
 
     # initialize test sepcifications (ONLY CONSTANT CURRENT DISCHARGING FOR NOW)
     targetID_eLoad = "USB0::6833::3601::DL3A192600119::0::INSTR"
-    targetID_pSupply = ""
+    targetID_pSupply = "USB0::6833::3601::DP8A234200572::0::INSTR"
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
-    testSetting = -1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
+    testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
     CRate = 1/30
     HCCPRates = [0.75, 1]
 
     # initialize BatteryObject
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, CRate, HCCPRates)
-    batteryObj.genInCurrent(CRate, HCCPRates)
 
     # initialize e-Load and DC Power Supply
     resourceManager = pv.ResourceManager()
     eLoad = DLwrapper.DL3000(resourceManager.open_resource(targetID_eLoad))
-    pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
+    #pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
     
     # run battery unit tests
     result = executeDischarge(batteryObj, eLoad)
