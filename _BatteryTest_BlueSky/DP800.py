@@ -39,10 +39,11 @@ class DP800(object):
 
         return result
     
-    def selectChannel(self, ChannelID) -> bool:
+    def selectChannel(self, ChannelID, Delay = 0.5) -> bool:
 
         """
         ChannelID: 1, 2 and 3 as integers.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.
         """
 
         if type(ChannelID) != int:
@@ -62,14 +63,15 @@ class DP800(object):
 
             command = ":INST:NSEL " + str(ChannelID)
             result = self.m_instance.write(command)
-            time.sleep(0.5)
+            time.sleep(Delay)
         
         return result
     
-    def channelON(self):
+    def channelON(self, Delay = 0.5):
         
         """
         Enable the selected Channel.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.        
         """
         
         ID = self.queryChannel()
@@ -77,14 +79,15 @@ class DP800(object):
         command = ":OUTP CH" + str(ID) + ",ON"
         self.m_instance.write(command)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         return
     
-    def channelOFF(self):
+    def channelOFF(self, Delay = 0.5):
             
         """
         Disable the selected Channel.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.
         """
         
         ID = self.queryChannel()
@@ -92,7 +95,7 @@ class DP800(object):
         command = ":OUTP CH" + str(ID) + ",OFF"
         self.m_instance.write(command)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         return
         
@@ -125,10 +128,11 @@ class DP800(object):
         
         return True 
     
-    def setCURR(self, inCurr) -> bool:
+    def setCURR(self, inCurr, Delay = 0.5) -> bool:
         
         """
-        Set current based on the selected hannel.
+        Set current based on the selected channel.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.
         """
         
         ID = self.queryChannel()
@@ -144,14 +148,15 @@ class DP800(object):
         command = ":CURR " + str(inCurr)
         self.m_instance.write(command)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         return True
     
-    def setVOLT(self, inVolt) -> bool:
+    def setVOLT(self, inVolt, Delay = 0.5) -> bool:
         
         """
         Set voltage on the selected channel.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.
         """
         
         ID = self.queryChannel()
@@ -167,14 +172,15 @@ class DP800(object):
         command = ":VOLT " + str(inVolt)
         self.m_instance.write(command)
 
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         return True
     
-    def setOVP(self, voltOVP):
+    def setOVP(self, voltOVP, Delay = 0.5):
         
         """
         Set over-voltage protetction.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.        
         """
         
         commandVal = "VOLT:PROT " + str(voltOVP)
@@ -182,18 +188,19 @@ class DP800(object):
         
         self.m_instance.write(commandVal)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         self.m_instance.write(commandON)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         return
     
-    def setOCP(self, currOCP):
+    def setOCP(self, currOCP, Delay = 0.5):
             
         """
         Set over-current protetction.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.
         """
         
         commandVal = "CURR:PROT " + str(currOCP)
@@ -201,25 +208,26 @@ class DP800(object):
         
         self.m_instance.write(commandVal)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         self.m_instance.write(commandON)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         return
     
-    def disableOP(self):
+    def disableOP(self, Delay = 0.5):
         
         """
         Disable over protection options.
+        Delay: Time to wait (in s) after sending command. Defaults to 0.5s.
         """
         
         commandOFF = "CURR:PROT:STAT OFF"
         
         self.m_instance.write(commandOFF)
         
-        time.sleep(0.5)
+        time.sleep(Delay)
         
         commandOFF = "VOLT:PROT:STAT OFF"
         
