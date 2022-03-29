@@ -36,8 +36,6 @@ class DP800(object):
         queryResult = self.m_instance.query(":INST?").partition("\n")
         
         result = int(queryResult[0][2])
-        
-        time.sleep(0.5)
 
         return result
     
