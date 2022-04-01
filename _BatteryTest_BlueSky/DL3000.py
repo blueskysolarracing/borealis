@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 
 __all__ = ["DL3000"]
 
@@ -11,6 +12,7 @@ class DL3000(object):
         Initialize the DL3000 wrapper with a specific PyVISA resource.
         This class does NOT open the resource, you have to open it for yourself!
         """
+        self.keyAPPState = 0
         self.inst = inst
 
     def voltage(self):
@@ -111,3 +113,96 @@ class DL3000(object):
         Sets load voltage
         """
         return self.inst.write(":SOURCE:VOLTAGE:LEV:IMM {}".format(voltage))
+    
+    def simAPP_Key(self):
+
+        self.keyAPPState = (self.keyAPPState + 1) % 3
+
+        return self.inst.write(":SYST:KEY 13")
+
+    def simINT_KeyPress(self, value):
+        return self.inst.write(":SYST:KEY {}".format(20 + value))
+    
+    def setBATT_Curr(self, inCurrent):
+
+        if inCurrent >= 40:
+            return False
+
+        # toggle the CURRENT menu button
+        self.inst.write(":SYST:KEY 14")
+        look4DecimalPtn = False
+        maxEntries = 5
+
+        # enter the value accordingly
+        if type(inCurrent) != 'int':
+            look4DecimalPtn = True
+            if inCurrent > 9.999:
+                maxEntries = 6
+        
+        inCurrentString = str(inCurrent)
+        keyPresses = min(maxEntries, len(inCurrentString))
+        currInteger = 0
+
+        for i in range(0, keyPresses):
+
+            # check for decimal point
+            if look4DecimalPtn == True:
+                if inCurrentString[i] == '.':
+                    look4DecimalPtn = False
+                    self.inst.write(":SYST:KEY 30")
+                    time.sleep(1)
+                    continue
+            
+            currInteger = int(inCurrentString[i])
+
+            self.simINT_KeyPress(currInteger)
+            time.sleep(1)
+
+        # press OK to confirm input
+        self.inst.write(":SYST:KEY 41")
+
+        return True
+
+    def setBATT_VStop(self, inVoltage, cutOFF):
+
+        # check if the input voltage is a valid value
+        if inVoltage < cutOFF:
+            return False
+
+        # toggle the VOLTAGE menu button (needs to be pressed twice to enable)
+        self.inst.write(":SYST:KEY 16")
+        time.sleep(2)
+        self.inst.write(":SYST:KEY 16")
+
+        look4DecimalPtn = False
+        maxEntries = 5
+
+        # enter the value accordingly
+        if type(inVoltage) != 'int':
+            look4DecimalPtn = True
+            if inVoltage > 9.999:
+                maxEntries = 6
+        
+        inVoltageString = str(inVoltage)
+        keyPresses = min(maxEntries, len(inVoltageString))
+        currInteger = 0
+
+        for i in range(0, keyPresses):
+
+            # check for decimal point
+            if look4DecimalPtn == True:
+                if inVoltageString[i] == '.':
+                    look4DecimalPtn = False
+                    self.inst.write(":SYST:KEY 30")
+                    time.sleep(1)
+                    continue
+            
+            currInteger = int(inVoltageString[i])
+
+            self.simINT_KeyPress(currInteger)
+            time.sleep(1)
+
+        # press OK to confirm input
+        self.inst.write(":SYST:KEY 41")
+
+        return True
