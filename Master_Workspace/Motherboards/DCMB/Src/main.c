@@ -2098,7 +2098,7 @@ static void steeringWheelTask(const void *pv){
 		  // steeringData[1] Bit arrangement (msb -> lsb): {0, 0, 0, 0, HORN, RAD, L_SIG, R_SIG}
 		  steeringData[1] = e->buf[i]; // From GPIO Port C -> HORN, RAD, L_SIG, R_SIG
 		  input_buffer[pos] = e->buf[i];
-		  pos++;
+		  pos++;git
 	  } else if(pos == 4){
 		  // steeringData[2] Bit arrangement (msb -> lsb): {ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1}
 		  steeringData[2] = e->buf[i]; // From GPIO Port C -> ACC8 - ACC1
