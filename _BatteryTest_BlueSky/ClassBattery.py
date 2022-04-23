@@ -34,7 +34,7 @@ class BatteryObj:
 
         with open(filename, 'w', encoding = "UTF8") as file:
 
-            file.write("Time Delta, Input Current, Output Voltage \n")
+            file.write("TimeStamp, Time Delta, Input Current, Output Voltage \n")
 
             for i in range(0, dataCnt, 1):
 

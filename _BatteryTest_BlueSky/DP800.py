@@ -128,7 +128,7 @@ class DP800(object):
     def setCURR(self, inCurr) -> bool:
         
         """
-        Set current based on the selected hannel.
+        Set current based on the selected channel.
         """
         
         ID = self.queryChannel()

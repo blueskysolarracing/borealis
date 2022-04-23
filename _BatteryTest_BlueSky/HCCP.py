@@ -1,14 +1,20 @@
 import time
+import datetime
 
-class testHPPC:
+class testHCCP:
 
-    def __init__(self, inBatteryObj, eLoad, pSupply, cycles = 2):
+    def __init__(self, inBatteryObj, eLoad, pSupply, cycles = 0):
 
         # initialize member variables
         self.m_battery = inBatteryObj
         self.m_eLoad = eLoad
         self.m_pSupply = pSupply
         self.m_numCycles = cycles
+        self.m_fileName = ''
+        self.m_numCycles = cycles
+        self.m_lowVolt = 0
+        self.m_highVolt = 0
+        self.m_totSimTime = 0
 
     def initELoad(self) -> bool:
 
@@ -148,7 +154,7 @@ class testHPPC:
             timeDelta = time.time() - prevTime
             tempTime += timeDelta
 
-            self.m_battery.logMeasurement(currVoltage, currCurrent, timeDelta, tempTime + self.m_totSimTime)
+            self.logValues(currVoltage, currCurrent, timeDelta, tempTime + self.m_totSimTime)
 
             if (abs(currVoltage - self.m_lowVolt) <= 0.05):
                 print("eLoad :: Battery is fully discharged ... \n")
@@ -182,7 +188,7 @@ class testHPPC:
             timeDelta = time.time() - prevTime
             tempTime += timeDelta
 
-            self.m_battery.logMeasurement(currVoltage, currCurrent, timeDelta, tempTime + self.m_totSimTime)
+            self.logValues(currVoltage, currCurrent, timeDelta, tempTime + self.m_totSimTime)
 
             if (abs(currVoltage - self.m_highVolt) < 0.05):
                 print("Battery is fully charged ... \n")
@@ -213,7 +219,7 @@ class testHPPC:
             timeDelta = time.time() - prevTime
             tempTime += timeDelta
 
-            self.m_battery.logMeasurement(currVoltage, currCurrent, timeDelta, tempTime + self.m_totSimTime)
+            self.logValues(currVoltage, currCurrent, timeDelta, tempTime + self.m_totSimTime)
 
         self.m_totSimTime += tempTime
 
@@ -238,15 +244,17 @@ class testHPPC:
     def runHPPC(self) -> bool: 
 
         result = 0
+
+        if self.m_numCycles == 0:
         
-        # start with a complete discharging of the battery
-        result = self.discharge(False, 0)
-        # rest for 1hr
-        self.rest(3600)
-        # charge the battery to 100% SOC
-        result = self.charge(False, 0)
-        # rest for 1hr
-        self.rest(3600)
+            # start with a complete discharging of the battery
+            result = self.discharge(False, 0)
+            # rest for 1hr
+            self.rest(3600)
+            # charge the battery to 100% SOC
+            result = self.charge(False, 0)
+            # rest for 1hr
+            self.rest(3600)
 
         # 10% SoC time - approximate in seconds
         timeStepSoC = ((0.001*(self.m_battery.m_totalCapacity/10))/self.m_battery.genInCurrents()[1])*60
@@ -273,5 +281,37 @@ class testHPPC:
             #rest for 1h
             self.rest(3600)
 
+            self.m_numCycles += 1
+            print("Cycle {} completed. \n".format(self.m_numCycles))
+
         return True
 
+    def initLogging(self):
+
+        """Create logging file."""
+
+        now = datetime.datetime.now()
+        nowStr = now.strftime("%Y%m%d_%H%M%S")
+        self.m_fileName = "Results_HCCPC_" + nowStr + ".csv"
+
+        with open(self.m_fileName, 'w', encoding = "UTF8") as file:
+
+            file.write("TimeStamp, Time Delta, Input Current, Output Voltage \n")
+
+        file.close()
+
+        return
+    
+    def logValues(self, inVolt, inCurr, timeDelta, timeStamp):
+        
+        """Log measurements."""
+
+        inStr = str(timeStamp) + ',' + str(timeDelta) + ',' + str(inCurr) + ',' + str(inVolt) + '\n'
+
+        with open(self.m_fileName, 'a', encoding = "UTF8") as file:
+
+            file.write(inStr)
+
+        file.close()
+
+        return 

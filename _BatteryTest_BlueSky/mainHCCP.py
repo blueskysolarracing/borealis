@@ -1,12 +1,10 @@
 import ClassBattery as Battery
 import DP800 as DPWrapper
 import DL3000 as DLwrapper
-import HPPC 
 import pyvisa as pv
 import time
-import datetime
 
-from HPPC import testHPPC
+from HCCP import testHCCP
 
 def executeHPPC(inHPPCObj):
 
@@ -39,14 +37,7 @@ if __name__ == '__main__':
     pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
 
     # TestHPPC object
-    HPPCObj = HPPC.testHPPC(batteryObj, eLoad, pSupply)
+    HPPCObj = testHCCP(batteryObj, eLoad, pSupply, 0)
     
     # run battery unit tests
     result = executeHPPC(batteryObj, pSupply)
-
-    # log all accumulated data
-    if result:
-        now = datetime.datetime.now()
-        nowStr = now.strftime("%Y%m%d_%H%M%S")
-        fileName = "Results_HPPC_" + nowStr + ".csv"
-        batteryObj.dumpData(fileName)
