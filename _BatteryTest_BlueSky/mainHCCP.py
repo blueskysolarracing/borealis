@@ -6,13 +6,15 @@ import time
 
 from HCCP import testHCCP
 
-def executeHPPC(inHPPCObj):
+def executeHPPC(inHCCPObj):
 
-    result = inHPPCObj.initELoad()
+    inHCCPObj.initLogging()
+
+    result = inHCCPObj.initELoad()
     time.sleep(2)
-    result = result & inHPPCObj.initDCSupply()
+    result = result & inHCCPObj.initDCSupply()
     time.sleep(2)
-    inHPPCObj.runHPPC()
+    inHCCPObj.runHPPC()
 
     return result
 
