@@ -1,13 +1,13 @@
 class BatteryObj:
 
-    def __init__(self, cellCapacity, numCells, testSetting, voltageBounds, CRate = 0, HPPCRates = []):
+    def __init__(self, cellCapacity, numCells, testSetting, voltageBounds, CRate = 0, HCCPRates = []):
 
         # initialize member variables
         self.m_totalCapacity = numCells*cellCapacity
         self.m_setting = testSetting
         self.m_voltageBounds = voltageBounds
         self.m_CRate = CRate
-        self.m_HPPCRates = HPPCRates
+        self.m_HCCPRates = HCCPRates
 
         self.m_measuredVoltage = []
         self.m_measuredCurrent = []
@@ -22,8 +22,8 @@ class BatteryObj:
 
         elif self.m_setting == 0:
 
-            return [self.m_totalCapacity*self.m_HPPCRates[0]/1000, \
-                    self.m_totalCapacity*self.m_HPPCRates[1]/1000]
+            return [self.m_totalCapacity*self.m_HCCPRates[0]/1000, \
+                    self.m_totalCapacity*self.m_HCCPRates[1]/1000]
 
         return 0
 

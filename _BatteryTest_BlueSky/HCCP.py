@@ -241,7 +241,7 @@ class testHCCP:
 
         return 
 
-    def runHPPC(self) -> bool: 
+    def runHCCP(self) -> bool: 
 
         result = 0
 
@@ -292,7 +292,7 @@ class testHCCP:
 
         now = datetime.datetime.now()
         nowStr = now.strftime("%Y%m%d_%H%M%S")
-        self.m_fileName = "Results_HCCPC_" + nowStr + ".csv"
+        self.m_fileName = "Results_HCCP_" + nowStr + ".csv"
 
         with open(self.m_fileName, 'w', encoding = "UTF8") as file:
 

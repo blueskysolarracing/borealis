@@ -6,7 +6,7 @@ import time
 
 from HCCP import testHCCP
 
-def executeHPPC(inHCCPObj):
+def executeHCCP(inHCCPObj):
 
     inHCCPObj.initLogging()
 
@@ -14,7 +14,7 @@ def executeHPPC(inHCCPObj):
     time.sleep(2)
     result = result & inHCCPObj.initDCSupply()
     time.sleep(2)
-    inHCCPObj.runHPPC()
+    inHCCPObj.runHCCP()
 
     return result
 
@@ -27,11 +27,10 @@ if __name__ == '__main__':
     cellNum = 14                                                # number of cells in parallel
     testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
-    HPPCRatesIn = [0.75, 0.85]
-    cyclesIn = 2
+    HCCPRatesIn = [0.75, 0.85]
     
     # initialize BatteryObject 
-    batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, HPPCRates = HPPCRatesIn, cycles = cyclesIn)
+    batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, HCCPRates = HCCPRatesIn)
 
     # initialize e-Load and DC Power Supply
     resourceManager = pv.ResourceManager()
@@ -42,4 +41,4 @@ if __name__ == '__main__':
     HPPCObj = testHCCP(batteryObj, eLoad, pSupply, 0)
     
     # run battery unit tests
-    result = executeHPPC(batteryObj, pSupply)
+    result = executeHCCP(batteryObj, pSupply)
