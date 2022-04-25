@@ -27,7 +27,7 @@ if __name__ == '__main__':
     cellNum = 14                                                # number of cells in parallel
     testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
-    HCCPRatesIn = [0.75, 0.85]
+    HCCPRatesIn = [0.75, 0.80]
     
     # initialize BatteryObject 
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, HCCPRates = HCCPRatesIn)
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
 
     # TestHPPC object
-    HPPCObj = testHCCP(batteryObj, eLoad, pSupply, 0)
+    HCCPObj = testHCCP(batteryObj, eLoad, pSupply, 0)
     
     # run battery unit tests
-    result = executeHCCP(batteryObj, pSupply)
+    result = executeHCCP(HCCPObj)
