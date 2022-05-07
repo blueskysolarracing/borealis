@@ -25,7 +25,7 @@ if __name__ == '__main__':
     targetID_pSupply = "USB0::6833::3601::DP8A234200572::0::INSTR"
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
-    testSetting = 0                                            # -1: constant discharge | 1: constant charge | 0: HCCP
+    testSetting = 0                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
     HCCPRatesIn = [0.75, 0.80]
     

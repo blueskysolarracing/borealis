@@ -257,7 +257,7 @@ class testHCCP:
             self.rest(3600)
 
         # 10% SoC time - approximate in seconds
-        timeStepSoC = ((0.001*(self.m_battery.m_totalCapacity/10))/self.m_battery.genInCurrents()[1])*60
+        timeStepSoC = ((0.001*(self.m_battery.m_totalCapacity))/self.m_battery.genInCurrent()[1])*60
 
         while (True):
 
