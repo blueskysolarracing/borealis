@@ -336,7 +336,12 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 x*/
+	HAL_GPIO_WritePin(GPIOE, ledtest_Pin, GPIO_PIN_SET);
+	HAL_Delay(250);
+
+	HAL_GPIO_WritePin(GPIOE, ledtest_Pin, GPIO_PIN_RESET);
+	HAL_Delay(500);
   }
   /* USER CODE END 3 */
 }
@@ -565,12 +570,11 @@ void StartDefaultTask(void *argument)
 	glcd_init();
 	//glcd_test_hello_world();
 	//glcd_test_rectangles();
-	HAL_GPIO_WritePin(LEDON_GPIO_Port,LEDON_Pin, GPIO_PIN_SET);
 	// my stuff
 	glcd_clear();
 	srand(time(NULL));   // Initialization, should only be called once.
 
-	int t = 500;
+	int t = 100;
 	int p1values[4] = {420, 805, -404, 69};
 	int p2values[4] = {1, 1, 1, 87};
 

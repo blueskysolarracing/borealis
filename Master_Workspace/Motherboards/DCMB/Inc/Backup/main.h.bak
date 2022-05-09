@@ -62,9 +62,19 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Cam_Ctrl_Pin GPIO_PIN_14
+#define Cam_Ctrl_GPIO_Port GPIOI
+#define regen_input_Pin GPIO_PIN_4
+#define regen_input_GPIO_Port GPIOC
+#define Screen_Ctrl_Pin GPIO_PIN_15
+#define Screen_Ctrl_GPIO_Port GPIOI
 #define GPIO_IN0_Pin GPIO_PIN_0
 #define GPIO_IN0_GPIO_Port GPIOJ
 #define GPIO_IN0_EXTI_IRQn EXTI0_IRQn
+#define ACC_sig_Pin GPIO_PIN_11
+#define ACC_sig_GPIO_Port GPIOF
+#define Fan_ctrl_Pin GPIO_PIN_0
+#define Fan_ctrl_GPIO_Port GPIOG
 #define GPIO_IN10_Pin GPIO_PIN_10
 #define GPIO_IN10_GPIO_Port GPIOD
 #define GPIO_IN10_EXTI_IRQn EXTI15_10_IRQn
@@ -78,5 +88,3 @@ void Error_Handler(void);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

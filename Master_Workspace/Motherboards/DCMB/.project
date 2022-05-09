@@ -30,14 +30,9 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>btcp_inc</name>
+			<name>BlueSkyTransmissionProtocol</name>
 			<type>2</type>
-			<location>C:/Users/tonyh/OneDrive/University/BlueSky/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
-		</link>
-		<link>
-			<name>btcp_src</name>
-			<type>2</type>
-			<location>C:/Users/tonyh/OneDrive/University/BlueSky/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+			<location>/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol</location>
 		</link>
 	</linkedResources>
 </projectDescription>
