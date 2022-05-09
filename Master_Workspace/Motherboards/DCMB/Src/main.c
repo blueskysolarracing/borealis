@@ -244,8 +244,10 @@ int main(void)
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+  //xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 3, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 3, NULL);
-  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 3, NULL);
+  // xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   disp_attachMotOnCallback(motCallback);
   disp_attachVfmUpCallback(vfmUpCallback);
   disp_attachVfmDownCallback(vfmDownCallback);
@@ -1292,7 +1294,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 500000;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -1892,7 +1894,7 @@ static void buttonCheck(uint8_t state){
 //		  B_tcpSend(btcp, buf, 2);
 //		  horn_on = 1;
 	  }
-	  if(prev_data == data1){
+	  if(prev_data == data){
 		  consistent_count++;
 	  } else {
 		  consistent_count = 0;
@@ -1935,6 +1937,8 @@ static void steeringButtonCheck(uint8_t *state){
 	static uint8_t motor_state = 0;
 	static uint8_t buf[2];
 	static uint8_t horn_on = 0;
+	static uint8_t lsig_on = 0;
+	static uint8_t rsig_on = 0;
 	static uint8_t vfm_up_pressed = 0;
 	static long vfm_up_press_time = 0;
 	static uint8_t vfm_down_pressed = 0;
@@ -1969,6 +1973,30 @@ static void steeringButtonCheck(uint8_t *state){
       uint8_t bufh2[2] = {0x04, 0x00};
 	  B_tcpSend(btcp, bufh2, 2);
 	  horn_on = 0;
+	}
+
+	if(!(state[0]&L_SIG)){
+	  if(!lsig_on){
+	    uint8_t bufh2[2] = {0x03, 0x42}; // 0x03 for lightctrl, instruction byte to turn on left indicator
+	    B_tcpSend(btcp, bufh2, 2);
+	    lsig_on = 1;
+	  }
+	} else if (lsig_on){
+	  uint8_t bufh2[2] = {0x03, 0x02}; // instruction byte to turn off left indicator
+	  B_tcpSend(btcp, bufh2, 2);
+	  lsig_on = 0;
+	}
+
+	if(!(state[0]&R_SIG)){
+	  if(!rsig_on){
+		uint8_t bufh2[2] = {0x03, 0x43}; // instruction byte to turn on right indicator
+		B_tcpSend(btcp, bufh2, 2);
+		rsig_on = 1;
+	  }
+	} else if (rsig_on){
+	  uint8_t bufh2[2] = {0x03, 0x03}; // instruction byte to turn off right indicator
+	  B_tcpSend(btcp, bufh2, 2);
+	  rsig_on = 0;
 	}
 
 //	if(!(state[0]&DPAD_LEFT)){
@@ -2098,7 +2126,7 @@ static void steeringWheelTask(const void *pv){
 		  // steeringData[1] Bit arrangement (msb -> lsb): {0, 0, 0, 0, HORN, RAD, L_SIG, R_SIG}
 		  steeringData[1] = e->buf[i]; // From GPIO Port C -> HORN, RAD, L_SIG, R_SIG
 		  input_buffer[pos] = e->buf[i];
-		  pos++;git
+		  pos++;
 	  } else if(pos == 4){
 		  // steeringData[2] Bit arrangement (msb -> lsb): {ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1}
 		  steeringData[2] = e->buf[i]; // From GPIO Port C -> ACC8 - ACC1
@@ -2119,18 +2147,19 @@ static void steeringWheelTask(const void *pv){
 	}
 	// print statement -> connect to serial monitor
     char buffer[100];
+    char buffer2[100];
     sprintf(buffer, "STEERING WHEEL TEST\r\n");
     HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
     for(int i = 0; i < 2; i++){
     	for(int j = 1 << 7; j > 0; j /= 2){
     		if((steeringData[i] & j) != 0){
-    			sprintf(buffer, "1");
-    			HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+    			sprintf(buffer2, "1");
+    			// HAL_UART_Transmit(&huart2, buffer2, sizeof(buffer2), 100);
     			HAL_Delay(500);
     		}
     		else{
-    			sprintf(buffer, "0");
-    			HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+    			sprintf(buffer2, "0");
+    			// HAL_UART_Transmit(&huart2, buffer2, sizeof(buffer2), 100);
     			HAL_Delay(500);
     		}
     	}
@@ -2194,17 +2223,18 @@ static void sidePanelTask(const void *pv){
     }
     // print statement -> connect serial monitor
     char buffer[100];
+    char buffer2[100];
     sprintf(buffer, "SIDE PANEL TEST\r\n");
     HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
     for(int i = 1 << 7; i > 0; i /= 2){
     	if((sidePanelData & i) != 0){
-    		sprintf(buffer, "1");
-    		HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+    		sprintf(buffer2, "1");
+    		// HAL_UART_Transmit(&huart2, buffer2, sizeof(buffer2), 100);
     		HAL_Delay(500);
     	}
     	else{
-    		sprintf(buffer, "0");
-    		HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+    		sprintf(buffer2, "0");
+    		// HAL_UART_Transmit(&huart2, buffer2, sizeof(buffer2), 100);
     		HAL_Delay(500);
     	}
     }

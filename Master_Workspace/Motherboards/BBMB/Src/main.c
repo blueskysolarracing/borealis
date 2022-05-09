@@ -100,6 +100,7 @@ SemaphoreHandle_t adcMutex;
 uint32_t adcSum;
 uint16_t adcCount;
 QueueHandle_t lightsCtrl = NULL;
+TimerHandle_t blink_timer = NULL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,6 +162,7 @@ static void lightsTask(void * argument);
 static void senderTaskHandle(void * argument);
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
+void blinkCallback(TimerHandle_t xTimer);
 
 /* USER CODE END PFP */
 
@@ -237,6 +239,9 @@ int main(void)
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
   xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 1, NULL);
   xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 1, NULL);
+
+  blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
+  xTimerStart(blink_timer, 0);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -1881,18 +1886,21 @@ static void highPowerTask(const void* pv){
 }
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->sender){
-	case 0x04:
-		  if(pkt->payload[4] == 0x01){
+	case 0x04: // 0x04: DCMB
+		  if(pkt->payload[4] == 0x01){ // BBox Startup
 			  xQueueSend(hpQ, pkt->payload+5, 0);
-		  } else if(pkt->payload[4] == 0x04){
+		  } else if(pkt->payload[4] == 0x04){ // Horn state
 			  if(pkt->payload[5]){
 				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
 			  } else {
 				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
 			  }
+		  } else if(pkt->data[0] == 0x03){ // Light control
+			  xQueueSend(lightsCtrl, pkt->data[1], 200); // put command in queue
 		  }
 	}
 }
+
 static void adcTask(const void *pv){
 //	B_adcHandle_t *badc = pv;
 //	uint16_t *buf;
@@ -2300,6 +2308,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 }
 
+// Blink on-board LED to check board is programmed
+void blinkCallback(TimerHandle_t xTimer){
+	HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_9);
+}
+
 
 void lightsTask(void const * argument)
 {
@@ -2329,58 +2342,59 @@ void lightsTask(void const * argument)
   {
 
     // osMessageQueueGet(lightsCtrlHandle, &buf_get, NULL, 200);
-    xQueueReceive(lightsCtrl, &buf_get, 200);
+	if (xQueueReceive(lightsCtrl, &buf_get, 200)){
+		// HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_6);
+		uint8_t light_msg = buf_get[0];
+		uint8_t light_id = light_msg & 0x3E;
+		switch(light_id){ // mask 0b0011 1110 to isolate light
+			case 0x02: // indicator
+				if ((light_msg & 0x40) != 0x00){ // masking for start / stop bit
+					turn_on_indicators((int)(light_msg & 0x01), duty, blink, on_period); // masking last bit for left or right
+				}
+				else{
+					turn_off_indicators((int)(light_msg & 0x01)); // masking last bit for left or right
+				}
+				break;
 
-	uint8_t light_msg = buf_get[0];
-	uint8_t light_id = light_msg & 0x3E;
-	switch(light_id){ // mask 0b0011 1110 to isolate light
-		case 0x02: // indicator
-			if ((light_msg & 0x40) != 0x00){ // masking for start / stop bit
-				turn_on_indicators((int)(light_msg && 0x01), duty, blink, on_period); // masking last bit for left or right
-			}
-			else{
-				turn_off_indicators((int)(light_msg && 0x01)); // masking last bit for left or right
-			}
-			break;
+			case 0x04: // DRL
+				if ((light_msg & 0x40) != 0x00){
+					turn_on_DRL(duty);
+				}
+				else{
+					turn_off_DRL();
+				}
+				break;
 
-		case 0x04: // DRL
-			if ((light_msg & 0x40) != 0x00){
-				turn_on_DRL(duty);
-			}
-			else{
-				turn_off_DRL();
-			}
-			break;
+			case 0x08: // brake
+				if ((light_msg & 0x40) != 0x00){
+					turn_on_brake_lights(duty);
+				}
+				else{
+					turn_off_brake_lights();
+				}
+				break;
 
-		case 0x08: // brake
-			if ((light_msg & 0x40) != 0x00){
-				turn_on_brake_lights(duty);
-			}
-			else{
-				turn_off_brake_lights();
-			}
-			break;
+			case 0x10: // hazard light
+				if ((light_msg & 0x40) != 0x00){
+					turn_on_hazard_lights(duty, blink);
+				}
+				else{
+					turn_off_hazard_lights();
+				}
+				break;
 
-		case 0x10: // hazard light
-			if ((light_msg & 0x40) != 0x00){
-				turn_on_hazard_lights(duty, blink);
-			}
-			else{
-				turn_off_hazard_lights();
-			}
-			break;
+			case 0x20: // fault indicator - started by interrupt?
+				if ((light_msg & 0x40) != 0x00){
+					turn_on_fault_indicator();
+				}
+				else{
+					turn_off_fault_indicator();
+				}
+				break;
 
-		case 0x20: // fault indicator - started by interrupt?
-			if ((light_msg & 0x40) != 0x00){
-				turn_on_fault_indicator();
-			}
-			else{
-				turn_off_fault_indicator();
-			}
-			break;
-
-		default:
-			break;
+			default:
+				break;
+		}
 	}
   }
 }
