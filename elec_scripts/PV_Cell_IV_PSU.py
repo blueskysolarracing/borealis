@@ -4,7 +4,7 @@ import DP800
 import pyvisa as pv
 
 init_current = 2.0 #Initial current to get initial operating point on the IV curve
-max_current = 6.0 #Max. allowed current from PSU (although DP800 can only reach 5A)
+max_current = 3.4 #Max. allowed current from PSU (although DP800 can only reach 5A)
 
 #Methods
 def compVolt(curr):
@@ -16,7 +16,7 @@ def getMPP():
     num_points = 10000
     interval = max_current / num_points
     powerList = [] #List of maxPowerList's
-    maxPowerList = [] #Carries current, voltage and power for each point
+    maxPowerList = [0, 0, 0] #Carries current, voltage and power for each point
 
     for i in range (num_points):
         current = interval * i
@@ -51,7 +51,7 @@ PSU.channelON()
 
 #Greet user
 MPP = getMPP()
-print("Welcome to the Solar Cell Simulator.\n Max. power is " + str(MPP[2]) "W (at " + str(MPP[1]) + "V, " + str(MPP[0]) + "A)")
+print("Welcome to the Solar Cell Simulator.\n Max. power is " + str(MPP[2]) + "W (at " + str(MPP[1]) + "V, " + str(MPP[0]) + "A)")
 
 #Maintain IV curve
 while 1:
