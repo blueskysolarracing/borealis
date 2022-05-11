@@ -384,7 +384,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc1.Init.Resolution = ADC_RESOLUTION_16B;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.NbrOfConversion = 2;
@@ -410,7 +410,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_16CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_64CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
@@ -1768,45 +1768,46 @@ static void lightsTmr(TimerHandle_t xTimer){
   static uint8_t current_state = 0;
   static uint8_t buf[4] = {0x03, 0x00, 0x00, 0x00};
   static uint8_t currentCameraState = 0;
-	current_state ^=1;
-	if(current_state&RIGHT_ENABLED){
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET);
-		buf[2] = 0x01;
-		disp_setDCMBRightLightState(1);
-	} else {
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_RESET);
-		buf[2] = 0x00;
-		disp_setDCMBRightLightState(0);
-	}
-	if(current_state&LEFT_ENABLED){
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
-		buf[1] = 0x01;
-		disp_setDCMBLeftLightState(1);
-	} else {
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
-		buf[1] = 0x00;
-		disp_setDCMBLeftLightState(0);
-	}
-	if(currentCameraState != CAMERA_ENABLED){
-		if(CAMERA_ENABLED){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-		} else {
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-		}
-		currentCameraState = CAMERA_ENABLED;
-	}
-	if((HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_9) == GPIO_PIN_SET)){
-		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET);
-		buf[3] = 0x01;
-		brakeStatus = 1;
-		disp_setDCMBStopLightState(1);
-	} else {
-		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET);
-		buf[3] = 0x00;
-		brakeStatus = 0;
-		disp_setDCMBStopLightState(0);
-	}
-	B_tcpSend(btcp, buf, 4);
+
+//	current_state ^=1;
+//	if(current_state&RIGHT_ENABLED){
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET);
+//		buf[2] = 0x01;
+//		disp_setDCMBRightLightState(1);
+//	} else {
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_RESET);
+//		buf[2] = 0x00;
+//		disp_setDCMBRightLightState(0);
+//	}
+//	if(current_state&LEFT_ENABLED){
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
+//		buf[1] = 0x01;
+//		disp_setDCMBLeftLightState(1);
+//	} else {
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
+//		buf[1] = 0x00;
+//		disp_setDCMBLeftLightState(0);
+//	}
+//	if(currentCameraState != CAMERA_ENABLED){
+//		if(CAMERA_ENABLED){
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
+//		} else {
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
+//		}
+//		currentCameraState = CAMERA_ENABLED;
+//	}
+//	if((HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_9) == GPIO_PIN_SET)){
+//		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET);
+//		buf[3] = 0x01;
+//		brakeStatus = 1;
+//		disp_setDCMBStopLightState(1);
+//	} else {
+//		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET);
+//		buf[3] = 0x00;
+//		brakeStatus = 0;
+//		disp_setDCMBStopLightState(0);
+//	}
+//	B_tcpSend(btcp, buf, 4);
 }
 
 static void mc2StateTmr(TimerHandle_t xTimer){
@@ -1822,7 +1823,14 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 	uint16_t accel_reading_lower_bound = 5000; //ADC reading corresponding to 0% power request
 	uint16_t regen_reading_upper_bound = 40000; //ADC reading corresponding to 100% regen request
 	uint16_t regen_reading_lower_bound = 5000; //ADC reading corresponding to 0% regen request
-	uint16_t pedals_reading[2] = {0, 0}; //[accel, regen]
+    uint32_t pedalsReading[2] = {0, 0};
+
+
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 100);
+    pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
+    pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
 
 	//TR: I'm not quite sure what this does...
 //	int accValTemp = accValue == 255 ? currentValue : accValue;
@@ -1866,11 +1874,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 
 // -------- ACCELERATION -------- //
 		//Get pedals reading, need to do it polling to ensure we have the latest measurements
-		HAL_ADC_Start(&hadc1);
-	    HAL_ADC_PollForConversion(&hadc1, 1);
-	    pedals_reading[0] = HAL_ADC_GetValue(&hadc1);
-
-		accel_value = (pedals_reading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accel_value = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 		//Bound acceleration value
 		if(accel_value < 0){
@@ -1899,11 +1903,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 		}
 
 // -------- REGEN -------- //
-		HAL_ADC_Start(&hadc1);
-	    HAL_ADC_PollForConversion(&hadc1, 1);
-	    pedals_reading[1] = HAL_ADC_GetValue(&hadc1);
-
-		regen_value = (pedals_reading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		regen_value = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 		//Bound regen value
 		if(regen_value < 0){
@@ -1918,10 +1918,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 			regen_value = 0;
 		}
 
-	    char buffer[100];
-	    sprintf(buffer, "\nAccel reading: %ld\nRegen reading: %ld\n\n", pedals_reading[0], pedals_reading[1]);
-	    HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-	    HAL_Delay(100);
+		buf[3] = regen_value;
 
 		// TODO other buttons
 		disp_setDCMBAccPotPosition(accel_value);
@@ -2128,70 +2125,12 @@ static void steeringButtonCheck(uint8_t *state){
 	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 
 }
-//static void steeringWheelTask(const void *pv){
-//  B_uartHandle_t *buart = pv;
-//  B_bufQEntry_t *e;
-//  uint8_t input_buffer[MAX_PACKET_SIZE +4];
-//  uint8_t started = 0;
-//  uint8_t pos = 0;
-//  uint8_t data[3];
-//  uint8_t type = 0;
-//  uint8_t end_pos = 0;
-//  uint8_t data_pos = 0;
-//  uint32_t crc = 0;
-//  uint32_t crcExpected = 0;
-//  uint8_t crcAcc = 0;
-//  uint8_t hornON = 0;
-//  uint8_t buf[4];
-//  for(;;){
-//    e = B_uartRead(swBuart);
-//    for(int i = 0; i < e->len; i++){
-//      if(!started){
-//        if(e->buf[i] == BSSR_SERIAL_START){
-//          started = 1;
-//          input_buffer[pos] = e->buf[i];
-//          pos++;
-//        }
-//      } else if(pos == 1){
-//        input_buffer[pos] = e->buf[i];
-//        type = e->buf[i];
-//        if(type == 0x02){
-//          end_pos = 2;
-//        } else if (type == 0x03){
-//          end_pos = 4;
-//        }
-//        pos++;
-//      } else if(pos > end_pos){
-//        crc |= e->buf[i] << (crcAcc*8);
-//        crcAcc++;
-//        if(crcAcc == 4){
-//          crcExpected = ~HAL_CRC_Calculate(&hcrc, input_buffer, pos);
-//          if(crc == crcExpected){
-//            if(type == 0x02){
-//            	accValue = data[0];
-//            } else if(type == 0x03) {
-//            	steeringButtonCheck(data);
-//            }
-//          }
-//          crcAcc = crcExpected = crc = data_pos = end_pos = type = started = pos = 0;
-//        }
-//      } else {
-//        input_buffer[pos] = e->buf[i];
-//        pos++;
-//        data[data_pos] = e->buf[i];
-//        data_pos++;
-//      }
-//    }
-//    B_uartDoneRead(e);
-//  }
-//}
 
 static void steeringWheelTask(const void *pv){
-// {0xa5, 0x03, PORTB Data (1), PORTC Data1 (2), PORTC Data2 (3), 0x00, 0x00, 0x00, 0x00};
-// Data from GPIO Port B, C,
-// 1. SELECT, RIGHT, DOWN, LEFT, UP, CRUISE
-// 2. HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
-// 3. ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1
+// {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
+// DATA_1: [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] <-- ROTARY ENCODER DATA
+// DATA_2: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
+// DATA_3: [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
 
   B_tcpHandle_t* btcp = pv;
   B_bufQEntry_t *e;
@@ -2201,47 +2140,72 @@ static void steeringWheelTask(const void *pv){
   uint8_t crcAcc = 0;
   uint32_t crc;
   uint32_t crcExpected;
+  uint8_t oldSteeringData[3] = {0, 0, 0};
+
   for(;;){
 	e = B_uartRead(swBuart);
-	for(int i = 0; i < e->len; i++){
-	  taskENTER_CRITICAL(); // data into global variable -> enter critical section
-	  if(!started){
-		if(e->buf[i] == BSSR_SERIAL_START){
-		  started = 1;
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
+
+	taskENTER_CRITICAL();
+	//Save old data
+	for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
+
+	//Update global data
+	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x03){
+		for (int i = 0; i < 3; i++){
+			if (steeringData[i] != e->buf[2 + i]){ steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
 		}
-	  }else if(pos == 1){
-		input_buffer[pos] = e->buf[i];
-		pos++;
-	  } else if(pos == 2){
-		// steeringData[0] Bit arrangement (msb -> lsb): {0,0,0, SELECT, RIGHT, DOWN, LEFT, UP, CRUISE}
-		steeringData[0] = e->buf[i]; // From GPIO Port B -> SELECT, RIGHT, DOWN, LEFT, UP, CRUISE
-		input_buffer[pos] = e->buf[i];
-		pos++;
-	  } else if(pos == 3){
-		  // steeringData[1] Bit arrangement (msb -> lsb): {0, 0, 0, 0, HORN, RAD, L_SIG, R_SIG}
-		  steeringData[1] = e->buf[i]; // From GPIO Port C -> HORN, RAD, L_SIG, R_SIG
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
-	  } else if(pos == 4){
-		  // steeringData[2] Bit arrangement (msb -> lsb): {ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1}
-		  steeringData[2] = e->buf[i]; // From GPIO Port C -> ACC8 - ACC1
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
-	  } else if(pos > 4){
-		crc |= e->buf[i] << (crcAcc*8);
-		crcAcc++;
-		if(crcAcc == 4){
-		  crcExpected = ~HAL_CRC_Calculate(&hcrc, input_buffer, 3);
-		  if(crcExpected == crc){
-			steeringButtonCheck(steeringData);
-		  }
-		  pos = crcAcc = started = crc = 0;
-		}
-	  }
-	  taskEXIT_CRITICAL(); // exit critical section
 	}
+	}
+
+	//---------- Process data ----------//
+	// Navigation <- Not implemented
+	// Cruise <- Not implemented
+
+	//INDICATOR LIGHTS - SEND TO BBMB
+    //Left indicator
+    if ((steeringData[1] & 0b00000001) != (steeringData[1] & 0b00000001)){ //If the state of the left indicator changed, send new data to BBMB
+    	//If LEFT_INDICATOR == 1 --> Retract lights
+    	//If LEFT_INDICATOR == 0 --> Extend lights
+        uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+
+    	if ((steeringData[1] & 0b00000001) == 0){ //Extend left indicator
+        	bufh[1] = 0b01000000;
+    	} else { //Retract left indicator
+        	bufh[1] = 0b00000000;
+    	}
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+    //Right indicator
+    if ((steeringData[1] & 0b00000010) != (steeringData[1] & 0b00000010)){ //If the state of the right indicator changed, send new data to BBMB
+    	//If RIGHT_INDICATOR == 1 --> Retract lights
+    	//If RIGHT_INDICATOR == 0 --> Extend lights
+        uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+
+    	if ((steeringData[1] & 0b00000010) == 0){ //Extend right indicator
+        	bufh[1] = 0b01000001;
+    	} else { //Retract right indicator
+        	bufh[1] = 0b00000001;
+    	}
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+	//Horn - SEND TO BBMB
+    if ((steeringData[1] & 0b00001000) != (steeringData[1] & 0b00001000)){
+        uint8_t bufh[2] = {0x04, 0x00}; //[DATA ID, HORN STATE]
+
+    	if ((steeringData[1] & 0b00001000) == 0){ //Turn on horn
+            bufh[2] = 0x01; //[DATA ID, HORN STATE]
+    	} else { //Turn off horn
+            bufh[2] = 0x00; //[DATA ID, HORN STATE]
+    	}
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+	B_uartDoneRead(e);
+
+	taskEXIT_CRITICAL(); // exit critical section
+
 	// print statement -> connect to serial monitor
     char buffer[100];
     sprintf(buffer, "STEERING WHEEL TEST\r\n");
@@ -2251,17 +2215,15 @@ static void steeringWheelTask(const void *pv){
     		if((steeringData[i] & j) != 0){
     			sprintf(buffer, "1");
     			HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    			HAL_Delay(500);
+    			HAL_Delay(100);
     		}
     		else{
     			sprintf(buffer, "0");
     			HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    			HAL_Delay(500);
+    			HAL_Delay(100);
     		}
     	}
     }
-	B_uartDoneRead(e);
-  }
 }
 
 
@@ -2288,41 +2250,6 @@ static void sidePanelTask(const void *pv){
 	}
 
 	//Check CRC, optinal
-
-//      if(!started){
-//	    if(e->buf[i] == BSSR_SERIAL_START){
-//		  started = 1;
-//	   	  input_buffer[pos] = e->buf[i];
-//		  pos++;
-//		}
-//	  }else if(pos == 1){
-//		input_buffer[pos] = e->buf[i];
-//		pos++;
-//	  } else if(pos == 2){
-//	    sidePanelData = e->buf[i]; // From GPIO Port B
-//		input_buffer[pos] = e->buf[i];
-//		pos++;
-//	  } else if(pos == 3){
-//		  sidePanelData |= (e->buf[i] << 4); // From GPIO Port C
-//		  input_buffer[pos] = e->buf[i];
-//		  pos++;
-//	  } else if(pos == 4){
-//		  sidePanelData |= (e->buf[i] << 7); // From GPIO Port D
-//		  input_buffer[pos] = e->buf[i];
-//		  pos++;
-//	  } else if(pos > 4){
-//		crc |= e->buf[i] << (crcAcc*8);
-//		crcAcc++;
-//		if(crcAcc == 4){
-//	      crcExpected = ~HAL_CRC_Calculate(&hcrc, input_buffer, 3);
-//		  if(crcExpected == crc){
-//		    buttonCheck(sidePanelData);
-//		  }
-//		  pos = crcAcc = started = crc = 0;
-//		}
-//	  }
-
-    // print statement -> connect serial monitor
 
     B_uartDoneRead(e);
 

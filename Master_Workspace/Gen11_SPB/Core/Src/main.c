@@ -65,14 +65,14 @@ static void MX_USART2_UART_Init(void);
 
 uint8_t getSwitchState(){
 	uint8_t switchState = 0;
-	switchState = switchState | 1*(HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin)); //Bit 0
-	switchState = switchState | 2*(HAL_GPIO_ReadPin(GPIOC, AUX0_Pin)); //Bit 1
-	switchState = switchState | 4*(HAL_GPIO_ReadPin(GPIOB, AUX1_Pin)); //Bit 2
-	switchState = switchState | 8*(HAL_GPIO_ReadPin(GPIOB, AUX2_Pin)); //Bit 3
-	switchState = switchState | 16*(HAL_GPIO_ReadPin(GPIOC, FAN_Pin)); //Bit 4
-	switchState = switchState | 32*(HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin)); //Bit 5
-	switchState = switchState | 64*(HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin)); //Bit 6
-	switchState = switchState | 128*(HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin)); //Bit 7
+	switchState = (switchState & ~0b00000001) | (HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin) & 0b00000001); //Bit 0
+	switchState = (switchState & ~0b00000010) | (HAL_GPIO_ReadPin(GPIOC, AUX0_Pin) & 0b00000010); //Bit 1
+	switchState = (switchState & ~0b00000100) | (HAL_GPIO_ReadPin(GPIOB, AUX1_Pin) & 0b00000100); //Bit 2
+	switchState = (switchState & ~0b00001000) | (HAL_GPIO_ReadPin(GPIOB, AUX2_Pin) & 0b00001000); //Bit 3
+	switchState = (switchState & ~0b00010000) | (HAL_GPIO_ReadPin(GPIOC, FAN_Pin) & 0b00010000); //Bit 4
+	switchState = (switchState & ~0b00100000) | (HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin) & 0b00100000); //Bit 5
+	switchState = (switchState & ~0b01000000) | (HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin) & 0b01000000); //Bit 6
+	switchState = (switchState & ~0b10000000) | (HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin) & 0b10000000); //Bit 7
 
 	return switchState;
 }
