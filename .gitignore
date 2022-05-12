@@ -72,3 +72,11 @@ ctrlp.root
 
 #html
 *.html
+
+#Licenses
+*.md
+/Master_Workspace/.project
+/Master_Workspace/GEN11_SWB/Drivers/CMSIS/Device/ST/STM32L4xx/LICENSE.txt
+/Master_Workspace/GEN11_SWB/Drivers/CMSIS/LICENSE.txt
+/Master_Workspace/GEN11_SWB/Drivers/STM32L4xx_HAL_Driver/LICENSE.txt
+/Master_Workspace/GEN11_SWB/Drivers/STM32L4xx_HAL_Driver/License.md
