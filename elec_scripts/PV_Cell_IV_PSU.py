@@ -51,7 +51,7 @@ PSU.channelON()
 
 #Greet user
 MPP = getMPP()
-print("Welcome to the Solar Cell Simulator.\n Max. power is " + str(MPP[2]) + "W (at " + str(MPP[1]) + "V, " + str(MPP[0]) + "A)")
+print("Welcome to the Solar Cell Simulator.\n Max. power is " + "{:10.2f}".format(MPP[2]) + "W (at " + "{:10.2f}".format(MPP[1]) + "V, " + "{:10.2f}".format(MPP[0]) + "A)")
 
 #Maintain IV curve
 while 1:
