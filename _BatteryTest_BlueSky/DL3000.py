@@ -15,6 +15,11 @@ class DL3000(object):
         self.keyAPPState = 0
         self.inst = inst
 
+        # Key IDs
+        self.keyUtility = 9
+        self.keyDOWNArrow = 40
+        self.knobCNTCLKW = 35
+
     def voltage(self):
         # My DL3021 returns a string like '0.000067\n0'
         return float(self.inst.query(":MEAS:VOLT?").partition("\n")[0])
@@ -122,6 +127,11 @@ class DL3000(object):
 
     def simINT_KeyPress(self, value):
         return self.inst.write(":SYST:KEY {}".format(20 + value))
+
+    def sim_KeyPress(self, keyID):
+        self.inst.write(":SYST:KEY {}".format(keyID))
+        time.sleep(1)
+        return
     
     def setBATT_Curr(self, inCurrent):
 
@@ -206,3 +216,20 @@ class DL3000(object):
         self.inst.write(":SYST:KEY 41")
 
         return True
+
+    def setupSENSE(self):
+
+        # press Utility
+        self.sim_KeyPress(self.keyUtility)
+
+        # press down 5 times
+        for i in range(0, 5, 1):
+            self.sim_KeyPress(self.keyDOWNArrow)
+
+        # rotate knob once (CNTCLKW)
+        self.sim_KeyPress(self.knobCNTCLKW)
+
+        # press Utility again
+        self.sim_KeyPress(self.keyUtility)
+
+        return

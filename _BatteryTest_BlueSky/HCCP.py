@@ -51,6 +51,8 @@ class testHCCP:
             print("eLoad :: Cannot discharge battery, near end of capacity ... \n")
             return False
 
+        self.m_eLoad.setupSENSE()
+
         return True
     
     def initDCSupply(self) -> bool:
@@ -182,7 +184,8 @@ class testHCCP:
 
             time.sleep(0.001)
 
-            currVoltage = self.m_pSupply.measureValue("Voltage")
+            # currVoltage = self.m_pSupply.measureValue("Voltage")
+            currVoltage = self.m_eLoad.voltage()
             currCurrent = self.m_pSupply.measureValue("Current")
 
             timeDelta = time.time() - prevTime
