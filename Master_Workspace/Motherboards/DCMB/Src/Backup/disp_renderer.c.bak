@@ -603,10 +603,9 @@ void displayInit(){
 //	xSemaphoreGive(dispMtx);
 }
 
-void displayInitTmr(void* pv){
-}
 
-void displayTmr(TimerHandle_t xTimer){
+
+void displayTmr(void* xTimer){
 	uint32_t id = pvTimerGetTimerID(xTimer);
 	if(id == 0){
 		vTimerSetTimerID(xTimer, 1);

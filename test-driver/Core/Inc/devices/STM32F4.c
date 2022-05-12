@@ -35,7 +35,7 @@
 #if defined(GLCD_DEVICE_STM32F4XX)
 
 /* Includes from CMSIS and Peripheral Library */
-#include "devices\STM32F4.h"
+#include "devices/STM32F4.h"
 //#include "stm32f4xx_spi.h"
 #include "stm32f4xx_hal_spi.h"
 

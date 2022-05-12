@@ -91,6 +91,7 @@ uint8_t steeringData[3];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
 
 CRC_HandleTypeDef hcrc;
 
@@ -177,6 +178,7 @@ static void MX_TIM8_Init(void);
 static void MX_TIM12_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_CRC_Init(void);
+static void MX_ADC1_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -234,8 +236,10 @@ int main(void)
   MX_TIM12_Init();
   MX_TIM1_Init();
   MX_CRC_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED); //Calibrate ADC (used for acceleration pedal)
   displayInit();
   xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
   xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
@@ -244,7 +248,7 @@ int main(void)
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 3, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   disp_attachMotOnCallback(motCallback);
   disp_attachVfmUpCallback(vfmUpCallback);
@@ -285,8 +289,7 @@ int main(void)
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1){
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -355,6 +358,79 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLL1QCLK, RCC_MCODIV_1);
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_MultiModeTypeDef multimode = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_16B;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure the ADC multi-mode
+  */
+  multimode.Mode = ADC_MODE_INDEPENDENT;
+  if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_64CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  sConfig.OffsetSignedSaturation = DISABLE;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -1292,7 +1368,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 500000;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -1340,7 +1416,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 2000000;
+  huart3.Init.BaudRate = 115200;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -1379,13 +1455,10 @@ static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
@@ -1413,6 +1486,9 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
+  /* DMA2_Stream2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
 
 }
 
@@ -1485,25 +1561,25 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOK_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
+                          |Screen_Ctrl_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1529,10 +1605,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PI9 PI12 PI13 PI14
-                           PI15 PI4 PI7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15|GPIO_PIN_4|GPIO_PIN_7;
+  /*Configure GPIO pins : PI9 PI12 PI13 Cam_Ctrl_Pin
+                           Screen_Ctrl_Pin PI4 PI7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
+                          |Screen_Ctrl_Pin|GPIO_PIN_4|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1567,9 +1643,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PG0 PG1 PG2 PG3
+  /*Configure GPIO pins : Fan_ctrl_Pin PG1 PG2 PG3
                            PG4 PG5 PG15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+  GPIO_InitStruct.Pin = Fan_ctrl_Pin|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -1692,45 +1768,46 @@ static void lightsTmr(TimerHandle_t xTimer){
   static uint8_t current_state = 0;
   static uint8_t buf[4] = {0x03, 0x00, 0x00, 0x00};
   static uint8_t currentCameraState = 0;
-	current_state ^=1;
-	if(current_state&RIGHT_ENABLED){
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET);
-		buf[2] = 0x01;
-		disp_setDCMBRightLightState(1);
-	} else {
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_RESET);
-		buf[2] = 0x00;
-		disp_setDCMBRightLightState(0);
-	}
-	if(current_state&LEFT_ENABLED){
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
-		buf[1] = 0x01;
-		disp_setDCMBLeftLightState(1);
-	} else {
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
-		buf[1] = 0x00;
-		disp_setDCMBLeftLightState(0);
-	}
-	if(currentCameraState != CAMERA_ENABLED){
-		if(CAMERA_ENABLED){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-		} else {
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-		}
-		currentCameraState = CAMERA_ENABLED;
-	}
-	if((HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_9) == GPIO_PIN_SET)){
-		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET);
-		buf[3] = 0x01;
-		brakeStatus = 1;
-		disp_setDCMBStopLightState(1);
-	} else {
-		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET);
-		buf[3] = 0x00;
-		brakeStatus = 0;
-		disp_setDCMBStopLightState(0);
-	}
-	B_tcpSend(btcp, buf, 4);
+
+//	current_state ^=1;
+//	if(current_state&RIGHT_ENABLED){
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET);
+//		buf[2] = 0x01;
+//		disp_setDCMBRightLightState(1);
+//	} else {
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_RESET);
+//		buf[2] = 0x00;
+//		disp_setDCMBRightLightState(0);
+//	}
+//	if(current_state&LEFT_ENABLED){
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
+//		buf[1] = 0x01;
+//		disp_setDCMBLeftLightState(1);
+//	} else {
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
+//		buf[1] = 0x00;
+//		disp_setDCMBLeftLightState(0);
+//	}
+//	if(currentCameraState != CAMERA_ENABLED){
+//		if(CAMERA_ENABLED){
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
+//		} else {
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
+//		}
+//		currentCameraState = CAMERA_ENABLED;
+//	}
+//	if((HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_9) == GPIO_PIN_SET)){
+//		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET);
+//		buf[3] = 0x01;
+//		brakeStatus = 1;
+//		disp_setDCMBStopLightState(1);
+//	} else {
+//		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET);
+//		buf[3] = 0x00;
+//		brakeStatus = 0;
+//		disp_setDCMBStopLightState(0);
+//	}
+//	B_tcpSend(btcp, buf, 4);
 }
 
 static void mc2StateTmr(TimerHandle_t xTimer){
@@ -1740,51 +1817,80 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 	int positiveTurn = 0;
 	int negativeTurn = 0;
 	int difference = 0;
-	static int outputVal = 0;
-	static char buf2[64];
-	int accValTemp = accValue == 255 ? currentValue : accValue;
-	if(!started){
-		started++;
-		currentValue = accValTemp;
-	} else{
-		positiveTurn = (currentValue + 63) % 128;
-		negativeTurn = (currentValue - 64) % 128;
-		if(positiveTurn > currentValue){
-			if(accValTemp <= positiveTurn && accValTemp >= currentValue){
-				difference = accValTemp - currentValue;
-			} else {
-				if(accValTemp < currentValue){
-					difference = accValTemp - currentValue;
-				} else {
-					difference = -(128 -(accValTemp - currentValue));
-				}
-			}
-		} else {
-			if(accValTemp <= currentValue && accValTemp >= negativeTurn){
-				difference = -(currentValue - accValTemp);
-			} else {
-				if(currentValue < accValTemp){
-					difference = accValTemp - currentValue;
-				} else {
-					difference = 128 - (currentValue - accValTemp);
-				}
-			}
-		}
-		difference = difference < 0 ? -difference * difference : difference * difference;
-		outputVal += difference;
-//		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
-		currentValue = accValTemp;
-		if(outputVal < 0){
-			outputVal = 0;
-		} else if (outputVal > 0xff){
-			outputVal = 0xff;
+	static int accel_value = 0;
+	static int regen_value = 0;
+	uint16_t accel_reading_upper_bound = 40000; //ADC reading corresponding to 100% power request
+	uint16_t accel_reading_lower_bound = 5000; //ADC reading corresponding to 0% power request
+	uint16_t regen_reading_upper_bound = 40000; //ADC reading corresponding to 100% regen request
+	uint16_t regen_reading_lower_bound = 5000; //ADC reading corresponding to 0% regen request
+    uint32_t pedalsReading[2] = {0, 0};
+
+
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 100);
+    pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
+    pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
+
+	//TR: I'm not quite sure what this does...
+//	int accValTemp = accValue == 255 ? currentValue : accValue;
+//	if(!started){
+//		started++;
+//		currentValue = accValTemp;
+//	} else{
+//		positiveTurn = (currentValue + 63) % 128;
+//		negativeTurn = (currentValue - 64) % 128;
+//		if(positiveTurn > currentValue){
+//			if(accValTemp <= positiveTurn && accValTemp >= currentValue){
+//				difference = accValTemp - currentValue;
+//			} else {
+//				if(accValTemp < currentValue){
+//					difference = accValTemp - currentValue;
+//				} else {
+//					difference = -(128 -(accValTemp - currentValue));
+//				}
+//			}
+//		} else {
+//			if(accValTemp <= currentValue && accValTemp >= negativeTurn){
+//				difference = -(currentValue - accValTemp);
+//			} else {
+//				if(currentValue < accValTemp){
+//					difference = accValTemp - currentValue;
+//				} else {
+//					difference = 128 - (currentValue - accValTemp);
+//				}
+//			}
+//		}
+//		difference = difference < 0 ? -difference * difference : difference * difference;
+//		outputVal += difference;
+////		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
+//
+//		currentValue = accValTemp;
+
+// -------- FORWARD/REVERSE -------- //
+		taskENTER_CRITICAL();
+		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
+		taskEXIT_CRITICAL();
+
+// -------- ACCELERATION -------- //
+		//Get pedals reading, need to do it polling to ensure we have the latest measurements
+		accel_value = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+
+		//Bound acceleration value
+		if(accel_value < 0){
+			accel_value = 0;
+		} else if (accel_value > 0xff){
+			accel_value = 0xff;
 		}
 		if(brakeStatus){
-			outputVal = 0;
+			accel_value = 0;
 		}
 		if(!motorState){
-			outputVal = 0;
+			accel_value = 0;
 		}
+		buf[2] = accel_value; //This is the value sent to the MCMB to control the power to the motor (0-255)
+
+// -------- BUTTONS -------- //
 		buf[1] = motorState << 4;
 		buf[1] |= fwdRevState << 3;
 		buf[1] |= vfmUpState << 2;
@@ -1795,12 +1901,28 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 		if(vfmDownState == 1){
 			vfmDownState = 0;
 		}
-		buf[2] = outputVal;
-//		HAL_UART_Transmit_IT(&huart2, buf2, strlen(buf2));
+
+// -------- REGEN -------- //
+		regen_value = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+
+		//Bound regen value
+		if(regen_value < 0){
+			regen_value = 0;
+		} else if (regen_value > 0xff){
+			regen_value = 0xff;
+		}
+		if(brakeStatus){
+			regen_value = 0;
+		}
+		if(!motorState){
+			regen_value = 0;
+		}
+
+		buf[3] = regen_value;
+
 		// TODO other buttons
-		disp_setDCMBAccPotPosition(outputVal);
+		disp_setDCMBAccPotPosition(accel_value);
 		B_tcpSend(btcp, buf, 8);
-	}
 }
 
 void ignition_check(uint8_t data){
@@ -1892,7 +2014,7 @@ static void buttonCheck(uint8_t state){
 //		  B_tcpSend(btcp, buf, 2);
 //		  horn_on = 1;
 	  }
-	  if(prev_data == data1){
+	  if(prev_data == data){
 		  consistent_count++;
 	  } else {
 		  consistent_count = 0;
@@ -2003,70 +2125,12 @@ static void steeringButtonCheck(uint8_t *state){
 	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 
 }
-//static void steeringWheelTask(const void *pv){
-//  B_uartHandle_t *buart = pv;
-//  B_bufQEntry_t *e;
-//  uint8_t input_buffer[MAX_PACKET_SIZE +4];
-//  uint8_t started = 0;
-//  uint8_t pos = 0;
-//  uint8_t data[3];
-//  uint8_t type = 0;
-//  uint8_t end_pos = 0;
-//  uint8_t data_pos = 0;
-//  uint32_t crc = 0;
-//  uint32_t crcExpected = 0;
-//  uint8_t crcAcc = 0;
-//  uint8_t hornON = 0;
-//  uint8_t buf[4];
-//  for(;;){
-//    e = B_uartRead(swBuart);
-//    for(int i = 0; i < e->len; i++){
-//      if(!started){
-//        if(e->buf[i] == BSSR_SERIAL_START){
-//          started = 1;
-//          input_buffer[pos] = e->buf[i];
-//          pos++;
-//        }
-//      } else if(pos == 1){
-//        input_buffer[pos] = e->buf[i];
-//        type = e->buf[i];
-//        if(type == 0x02){
-//          end_pos = 2;
-//        } else if (type == 0x03){
-//          end_pos = 4;
-//        }
-//        pos++;
-//      } else if(pos > end_pos){
-//        crc |= e->buf[i] << (crcAcc*8);
-//        crcAcc++;
-//        if(crcAcc == 4){
-//          crcExpected = ~HAL_CRC_Calculate(&hcrc, input_buffer, pos);
-//          if(crc == crcExpected){
-//            if(type == 0x02){
-//            	accValue = data[0];
-//            } else if(type == 0x03) {
-//            	steeringButtonCheck(data);
-//            }
-//          }
-//          crcAcc = crcExpected = crc = data_pos = end_pos = type = started = pos = 0;
-//        }
-//      } else {
-//        input_buffer[pos] = e->buf[i];
-//        pos++;
-//        data[data_pos] = e->buf[i];
-//        data_pos++;
-//      }
-//    }
-//    B_uartDoneRead(e);
-//  }
-//}
 
 static void steeringWheelTask(const void *pv){
-// {0xa5, 0x03, PORTB Data (1), PORTC Data1 (2), PORTC Data2 (3), 0x00, 0x00, 0x00, 0x00};
-// Data from GPIO Port B, C,
-// 1. SELECT, RIGHT, DOWN, LEFT, UP, CRUISE
-// 2. HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
-// 3. ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1
+// {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
+// DATA_1: [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] <-- ROTARY ENCODER DATA
+// DATA_2: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
+// DATA_3: [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
 
   B_tcpHandle_t* btcp = pv;
   B_bufQEntry_t *e;
@@ -2076,47 +2140,72 @@ static void steeringWheelTask(const void *pv){
   uint8_t crcAcc = 0;
   uint32_t crc;
   uint32_t crcExpected;
+  uint8_t oldSteeringData[3] = {0, 0, 0};
+
   for(;;){
-	e = B_uartRead(spbBuart);
-	for(int i = 0; i < e->len; i++){
-	  taskENTER_CRITICAL(); // data into global variable -> enter critical section
-	  if(!started){
-		if(e->buf[i] == BSSR_SERIAL_START){
-		  started = 1;
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
+	e = B_uartRead(swBuart);
+
+	taskENTER_CRITICAL();
+	//Save old data
+	for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
+
+	//Update global data
+	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x03){
+		for (int i = 0; i < 3; i++){
+			if (steeringData[i] != e->buf[2 + i]){ steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
 		}
-	  }else if(pos == 1){
-		input_buffer[pos] = e->buf[i];
-		pos++;
-	  } else if(pos == 2){
-		// steeringData[0] Bit arrangement (msb -> lsb): {0,0,0, SELECT, RIGHT, DOWN, LEFT, UP, CRUISE}
-		steeringData[0] = e->buf[i]; // From GPIO Port B -> SELECT, RIGHT, DOWN, LEFT, UP, CRUISE
-		input_buffer[pos] = e->buf[i];
-		pos++;
-	  } else if(pos == 3){
-		  // steeringData[1] Bit arrangement (msb -> lsb): {0, 0, 0, 0, HORN, RAD, L_SIG, R_SIG}
-		  steeringData[1] = e->buf[i]; // From GPIO Port C -> HORN, RAD, L_SIG, R_SIG
-		  input_buffer[pos] = e->buf[i];
-		  pos++;git
-	  } else if(pos == 4){
-		  // steeringData[2] Bit arrangement (msb -> lsb): {ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1}
-		  steeringData[2] = e->buf[i]; // From GPIO Port C -> ACC8 - ACC1
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
-	  } else if(pos > 4){
-		crc |= e->buf[i] << (crcAcc*8);
-		crcAcc++;
-		if(crcAcc == 4){
-		  crcExpected = ~HAL_CRC_Calculate(&hcrc, input_buffer, 3);
-		  if(crcExpected == crc){
-			steeringButtonCheck(steeringData);
-		  }
-		  pos = crcAcc = started = crc = 0;
-		}
-	  }
-	  taskEXIT_CRITICAL(); // exit critical section
 	}
+	}
+
+	//---------- Process data ----------//
+	// Navigation <- Not implemented
+	// Cruise <- Not implemented
+
+	//INDICATOR LIGHTS - SEND TO BBMB
+    //Left indicator
+    if ((steeringData[1] & 0b00000001) != (steeringData[1] & 0b00000001)){ //If the state of the left indicator changed, send new data to BBMB
+    	//If LEFT_INDICATOR == 1 --> Retract lights
+    	//If LEFT_INDICATOR == 0 --> Extend lights
+        uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+
+    	if ((steeringData[1] & 0b00000001) == 0){ //Extend left indicator
+        	bufh[1] = 0b01000000;
+    	} else { //Retract left indicator
+        	bufh[1] = 0b00000000;
+    	}
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+    //Right indicator
+    if ((steeringData[1] & 0b00000010) != (steeringData[1] & 0b00000010)){ //If the state of the right indicator changed, send new data to BBMB
+    	//If RIGHT_INDICATOR == 1 --> Retract lights
+    	//If RIGHT_INDICATOR == 0 --> Extend lights
+        uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+
+    	if ((steeringData[1] & 0b00000010) == 0){ //Extend right indicator
+        	bufh[1] = 0b01000001;
+    	} else { //Retract right indicator
+        	bufh[1] = 0b00000001;
+    	}
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+	//Horn - SEND TO BBMB
+    if ((steeringData[1] & 0b00001000) != (steeringData[1] & 0b00001000)){
+        uint8_t bufh[2] = {0x04, 0x00}; //[DATA ID, HORN STATE]
+
+    	if ((steeringData[1] & 0b00001000) == 0){ //Turn on horn
+            bufh[2] = 0x01; //[DATA ID, HORN STATE]
+    	} else { //Turn off horn
+            bufh[2] = 0x00; //[DATA ID, HORN STATE]
+    	}
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+	B_uartDoneRead(e);
+
+	taskEXIT_CRITICAL(); // exit critical section
+
 	// print statement -> connect to serial monitor
     char buffer[100];
     sprintf(buffer, "STEERING WHEEL TEST\r\n");
@@ -2126,25 +2215,21 @@ static void steeringWheelTask(const void *pv){
     		if((steeringData[i] & j) != 0){
     			sprintf(buffer, "1");
     			HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    			HAL_Delay(500);
+    			HAL_Delay(100);
     		}
     		else{
     			sprintf(buffer, "0");
     			HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    			HAL_Delay(500);
+    			HAL_Delay(100);
     		}
     	}
     }
-	B_uartDoneRead(e);
-  }
 }
 
 
 static void sidePanelTask(const void *pv){
-// {0xa5, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-// Data from GPIO Port B, C, D
-// Used bits: B(Camera, AUX2, FWD_REV, AUX1), C(AUX0, IGNITION, FAN), D(ARRAY)
-// Result: (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
+// {0xa5, 0x04, sidePanelData, CRC};
+// sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
   B_tcpHandle_t* btcp = pv;
   B_bufQEntry_t *e;
@@ -2154,62 +2239,39 @@ static void sidePanelTask(const void *pv){
   uint8_t crcAcc = 0;
   uint32_t crc;
   uint32_t crcExpected;
+
   for(;;){
     e = B_uartRead(spbBuart);
-    for(int i = 0; i < e->len; i++){
-      taskENTER_CRITICAL(); // data into global variable -> enter critical section
-      if(!started){
-	    if(e->buf[i] == BSSR_SERIAL_START){
-		  started = 1;
-	   	  input_buffer[pos] = e->buf[i];
-		  pos++;
-		}
-	  }else if(pos == 1){
-		input_buffer[pos] = e->buf[i];
-		pos++;
-	  } else if(pos == 2){
-	    sidePanelData = e->buf[i]; // From GPIO Port B
-		input_buffer[pos] = e->buf[i];
-		pos++;
-	  } else if(pos == 3){
-		  sidePanelData |= (e->buf[i] << 4); // From GPIO Port C
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
-	  } else if(pos == 4){
-		  sidePanelData |= (e->buf[i] << 7); // From GPIO Port D
-		  input_buffer[pos] = e->buf[i];
-		  pos++;
-	  } else if(pos > 4){
-		crc |= e->buf[i] << (crcAcc*8);
-		crcAcc++;
-		if(crcAcc == 4){
-	      crcExpected = ~HAL_CRC_Calculate(&hcrc, input_buffer, 3);
-		  if(crcExpected == crc){
-		    buttonCheck(sidePanelData);
-		  }
-		  pos = crcAcc = started = crc = 0;
-		}
-	  }
-      taskEXIT_CRITICAL(); // exit critical section
-    }
-    // print statement -> connect serial monitor
-    char buffer[100];
-    sprintf(buffer, "SIDE PANEL TEST\r\n");
-    HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    for(int i = 1 << 7; i > 0; i /= 2){
-    	if((sidePanelData & i) != 0){
-    		sprintf(buffer, "1");
-    		HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    		HAL_Delay(500);
-    	}
-    	else{
-    		sprintf(buffer, "0");
-    		HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
-    		HAL_Delay(500);
-    	}
-    }
+
+	taskENTER_CRITICAL(); // data into global variable -> enter critical section
+
+	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
+		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
+	}
+
+	//Check CRC, optinal
+
     B_uartDoneRead(e);
+
+  //---------- Process data ----------//
+  //REAR CAMERA AND SCREEN
+  if ( (sidePanelData & 0b01000000)  == 0b01000000){
+	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
+	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
+  } else {
+	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
+	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
+
   }
+
+  //FAN
+  if ( (sidePanelData & 0b00010000) == 0b00010000){
+	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_SET); //Enable fan
+  } else {
+	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_RESET); //Disable fan
+  }
+  taskEXIT_CRITICAL(); // exit critical section
+}
 }
 
 void serialParse(B_tcpPacket_t *pkt){
@@ -2235,6 +2297,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		}
 	}
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -2305,4 +2368,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

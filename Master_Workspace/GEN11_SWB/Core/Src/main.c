@@ -19,7 +19,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -33,6 +32,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define BSSR_SERIAL_START 0xa5
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,8 +47,9 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
-osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+uint8_t switchState[3] = {0, 0, 0};
+uint8_t oldSwitchState[3] = {0, 0, 0};
 
 /* USER CODE END PV */
 
@@ -57,10 +59,48 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART4_Init(void);
 static void MX_USART2_UART_Init(void);
-void StartDefaultTask(void const * argument);
-
 /* USER CODE BEGIN PFP */
-static void switchStateTask(void const* pv)
+//static void switchStateTask(void const* pv);
+
+void getSwitchState(){
+	//-- BYTE 0 --
+	//Accelerator rotary encoder
+	switchState[0] = (switchState[0] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) & 0b00000001); //Bit 0 - OK
+	switchState[0] = (switchState[0] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1) & 0b00000010); //Bit 1 - OK
+	switchState[0] = (switchState[0] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2) & 0b00000100); //Bit 2 - OK
+	switchState[0] = (switchState[0] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3) & 0b00001000); //Bit 3 - OK
+	switchState[0] = (switchState[0] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4) & 0b00010000); //Bit 4 - OK
+	switchState[0] = (switchState[0] & ~0b00100000) | ((HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5) & 0b00100000); //Bit 5 - OK
+	switchState[0] = (switchState[0] & ~0b01000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6) & 0b01000000); //Bit 6 - OK
+	switchState[0] = (switchState[0] & ~0b10000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7) & 0b10000000); //Bit 7 - OK
+
+	//-- BYTE 1 --
+	//Left/right turn signals
+	switchState[1] = (switchState[1] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, L_SIGNAL_Pin) & 0b00000001); //Bit 0 - OK
+	switchState[1] = (switchState[1] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, R_SIGNAL_Pin) << 1) & 0b00000010); //Bit 1 - OK
+
+	//Radio
+	switchState[1] = (switchState[1] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, RAD_SIGNAL_Pin) << 2) & 0b00000100); //Bit 2 - OK
+
+	//Horn
+	switchState[1] = (switchState[1] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, HORN_SIGNAL_Pin) << 3) & 0b00001000); //Bit 3 - OK
+
+	//Cruise control
+	switchState[1] = (switchState[1] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, CRUISE_SIGNAL_Pin) << 4) & 0b00010000); //Bit 4 - OK
+
+	switchState[1] = switchState[1] & 0b00011111; //Make sure other bits are 0
+
+
+	//-- BYTE 2 --
+	//Navigation
+	switchState[2] = (switchState[2] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOB, UP_Pin) & 0b00000001); //Bit 0 - OK
+	switchState[2] = (switchState[2] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOB, DOWN_Pin) << 1) & 0b00000010); //Bit 1 - OK
+	switchState[2] = (switchState[2] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOB, LEFT_Pin) << 2) & 0b00000100); //Bit 2 - OK
+	switchState[2] = (switchState[2] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOB, RIGHT_Pin) << 3) & 0b00001000); //Bit 3 - OK
+	switchState[2] = (switchState[2] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, SELECT_Pin) << 4) & 0b00010000); //Bit 4 - OK
+
+	switchState[2] = switchState[2] & 0b00011111; //Make sure other bits are 0
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -103,43 +143,23 @@ int main(void)
 
   /* USER CODE END 2 */
 
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  xTaskCreate((const void *) switchStateTask, "swStateTask", 512, NULL, 3, NULL);
-  /* USER CODE END RTOS_THREADS */
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1){
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	getSwitchState();
+
+	if ((oldSwitchState[0] != switchState[0]) || (oldSwitchState[1] != switchState[1]) || (oldSwitchState[2] != switchState[2])){ //If any bit has changed, send data
+		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, switchState[0], switchState[1], switchState[2], 0x00}; //Last byte is CRC, optional
+		HAL_UART_Transmit(&huart2, buf, 6, 10);
+		HAL_Delay(20);
+		HAL_UART_Transmit(&huart4, buf, 6, 10);
+	}
+
+	for (int i = 0; i < 3; i++){ oldSwitchState[i] = switchState[i];}
+	HAL_Delay(20);
   }
   /* USER CODE END 3 */
 }
@@ -313,8 +333,10 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pins : ACC8_Pin R_SIGNAL_Pin L_SIGNAL_Pin RAD_SIGNAL_Pin
                            HORN_SIGNAL_Pin ACC1_Pin ACC2_Pin ACC3_Pin
@@ -326,6 +348,36 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PC14 PC15 PC4 PC5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_4|GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PH0 PH1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA4 PA5 PA6 PA7
+                           PA8 PA9 PA10 PA11
+                           PA12 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7
+                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
+                          |GPIO_PIN_12|GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 PB1 PB2 PB10
+                           PB3 PB4 PB5 PB8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : UP_Pin LEFT_Pin DOWN_Pin RIGHT_Pin
                            SELECT_Pin CRUISE_SIGNAL_Pin */
   GPIO_InitStruct.Pin = UP_Pin|LEFT_Pin|DOWN_Pin|RIGHT_Pin
@@ -334,49 +386,37 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PD2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
-static void switchStateTask(void const* pv){
-	GPIO_TypeDef* swPort1 = GPIOB; // SELECT, RIGHT, DOWN, LEFT, UP, CRUISE
-	GPIO_TypeDef* swPort2 = (GPIOC & 0xF); // HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
-	GPIO_TypeDef* swPort3 = (GPIOC >> 4);  // ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1
-
-	#define uartFrame_SIZE 9
-	uint8_t uartFrame[uartFrame_SIZE] = {0xa5, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-	for(;;){
-		if(uartFrame[2] == ((swPort1->IDR >> 3) & 0xff) && uartFrame[3] == ((swPort2->IDR >> 10) & 0xff) && uartFrame[4] == ((swPort3->IDR >> 2) & 0xff)) continue;
-		uartFrame[2] = (swPort1->IDR) & 0xff;
-		uartFrame[3] = (swPort2->IDR) & 0xff;
-		uartFrame[4] = (swPort3->IDR) & 0xff;
-
-		uint32_t crc = ~HAL_CRC_Calculate(&hcrc, (uint32_t*) uartFrame, uartFrame_SIZE-4);
-		for(size_t i=0; i<4; i++) uartFrame[i+5] = (crc >> (i << 3)) & 0xff;
-		HAL_UART_Transmit_IT(&huart4, uartFrame, uartFrame_SIZE);
-		HAL_UART_Transmit_IT(&huart2, uartFrame, uartFrame_SIZE);
-		osDelay(1000);
-	}
-}
+//static void switchStateTask(void const* pv){
+//	GPIO_TypeDef* swPort1 = GPIOB; // SELECT, RIGHT, DOWN, LEFT, UP, CRUISE
+//	GPIO_TypeDef* swPort2 = (GPIOC & 0xF); // HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
+//	GPIO_TypeDef* swPort3 = (GPIOC >> 4);  // ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1
+//
+//	#define uartFrame_SIZE 9
+//	uint8_t uartFrame[uartFrame_SIZE] = {0xa5, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//
+//	for(;;){
+//		if(uartFrame[2] == ((swPort1->IDR >> 3) & 0xff) && uartFrame[3] == ((swPort2->IDR >> 10) & 0xff) && uartFrame[4] == ((swPort3->IDR >> 2) & 0xff)) continue;
+//		uartFrame[2] = (swPort1->IDR) & 0xff;
+//		uartFrame[3] = (swPort2->IDR) & 0xff;
+//		uartFrame[4] = (swPort3->IDR) & 0xff;
+//
+//		uint32_t crc = ~HAL_CRC_Calculate(&hcrc, (uint32_t*) uartFrame, uartFrame_SIZE-4);
+//		for(size_t i=0; i<4; i++) uartFrame[i+5] = (crc >> (i << 3)) & 0xff;
+//		HAL_UART_Transmit_IT(&huart4, uartFrame, uartFrame_SIZE);
+//		HAL_UART_Transmit_IT(&huart2, uartFrame, uartFrame_SIZE);
+//		osDelay(1000);
+//	}
+//}
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END 5 */
-}
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -431,4 +471,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

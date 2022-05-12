@@ -19,7 +19,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -33,6 +32,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define BSSR_SERIAL_START 0xa5
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,7 +47,6 @@ CRC_HandleTypeDef hcrc;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
-osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -57,15 +57,25 @@ static void MX_GPIO_Init(void);
 static void MX_CRC_Init(void);
 static void MX_UART4_Init(void);
 static void MX_USART2_UART_Init(void);
-void StartDefaultTask(void const * argument);
-
 /* USER CODE BEGIN PFP */
-static void switchStateTask(void const*);
-void PIN_TEST(uint16_t GPIO_Pin);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+uint8_t getSwitchState(){
+	uint8_t switchState = 0;
+	switchState = (switchState & ~0b00000001) | (HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin) & 0b00000001); //Bit 0
+	switchState = (switchState & ~0b00000010) | (HAL_GPIO_ReadPin(GPIOC, AUX0_Pin) & 0b00000010); //Bit 1
+	switchState = (switchState & ~0b00000100) | (HAL_GPIO_ReadPin(GPIOB, AUX1_Pin) & 0b00000100); //Bit 2
+	switchState = (switchState & ~0b00001000) | (HAL_GPIO_ReadPin(GPIOB, AUX2_Pin) & 0b00001000); //Bit 3
+	switchState = (switchState & ~0b00010000) | (HAL_GPIO_ReadPin(GPIOC, FAN_Pin) & 0b00010000); //Bit 4
+	switchState = (switchState & ~0b00100000) | (HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin) & 0b00100000); //Bit 5
+	switchState = (switchState & ~0b01000000) | (HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin) & 0b01000000); //Bit 6
+	switchState = (switchState & ~0b10000000) | (HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin) & 0b10000000); //Bit 7
+
+	return switchState;
+}
 
 /* USER CODE END 0 */
 
@@ -100,47 +110,32 @@ int main(void)
   MX_CRC_Init();
   MX_UART4_Init();
   MX_USART2_UART_Init();
+
   /* USER CODE BEGIN 2 */
+  uint8_t oldSwitchState = 0;
+  uint8_t newSwitchState = getSwitchState();
+
+  //Data is collected as a byte with the following formatting: [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY] ([bit 7...bit 0])
+  //Data is sent: 1) When board first starts, 2) on any change in switch state
 
   /* USER CODE END 2 */
 
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  xTaskCreate((const void *) switchStateTask, "swStateTask", 512, NULL, 3, NULL);
-  /* USER CODE END RTOS_THREADS */
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1){
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	 newSwitchState = getSwitchState();
+	 uint8_t buf[4] = {BSSR_SERIAL_START, 0x04, newSwitchState, 0x00}; //Last byte is CRC, optional
+
+	  if (newSwitchState != oldSwitchState){ //Switches changed; need to send
+		  HAL_UART_Transmit(&huart2, &buf, 4, 10);
+	  }
+
+	  oldSwitchState = newSwitchState;
+
+	  HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
@@ -238,7 +233,7 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 2000000; // From GEN10
+  huart4.Init.BaudRate = 115200;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
@@ -273,7 +268,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 2000000; // From GEN10
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -330,6 +325,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void switchStateTask(void const* pv){
+	//This task sends a byte representing the
 	GPIO_TypeDef* swPort1 = GPIOB; // AUX1, FWD_REV, AUX2, CAMERA
 	GPIO_TypeDef* swPort2 = GPIOC; // FAN, IGNITION, AUX0
 	GPIO_TypeDef* swPort3 = GPIOD; // ARRAY
@@ -399,24 +395,6 @@ void PIN_TEST(uint16_t GPIO_Pin) {
 }
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END 5 */
-}
-
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM6 interrupt took place, inside
@@ -470,4 +448,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
