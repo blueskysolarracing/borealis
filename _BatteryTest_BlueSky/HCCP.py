@@ -279,7 +279,7 @@ class testHCCP:
                 break
             
             #rest for 1h
-            self.rest(3600)
+            self.rest(180)
 
             self.m_numCycles += 1
             print("Cycle {} completed. \n".format(self.m_numCycles))

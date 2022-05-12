@@ -178,12 +178,12 @@ class DL3000(object):
         maxEntries = 5
 
         # enter the value accordingly
-        if type(inVoltage) != 'int':
+        if type(cutOFF) != 'int':
             look4DecimalPtn = True
-            if inVoltage > 9.999:
+            if cutOFF > 9.999:
                 maxEntries = 6
         
-        inVoltageString = str(inVoltage)
+        inVoltageString = str(cutOFF)
         keyPresses = min(maxEntries, len(inVoltageString))
         currInteger = 0
 
