@@ -41,6 +41,7 @@ def executeDischarge(inBatteryObj, device):
         print("Cannot discharge battery, near end of capacity ... \n")
         return False
 
+    device.setupSENSE()
     inBatteryObj.logMeasurement(currVoltage, 0, 0)
     device.enable()
     
@@ -74,7 +75,7 @@ if __name__ == '__main__':
     cellNum = 14                                                # number of cells in parallel
     testSetting = -1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
-    CRateIn = 1/30
+    CRateIn = 0.3
 
     # initialize BatteryObject
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, CRate = CRateIn)
