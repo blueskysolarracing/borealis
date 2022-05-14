@@ -26,8 +26,11 @@
 #include "buart.h"
 #include "badc.h"
 #include "btcp.h"
+#include "psm.h"
 #include "h7Boot.h"
 #include "BSSR_CAN_H7.h"
+#include "TMC5160_driver.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,6 +104,9 @@ uint32_t adcSum;
 uint16_t adcCount;
 QueueHandle_t lightsCtrl = NULL;
 TimerHandle_t blink_timer = NULL;
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,6 +167,8 @@ void turn_off_fault_indicator(void);
 static void lightsTask(void * argument);
 static void senderTaskHandle(void * argument);
 
+static void psmTaskHandle(void * argument);
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 void blinkCallback(TimerHandle_t xTimer);
 
@@ -216,6 +224,9 @@ int main(void)
   MX_FDCAN1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  MX_USART2_UART_Init();
+  MX_SPI2_Init();
+
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); //BSD
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET); //PRE
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_RESET); // GND
@@ -228,9 +239,11 @@ int main(void)
   //badc = B_adcStart(&hadc1, 1);
   //BSSR_CAN_TASK_INIT(&hfdcan1, &huart2, btcp);
 
+  //blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
+  //xTimerStart(blink_timer, 0);
 
-  xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
-  xTaskCreate(adcTask, "adcTask", 1024, badc, 3, NULL);
+  xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 1, NULL); // 5
+  xTaskCreate(adcTask, "adcTask", 1024, badc, 1, NULL); //3
   //xTimerStart(xTimerCreate("busPwrSendTimer", 50, pdTRUE, NULL, busPwrSendTmr), 0);
 
   hpQ = xQueueCreate(10, sizeof(uint8_t));
@@ -240,8 +253,8 @@ int main(void)
   xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 1, NULL);
   xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 1, NULL);
 
-  blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
-  xTimerStart(blink_timer, 0);
+
+  xTaskCreate(psmTaskHandle, "PSMTask", 1024, ( void * ) 1, 1, NULL);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -849,11 +862,11 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_16BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1347,13 +1360,14 @@ static void MX_TIM12_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 20000;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
+  sConfigOC.Pulse = 0;
   if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
@@ -1477,7 +1491,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 500000;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -1675,7 +1689,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15
-                          |GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
+                          |GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2|GPIO_PIN_15, GPIO_PIN_RESET);
@@ -1708,9 +1722,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PI9 PI12 PI13 PI15
-                           PI4 PI7 */
+                           PI0 PI4 PI7 */
   GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15
-                          |GPIO_PIN_4|GPIO_PIN_7;
+                          |GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1896,7 +1910,8 @@ void serialParse(B_tcpPacket_t *pkt){
 				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
 			  }
 		  } else if(pkt->data[0] == 0x03){ // Light control
-			  xQueueSend(lightsCtrl, pkt->data[1], 200); // put command in queue
+			  xQueueSend(lightsCtrl, pkt->payload+5, 200); // put command in queue
+			  // xQueueSend(lightsCtrl, pkt->data[1], 200); // put command in queue
 		  }
 	}
 }
@@ -2310,11 +2325,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 // Blink on-board LED to check board is programmed
 void blinkCallback(TimerHandle_t xTimer){
-	HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_9);
+	//HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_9);
+	char buffer[100] = "PSM TEST\r\n";
+	// sprintf(buffer, "PSM TEST\r\n");
+
+	HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
 }
 
 
-void lightsTask(void const * argument)
+void lightsTask(void * argument)
 {
 	uint8_t buf_get[10];
 	int left = 0;
@@ -2399,7 +2418,7 @@ void lightsTask(void const * argument)
   }
 }
 
-void senderTaskHandle(void const * argument)
+void senderTaskHandle(void * argument)
 {
   /* USER CODE BEGIN senderTaskHandle */
   /* Infinite loop */
@@ -2431,6 +2450,52 @@ void senderTaskHandle(void const * argument)
 
   }
   /* USER CODE END senderTaskHandle */
+}
+
+void psmTaskHandle(void * argument){
+	HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_1);
+
+	char buffer[100] = "PSM TEST\r\n";
+	// sprintf(buffer, "PSM TEST\r\n");
+
+	HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+
+	PSM_Ports psmPorts;
+	psmPorts.CSPort0 = GPIOI;
+	psmPorts.CSPin0 = GPIO_PIN_0;
+
+	psmPorts.CSPort1 = GPIOG;
+	psmPorts.CSPin1 = GPIO_PIN_2;
+
+	psmPorts.CSPort2 = GPIOG;
+	psmPorts.CSPin2 = GPIO_PIN_3;
+
+	psmPorts.CSPort3 = GPIOG;
+	psmPorts.CSPin3 = GPIO_PIN_4;
+
+	psmPorts.LVDSPort = GPIOB;
+	psmPorts.LVDSPin = GPIO_PIN_13;
+
+	psmPorts.DreadyPort = GPIOK;
+	psmPorts.DreadyPin = GPIO_PIN_2;
+
+	configPSM(&psmPorts, &hspi2, &huart2, "12");
+
+	double dataOut[2];
+	// PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, dataOut, 2);
+
+	// HAL_UART_Transmit(&huart2, dataOut, sizeof(dataOut), 100);
+
+	PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, dataOut, 2);
+
+	char dataMessage[64];
+	uint8_t dataMessageLength;
+
+	dataMessageLength = (uint8_t)sprintf(dataMessage, "voltage: 0x%X current: 0x%X\r\n", (unsigned int)dataOut[0], (unsigned int)dataOut[1]);
+	HAL_UART_Transmit(&huart2, (uint8_t*)dataMessage, (uint16_t)dataMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+	//HAL_TIM_PWM_Stop(&htim12, TIM_CHANNEL_1);
+	//HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_9);
+
 }
 
 

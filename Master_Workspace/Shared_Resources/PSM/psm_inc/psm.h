@@ -256,7 +256,8 @@ void readFromPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Hand
 	//8-bit read instruction to be sent to ade7912 chip in psm channel
 	//leftshift address bits to five most significant bits of instruction
 	//Bit #2 needs to be set to 1 for read operation, thus must add 0b100 = 4 to instruction
-	uint8_t instruction = (address<<3) + 4;
+	uint8_t instruction = (address<<3) + 0x04;
+	//instruction = 0x4C;
 
 	//set specified chip select pin to 0 to start SPI communication
 	switch(channelNumber){
@@ -284,6 +285,7 @@ void readFromPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Hand
 		//successful transmission
 		//store received data into buffer
 		HAL_SPI_Receive(spiInterface, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
+
 	} else{
 		//instruction not sent!
 		//transmit some error message to the computer
@@ -306,7 +308,8 @@ void readFromPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Hand
 //channels is a string containing the numbers of the channels you want to configure, ex: channels = "134" means configure PSM channels 1,3, and 4
 void configPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels){
 	//enable LVDS by outputting logic high at pin PB13
-	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
+	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
     uint8_t BW, SWRST, ADC_FREQ, PWRDWN_EN, CLKOUT_EN; //control bits in configCommand
@@ -460,10 +463,11 @@ void configPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Handle
 
 //!!! If there is only ONE PSM channel in total, set masterPSM = 0 !!!
 //ex: masterPSM = 2 means that PSM channel 2 provides the clock.
-void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], u_int8_t dataOutLen){
+void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen){
 	//enable LVDS by outputting logic high at pin PB13
 
-	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
+	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
 	uint8_t dataIn[6] = {0};//data received from ade7912
@@ -540,16 +544,16 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
 
     //transmit voltage and current through uart (not doing this here)
 
-    //serial monitor notification
-    //uint8_t buffer[64] = {0};
-    //uint8_t bufferLen = (uint8_t)sprintf((char*)buffer, "(Channel %d) VOLTAGE: %lf, CURRENT: %lf\r\n", channelNumber, voltage, current);
+    // serial monitor notification
+    uint8_t buffer[64] = {0};
+    uint8_t bufferLen = (uint8_t)sprintf((char*)buffer, "(Channel %d) VOLTAGE: %lf, CURRENT: %lf\r\n", channelNumber, voltage, current);
 
     /* ========== not doing this here ======================= */
     //convert voltage and current from doubles to uint8_t array that can be sent through uart
     //voltage will make up 8 most significant bytes, current will make up 8 least significant bytes of array
     //TODO CHECK ENDIANNESS !!!
 
-    /*uint8_t dataOutIndex = 0;
+    uint8_t dataOutIndex = 0;
     uint8_t* ptr = (uint8_t*)&voltage;
     for(; dataOutIndex<sizeof(voltage); dataOutIndex++){
     	dataOut[dataOutIndex] = *ptr;
@@ -559,14 +563,14 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
     for(; dataOutIndex<dataOutLen;dataOutIndex++){
     	dataOut[dataOutIndex] = *ptr;
     	ptr++;
-    }*/
+    }
 
     if (dataOutLen == 2) {
     	dataOut[0] = voltage;
     	dataOut[1] = current;
     }
 
-    //HAL_UART_Transmit(uartInterface, dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
+    HAL_UART_Transmit(uartInterface, dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
     //B_tcpSend(btcp, dataOut, dataOutLen);
 
     //power down slave ade7912
@@ -641,7 +645,8 @@ void PSMReadTemperature(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UA
     dataOut = (int16_t)(temperature < 0 ? (temperature - 0.5) : (temperature + 0.5));
     //DATA IS SENT THROUGH UART AS TWO UNSIGNED 8 BIT INT, MAKE SURE TO RECAST VALUE BACK TO ONE SIGNED 16BIT INT AT RECEIVER BEFORE USE
     //TODO CHECK ENDIANNNESS
-    HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, 2, MAX_UART_TRANSMIT_TIMEOUT);
+    //HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, 2, MAX_UART_TRANSMIT_TIMEOUT);
+    HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, sizeof(dataOut), MAX_UART_TRANSMIT_TIMEOUT);
 
     //powerdown master ade7912 by setting PWRDWN_EN = 1
     readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
