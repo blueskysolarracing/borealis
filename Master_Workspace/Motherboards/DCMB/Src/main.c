@@ -1920,6 +1920,12 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 
 		buf[3] = regen_value;
 
+		//Check if we need to turn on braking lights
+		if (regen_value >= 10){ //If braking power is >= 10/255%, turn on break lights
+	        uint8_t bufh[2] = {0x03, 0b00001000}; //[DATA ID, LIGHT INSTRUCTION]
+	        B_tcpSend(btcp, bufh, 2);
+		}
+
 		// TODO other buttons
 		disp_setDCMBAccPotPosition(accel_value);
 		B_tcpSend(btcp, buf, 8);
@@ -2270,6 +2276,17 @@ static void sidePanelTask(const void *pv){
   } else {
 	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_RESET); //Disable fan
   }
+
+  //AUX0 (DRL in GEN11)
+  uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+
+  if ((sidePanelData & 0b00000010) == 0b00000010){ //Turn on horn
+	bufh[2] = 0b00000100; //AUX0 == 1 -> DRL off
+  } else { //Turn off horn
+	bufh[2] = 0b00000000; //AUX0 == 0 -> DRL on
+  }
+  B_tcpSend(btcp, bufh, 2);
+
   taskEXIT_CRITICAL(); // exit critical section
 }
 }

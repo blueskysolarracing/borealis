@@ -72,3 +72,7 @@ ctrlp.root
 
 #html
 *.html
+
+#DS_Store
+*.DS_Store
+Master_Workspace/.DS_Store
