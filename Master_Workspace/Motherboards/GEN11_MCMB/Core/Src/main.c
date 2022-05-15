@@ -106,6 +106,8 @@ uint8_t vfmResetState = 0;
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 
+int16_t batteryVoltage = 0;
+
 // Struct for reading PWM input (in this case: speed pulse from motor)
 typedef struct {
 	uint32_t icValue1;
@@ -1756,7 +1758,7 @@ static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t vfm_up_count = 0;
 	static uint8_t vfm_down_count = 0;
 	static uint8_t vfmCount = 0;
-	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //what does this mean? Stops accel if serialParse stops being called?
+	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //Stops accel if serialParse stops being called (this means uart connection is lost)
 		accValue = 0; // Just send here instead;
 	}
 	if(currentMotorState != motorState){
@@ -1779,7 +1781,6 @@ static void motorTmr(TimerHandle_t xTimer){
 		}
 	}
 
-	// Local accValue and regenValue are necessary because we do not want the variables be changed by another thread in the following code
 	uint16_t localAccValue = accValue;
 	uint16_t localRegenValue = regenValue;
 	// Since the max you can send to potentiometer is 256 but the max value from DCMB is 255, we will just set 255 to 256 for simplicity
@@ -1789,11 +1790,14 @@ static void motorTmr(TimerHandle_t xTimer){
 	if (regenValue == 255) {
 		localRegenValue = 256;
 	}
+	if (batteryVoltage > 110 || batteryVoltage < 110) {
+		localRegenValue = 0;
+	}
 
 	// The follow if statement is to prevent sending Accel and Regen signals to the motor at the same time
-	// Accel is prioritized at the moment (if both signals received from DCMB are not zero, we will force Regen to be zero)
+	// REgen is prioritized at the moment (if both signals received from DCMB are not zero, we will force Accel to be zero)
 	if (localAccValue != 0 && localRegenValue != 0) {
-		localRegenValue = 0;
+		localAccValue = 0;
 	}
 
 
@@ -1871,9 +1875,17 @@ static void spdTmr(TimerHandle_t xTimer){
 	}
 	//Note 16 pulse per rotation
 	static uint8_t buf[4] = {MCMB_SPEED_PULSE_ID, 0x00, 0x00, 0x00};
+
+	// Can divide by 16 and multiply by 60 for Rotation per min
+
+	// Get KM per Hour
+	float meterPerSecond = pwm_in.frequency / 16 * 1.7156;
+			// Note: 1.7156 = 0.5461 * pi  is the circumference of the wheel
+	uint8_t kmPerHour = meterPerSecond / 1000 * 3600;
 	// Send frequency to DCMB (for now)
-	// Should divide by 16 and multiply by 60 for Rotation per min
-	buf[1] = pwm_in.frequency;
+	//buf[1] = pwm_in.frequency;
+	// Send motor speed to DCMB
+	buf[1] = kmPerHour;
 	B_tcpSend(btcp, buf, 4);
 }
 
@@ -1998,6 +2010,12 @@ void PSMTaskHandler(void* parameters) {
 		doubleToArray(voltageCurrent[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
 
 		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+
+		// convert voltage to int and store globally
+		float x = (float)voltageCurrent[VOLTAGE];
+		x = x + 0.5 - (x<0); // Adds 0.5 if x > 0 and subtracts 0.5 if x < 0
+		batteryVoltage = (int16_t)x;
+
 	}
 }
 
