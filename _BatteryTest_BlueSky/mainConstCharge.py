@@ -1,10 +1,11 @@
 import ClassBattery as Battery
 import DP800 as DPWrapper
+import DL3000 as DLWrapper
 import pyvisa as pv
 import time
 import datetime
 
-def executeCharge(inBatteryObj, device):
+def executeCharge(inBatteryObj, device, device_0):
 
     # Initialize variables
     targetVoltage = inBatteryObj.m_voltageBounds[1]
@@ -53,7 +54,7 @@ def executeCharge(inBatteryObj, device):
         print("Input current is too large - defaulted to maximum ... \n")
     
     # set voltage a bit higher to allow enough current to be drawn
-    result = device.setVOLT(targetVoltage + 0.5)
+    result = device.setVOLT(targetVoltage - 0.03)
     
     if not result:
         print("Voltage is out of bounds, please review your battery characteristics ... \n")
@@ -61,6 +62,9 @@ def executeCharge(inBatteryObj, device):
 
     # set OVP
     device.setOVP(targetVoltage)
+
+    # setup SENSE in the eLoad for measurements
+    device_0.setupSENSE()
     
     # turn on DC Power Supply (selected Channel)
     device.channelON()
@@ -69,7 +73,7 @@ def executeCharge(inBatteryObj, device):
 
         prevTime = time.time()
 
-        currVoltage = device.measureValue("Voltage")
+        currVoltage = device_0.voltage()
         currCurrent = device.measureValue("Current")
 
         time.sleep(0.95)
@@ -91,12 +95,13 @@ def executeCharge(inBatteryObj, device):
 if __name__ == '__main__':
 
     # initialize test sepcifications (ONLY CONSTANT CURRENT DISCHARGING FOR NOW)
+    targetID_eLoad = "USB0::6833::3601::DL3A192600119::0::INSTR"
     targetID_pSupply = "USB0::6833::3601::DP8A234200572::0::INSTR"
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
     testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
-    CRateIn = 1/30
+    CRateIn = 0.2
 
     # initialize BatteryObject
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, CRate = CRateIn)
@@ -104,9 +109,10 @@ if __name__ == '__main__':
     # initialize e-Load and DC Power Supply
     resourceManager = pv.ResourceManager()
     pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
+    eLoad = DLWrapper.DL3000(resourceManager.open_resource(targetID_eLoad))
     
     # run battery unit tests
-    result = executeCharge(batteryObj, pSupply)
+    result = executeCharge(batteryObj, pSupply, eLoad)
 
     # log all accumulated data
     if result:

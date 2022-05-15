@@ -87,7 +87,7 @@ class testHCCP:
         self.m_pSupply.channelOFF()
 
         # set voltage a bit higher to allow enough current to be drawn
-        result = self.m_pSupply.setVOLT(self.m_highVolt + 0.5)
+        result = self.m_pSupply.setVOLT(self.m_highVolt - 0.03)
     
         if not result:
             print("pSupply :: Voltage is out of bounds, please review your battery characteristics ... \n")

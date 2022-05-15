@@ -1,6 +1,6 @@
 import ClassBattery as Battery
 import DP800 as DPWrapper
-import DL3000 as DLwrapper
+import DL3000 as DLWrapper
 import pyvisa as pv
 import time
 
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # initialize e-Load and DC Power Supply
     resourceManager = pv.ResourceManager()
-    eLoad = DLwrapper.DL3000(resourceManager.open_resource(targetID_eLoad))
+    eLoad = DLWrapper.DL3000(resourceManager.open_resource(targetID_eLoad))
     pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
 
     # TestHPPC object
