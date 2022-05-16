@@ -1,99 +1,4 @@
-#ifndef PSM_H
-#define PSM_H
-
 #include "psm.h"
-
-
-#define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
-#define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
-//ADE7912 register addresses; names identical to datasheet
-const uint8_t IWV = 0x0;
-const uint8_t V1WV = 0x1;
-const uint8_t V2WV = 0x2;
-const uint8_t ADC_CRC = 0x4;
-const uint8_t CTRL_CRC = 0x5;
-const uint8_t CNT_SNAPSHOT = 0x7;
-const uint8_t CONFIG = 0x8;
-const uint8_t STATUS0 = 0x9;
-const uint8_t LOCK_ADDRESS = 0xA;
-const uint8_t SYNC_SNAP = 0xB;
-const uint8_t COUNTER0 = 0xC;
-const uint8_t COUNTER1 = 0xD;
-const uint8_t EMI_CTRL = 0xE;
-const uint8_t STATUS1 = 0xF;
-const uint8_t TEMPOS = 0x18;
-
-//ADE7912 instructions
-const uint8_t UNLOCK_COMMAND = 0x9C;
-const uint8_t LOCK_COMMAND = 0xCA;
-
-//constants for calibrating voltage and current measurements
-//CDCOS_CHx = "Current DC OffSet" of PSM channel x
-//VDCOS_CHx = "Voltage DC OffSet" of PSM channel x
-//CM_CHx = "Current Multiplier" of PSM channel x
-//VM_CHx = "Voltage Multiplier" of PSM channel x
-const double CDCOS_CH1 = 0; //NEEDS DATA
-const double CM_CH1 = 1; //NEEDS DATA
-const double VDCOS_CH1 = 0; //NEEDS DATA
-const double VM_CH1 = 1; //NEEDS DATA
-const double CDCOS_CH2 = 333618.35;
-const double CM_CH2 = 0.000001285445223;
-const double VDCOS_CH2 = 327702.62;
-const double VM_CH2 = 0.000002754991487;
-const double CDCOS_CH3 = 0; //NEEDS DATA
-const double CM_CH3 = 1; //NEEDS DATA
-const double VDCOS_CH3 = 0; //NEEDS DATA
-const double VM_CH3 = 1; //NEEDS DATA
-const double CDCOS_CH4 = 0; //NEEDS DATA
-const double CM_CH4 = 1; //NEEDS DATA
-const double VDCOS_CH4 = 0; //NEEDS DATA
-const double VM_CH4 = 1; //NEEDS DATA
-
-// You need to initialize this struct in your own code and pass it into PSM functions
-typedef struct PSM_Ports{
-	GPIO_TypeDef* CSPort0;
-	uint16_t CSPin0;
-
-	GPIO_TypeDef* CSPort1;
-	uint16_t CSPin1;
-
-	GPIO_TypeDef* CSPort2;
-	uint16_t CSPin2;
-
-	GPIO_TypeDef* CSPort3;
-	uint16_t CSPin3;
-
-	GPIO_TypeDef* LVDSPort;
-	uint16_t LVDSPin;
-
-	GPIO_TypeDef* DreadyPort;
-	uint16_t DreadyPin;
-
-} PSM_Ports;
-
-// Should initialize PSM_Ports in your project using the correct pins used by your chip
-// Example of initialization for MCMB is as follows:
-/*
-PSM_Ports* psmPorts = {
-		.CSPort0 = GPIOI,
-		.CSPin0 = GPIO_PIN_0,
-
-		.CSPort1 = GPIOJ,
-		.CSPin1 = GPIO_PIN_13,
-
-		.CSPort2 = GPIOJ,
-		.CSPin2 = GPIO_PIN_14,
-
-		.CSPort3 = GPIOJ,
-		.CSPin3 = GPIO_PIN_15,
-
-		.LVDSPort = GPIOJ,
-		.LVDSPIN = GPIO_PIN_12,
-
-		.DreadyPort = GPIOK,
-		.DreadyPort = GPIO_PIN_3
-};
-*/
 
 // Helper functions that programmer could use
 // converts elements in an array back to double
@@ -119,7 +24,7 @@ void doubleToArray(double val, uint8_t* aryPtr) {
 
 
 //PSM_Init()
-void PSM_Init(PSM_Ports* psmPorts) {
+void PSM_Init(struct PSM_Ports* psmPorts, uint8_t PSM_ID){
 	// Set all chip select pins to 1 to disable SPI transmission
 	HAL_GPIO_WritePin(psmPorts->CSPort0, psmPorts->CSPin0, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(psmPorts->CSPort1, psmPorts->CSPin1, GPIO_PIN_SET);
@@ -129,6 +34,52 @@ void PSM_Init(PSM_Ports* psmPorts) {
 	// Set LVDS to disabled by outputting logic low
 	HAL_GPIO_WritePin(psmPorts->LVDSPort, psmPorts->LVDSPin, GPIO_PIN_RESET);
 
+	//Load in calibrated parameters
+//	switch (PSM_ID){
+//		case 1: //PSM in battery box
+//			VDCOS_CH1 = 0;
+//			CDCOS_CH1 = 0;
+//			VM_CH1 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH1 = (1.2) * (1 / 8388607) / 4;
+//
+//			VDCOS_CH2 = 0;
+//			CDCOS_CH2 = 0;
+//			VM_CH2 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH2 = (1.2) * (1 / 8388607) / 0.5;
+//
+//			break;
+//
+//		case 2: //PSM in motor box
+//			VDCOS_CH1 = 0;
+//			CDCOS_CH1 = 0;
+//			VM_CH1 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH1 = (1.2) * (1 / 8388607) / 0.5; //0.5mR;
+//
+//			break;
+//
+//		case 3: //PSM in PPT box
+//			VDCOS_CH1 = 0;
+//			CDCOS_CH1 = 0;
+//			VM_CH1 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH1 = (1.2) * (1 / 8388607) / 2; //2mR;
+//
+//			VDCOS_CH2 = 0;
+//			CDCOS_CH2 = 0;
+//			VM_CH2 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH2 = (1.2) * (1 / 8388607) / 0.5; //0.5mR;
+//
+//			VDCOS_CH3 = 0;
+//			CDCOS_CH3 = 0;
+//			VM_CH3 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH3 = (1.2) * (1 / 8388607) / 2; //2mR;
+//
+//			VDCOS_CH4 = 0;
+//			CDCOS_CH4 = 0;
+//			VM_CH4 = (1.2) * (1 / 8388607) * (1 + 664*(1/2.2 + 1/480)); //2.2kR;
+//			CM_CH4 = (1.2) * (1 / 8388607) / 2; //2mR;
+//
+//			break;
+//	}
 }
 
 // arrayToDouble()
@@ -149,7 +100,7 @@ void PSM_Init(PSM_Ports* psmPorts) {
 //address = address of register in psm channel that you wish to write to
 //data = 1 byte of data that you wish to write to the register at the specified address
 //channelNumber = specifies which PSM channel you wish to write to
-void writeOnePSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber){
+void writeOnePSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber){
 	//variables for error messages
 	char errorMessage[64];
 	uint8_t errorMessageLength;
@@ -202,7 +153,7 @@ void writeOnePSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Hand
 //data = 1 byte of data that you wish to write to the register at the specified address
 //set EN_cx = 1 if you want to ENable configuration of PSM channel x, set EN_cx = 0 if you don't want to cNable configuration of PSM Channel x
 //ex: EN_c2 = 1 means that configuration for PSM channel 2 is ENabled
-void writeMultiplePSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,
+void writeMultiplePSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,
 				uint8_t EN_c1, uint8_t EN_c2, uint8_t EN_c3, uint8_t EN_c4){
 	//16-bit write instruction to be sent to ade7912 chip in psm channel
 	uint8_t instruction[2] = {address<<3, data}; //leftshift address bits to five most significant bits of instruction
@@ -248,7 +199,7 @@ void writeMultiplePSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART
 //numBytes = number of bytes you want to read from the register (because ade7912 registers are of varying sizes)
 //channelNumber = number specifying which PSM channel you want to read from. For example, channelNumber = 2 means read from PSM channel 2
 //MAKE SURE ENOUGH SPACE IN BUFFER TO ACCOMMODATE DATA, OTHERWISE SEGFAULT
-void readFromPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer, uint16_t numBytes, uint8_t channelNumber){
+void readFromPSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer, uint16_t numBytes, uint8_t channelNumber){
 	//variables for error messages
 	char errorMessage[64];
 	uint8_t errorMessageLength;
@@ -306,7 +257,7 @@ void readFromPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Hand
 //spiInterface is the SPI pins that are used to communicate between the stm32 and the PSM
 //uartInterface is the UART pins of the serial monitor that will output messages for debugging and information
 //channels is a string containing the numbers of the channels you want to configure, ex: channels = "134" means configure PSM channels 1,3, and 4
-void configPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels){
+void configPSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels){
 	//enable LVDS by outputting logic high at pin PB13
 	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
@@ -438,13 +389,13 @@ void configPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Handle
 	}
 
 	//disable CLKOUT of PSM channel 2 by setting CLKOUT_EN = 0 to conserve power
-	if(EN_c2){
-		//since value of configCommand is already set so that CLKOUT_EN = 0, just write it to PSM channel 2
-		writeMultiplePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, 0, EN_c2, 0, 0);
-
-		//write-protect the config registers of the master PSM channel by writing 0xCA to its Lock register
-		writeMultiplePSM(psmPorts, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, 0, EN_c2, 0, 0);
-	}
+//	if(EN_c2){
+//		//since value of configCommand is already set so that CLKOUT_EN = 0, just write it to PSM channel 2
+//		writeMultiplePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, 0, EN_c2, 0, 0);
+//
+//		//write-protect the config registers of the master PSM channel by writing 0xCA to its Lock register
+//		writeMultiplePSM(psmPorts, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, 0, EN_c2, 0, 0);
+//	}
 
 	//disable LVDS by outputting logic low to pin PB13
 	HAL_GPIO_WritePin(psmPorts->LVDSPort, psmPorts->LVDSPin, GPIO_PIN_RESET);
@@ -463,7 +414,7 @@ void configPSM(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_Handle
 
 //!!! If there is only ONE PSM channel in total, set masterPSM = 0 !!!
 //ex: masterPSM = 2 means that PSM channel 2 provides the clock.
-void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen){
+void PSMRead(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen){
 	//enable LVDS by outputting logic high at pin PB13
 
 	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
@@ -517,7 +468,10 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
 		//disable write protection
 		writeOnePSM(psmPorts, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
 		readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+
 		configCommand |= 1; //CLKOUT_EN = 1
+	    configCommand &= (~(1<<2)); //PWRDWN_EN = 0
+
 	    writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
 	}
 
@@ -527,20 +481,22 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
     writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
 
     //read from selected ade7912
-    for(uint8_t i = 0; i<5; i++){
+    for(uint8_t i = 0; i < NUM_AVG; i++){
         //wait for DREADY_n signal to go low before reading (pin PK2)
         while(HAL_GPIO_ReadPin(psmPorts->DreadyPort, psmPorts->DreadyPin) == GPIO_PIN_SET){
         } //TODO add something that will get us out of this loop if PK2 never reaches low
         //initiate burst-read mode by sending read instruction with address IWV, read 6 bytes
         readFromPSM(psmPorts, spiInterface, uartInterface, IWV, dataIn, 6, channelNumber);
-        IWV_val = (dataIn[0]<<16) + (dataIn[1]<<8) + dataIn[2];
-        V1WV_val = (dataIn[3]<<16) + (dataIn[4]<<8) + dataIn[5];
+        IWV_val = (dataIn[0] << 16) + (dataIn[1] << 8) + dataIn[2];
+        V1WV_val = (dataIn[3] << 16) + (dataIn[4] << 8) + dataIn[5];
         current += (IWV_val - currentOffset)*currentMultiplier;
         voltage += (V1WV_val - voltageOffset)*voltageMultiplier;
+//        current += (IWV_val - currentOffset)*((1.2) / 8388607 / 0.5);
+//        voltage += (V1WV_val - voltageOffset)*((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)));
     }
-    //get averages of 5 current and 5 voltage measurements
-    voltage /= 5;
-    current /= 5;
+    //get averages of current and voltage measurements
+    voltage /= NUM_AVG;
+    current /= NUM_AVG;
 
     //transmit voltage and current through uart (not doing this here)
 
@@ -555,12 +511,13 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
 
     uint8_t dataOutIndex = 0;
     uint8_t* ptr = (uint8_t*)&voltage;
-    for(; dataOutIndex<sizeof(voltage); dataOutIndex++){
+
+    for(; dataOutIndex < sizeof(voltage); dataOutIndex++){
     	dataOut[dataOutIndex] = *ptr;
     	ptr++;
     }
     ptr = (uint8_t*)&current;
-    for(; dataOutIndex<dataOutLen;dataOutIndex++){
+    for(; dataOutIndex < dataOutLen; dataOutIndex++){
     	dataOut[dataOutIndex] = *ptr;
     	ptr++;
     }
@@ -573,17 +530,19 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
     HAL_UART_Transmit(uartInterface, dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
     //B_tcpSend(btcp, dataOut, dataOutLen);
 
-    //power down slave ade7912
-    readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
-    configCommand |= (1<<2); //PWRDWN_EN = 1
-    writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
+    //power down ade7912
+    if (PWR_DWN_ENABLE){
+        readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
+        configCommand |= (1<<2); //PWRDWN_EN = 1
+        writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
 
-	//disable master ade7912 clock output by setting CLKOUT_EN = 0
-    //power down master ade7912 as well by setting PWRDWN_EN = 1
-	readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
-    configCommand &= (~1); //CLKOUT_EN = 0
-    configCommand |= (1<<2); //PWRDWN_EN = 1
-    writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+    	//disable master ade7912 clock output by setting CLKOUT_EN = 0
+        //power down master ade7912 as well by setting PWRDWN_EN = 1
+    	readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+        configCommand &= (~1); //CLKOUT_EN = 0
+        configCommand |= (1<<2); //PWRDWN_EN = 1
+        writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+    }
 
 	//re-enable write-protection
 	writeOnePSM(psmPorts, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
@@ -595,11 +554,39 @@ void PSMRead(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTy
 	HAL_GPIO_WritePin(psmPorts->LVDSPort, psmPorts->LVDSPin, GPIO_PIN_RESET);
 }
 
+//PSMPowerDown()
+//
+void PSMPowerDown(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels){
+    //EN_cx = 1 means PSM channel x will be configured, EN_cx = 0 means PSM channel x will be ignored
+    //for example EN_c2 = 1 means PSM channel 2 will be configured
+    uint8_t EN_c1 = 0, EN_c2 = 0, EN_c3 = 0, EN_c4 = 0;
+
+	//parse channels string to see which channels to write to by updating values of EN_cx
+	for(uint8_t i = 0; channels[i] != '\0'; i++){
+		switch(channels[i]){
+			case '1':
+				EN_c1 = 1;
+				break;
+			case '2':
+				EN_c2 = 1;
+				break;
+			case '3':
+				EN_c3 = 1;
+				break;
+			case '4':
+				EN_c4 = 1;
+				break;
+		}
+	}
+
+	//INCOMPLETE FOR NOW
+}
+
 //PSMReadTemperature()
 //masterPSM is the channel number of the master ade7912
 //read temperature from a specified PSM channel
 //casts temperature value from int16_t to two uint8_t for UART transmission, MAKE SURE TO RECAST THE RECEIVED TEMPERATURE VALUE BACK TO SIGNED 16-BIT INTEGER BEFORE USE
-void PSMReadTemperature(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM){
+void PSMReadTemperature(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM){
 	//enable LVDS by outputting logic high at pin PB13
 	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
 
@@ -669,7 +656,7 @@ void PSMReadTemperature(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UA
 //channelNumber is the number of the specific channel that is to be calibrated
 
 //SET masterPSM = 0 IF THERE IS ONLY ONE PSM CHANNEL IN TOTAL!
-void PSMCalib(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
+void PSMCalib(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
 		double shuntResistance, uint8_t masterPSM, uint8_t channelNumber){
 	//enable LVDS by outputting logic high at pin PB13
 	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
@@ -734,17 +721,18 @@ void PSMCalib(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleT
     HAL_UART_Transmit(uartInterface, dataOut, dataOutLen, MAX_UART_TRANSMIT_TIMEOUT);
 
     //power down slave ade7912
-    readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
-    configCommand |= (1<<2); //PWRDWN_EN = 1
-    writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
+    if (PWR_DWN_ENABLE){
+        readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
+        configCommand |= (1<<2); //PWRDWN_EN = 1
+        writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
 
-	//disable master ade7912 clock output by setting CLKOUT_EN = 0
-    //power down master ade7912 as well by setting PWRDWN_EN = 1
-	readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
-    configCommand &= (~1); //CLKOUT_EN = 0
-    configCommand |= (1<<2); //PWRDWN_EN = 1
-    writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
-
+    	//disable master ade7912 clock output by setting CLKOUT_EN = 0
+        //power down master ade7912 as well by setting PWRDWN_EN = 1
+    	readFromPSM(psmPorts, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+        configCommand &= (~1); //CLKOUT_EN = 0
+        configCommand |= (1<<2); //PWRDWN_EN = 1
+        writeOnePSM(psmPorts, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+    }
 	//re-enable write-protection
 	writeOnePSM(psmPorts, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
 	if(masterPSM){
@@ -754,8 +742,3 @@ void PSMCalib(PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleT
 	//disable LVDS by outputting logic low to pin PB13
 	HAL_GPIO_WritePin(psmPorts->LVDSPort, psmPorts->LVDSPin, GPIO_PIN_RESET);
 }
-
-
-
-
-#endif

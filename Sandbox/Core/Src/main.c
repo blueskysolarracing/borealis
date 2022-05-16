@@ -22,9 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "psm.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -97,6 +97,8 @@ int main(void)
   MX_SPI2_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  //PSM-related variables
 	struct PSM_Ports psmPorts;
 
 	psmPorts.CSPin0 = SPI2_CS_0_Pin;
@@ -115,8 +117,8 @@ int main(void)
 	psmPorts.DreadyPin = DReady_Pin;
 	psmPorts.DreadyPort = DReady_GPIO_Port;
 
-  PSM_Init(&psmPorts, 2); //PSM ID is 1 (battery box)
-  configPSM(&psmPorts, &hspi2, &huart2, "2");
+	PSM_Init(&psmPorts, 2); //2nd argument is PSM ID
+	configPSM(&psmPorts, &hspi2, &huart2, "2");
 
   /* USER CODE END 2 */
 
@@ -126,8 +128,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  double PSMBuffer[30] = {-1, -1};
+	  double PSMBuffer[30] = {-1, -1, -1};
 	  PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, PSMBuffer, 2);
+
+	  char printString[50];
+	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n\n", PSMBuffer[0], PSMBuffer[1]);
+	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+
 	  HAL_Delay(1000);
 
 //	  int receiveBuffer = 0;
