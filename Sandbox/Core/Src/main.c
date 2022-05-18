@@ -79,7 +79,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+   HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -99,26 +99,26 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   //PSM-related variables
-	struct PSM_Ports psmPorts;
+	struct PSM_Peripheral psmPeriph;
 
-	psmPorts.CSPin0 = SPI2_CS_0_Pin;
-	psmPorts.CSPin1 = SPI2_CS_1_Pin;
-	psmPorts.CSPin2 = SPI2_CS_2_Pin;
-	psmPorts.CSPin3 = SPI2_CS_3_Pin;
+	psmPeriph.CSPin0 = SPI2_CS_0_Pin;
+	psmPeriph.CSPin1 = SPI2_CS_1_Pin;
+	psmPeriph.CSPin2 = SPI2_CS_2_Pin;
+	psmPeriph.CSPin3 = SPI2_CS_3_Pin;
 
-	psmPorts.CSPort0 = GPIOG;
-	psmPorts.CSPort1 = SPI2_CS_1_GPIO_Port;
-	psmPorts.CSPort2 = SPI2_CS_2_GPIO_Port;
-	psmPorts.CSPort3 = SPI2_CS_3_GPIO_Port;
+	psmPeriph.CSPort0 = SPI2_CS_0_GPIO_Port;
+	psmPeriph.CSPort1 = SPI2_CS_1_GPIO_Port;
+	psmPeriph.CSPort2 = SPI2_CS_2_GPIO_Port;
+	psmPeriph.CSPort3 = SPI2_CS_3_GPIO_Port;
 
-	psmPorts.LVDSPort = LVDS_EN_GPIO_Port;
-	psmPorts.LVDSPin = LVDS_EN_Pin;
+	psmPeriph.LVDSPort = LVDS_EN_GPIO_Port;
+	psmPeriph.LVDSPin = LVDS_EN_Pin;
 
-	psmPorts.DreadyPin = DReady_Pin;
-	psmPorts.DreadyPort = DReady_GPIO_Port;
+	psmPeriph.DreadyPin = DReady_Pin;
+	psmPeriph.DreadyPort = DReady_GPIO_Port;
 
-	PSM_Init(&psmPorts, 2); //2nd argument is PSM ID
-	configPSM(&psmPorts, &hspi2, &huart2, "2");
+	PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID
+	configPSM(&psmPeriph, &hspi2, &huart2, "1");
 
   /* USER CODE END 2 */
 
@@ -128,12 +128,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  double PSMBuffer[30] = {-1, -1, -1};
-	  PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, PSMBuffer, 2);
-
 	  char printString[50];
-	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n\n", PSMBuffer[0], PSMBuffer[1]);
+
+	  double PSMBuffer[30] = {-1, -1, -1};
+	  PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 1, PSMBuffer, 2);
+	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
 	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+
+//	  double PSMBuffer2[30] = {-1, -1, -1};
+//	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSMBuffer2, 2);
+//	  sprintf(printString, "PSMBuffer2[0]: %lf\nPSMBuffer2[1]: %lf\n\n", PSMBuffer2[0], PSMBuffer2[1]);
+//	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
 
 	  HAL_Delay(1000);
 
@@ -208,9 +213,8 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+void SystemClock_Config(void){
+RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Supply configuration update enable

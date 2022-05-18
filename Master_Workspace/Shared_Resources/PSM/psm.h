@@ -42,8 +42,8 @@ Nominally, the voltage multipler is (1.2) * (1 / (2^23 - 1)) * (1 + 664*(1/R5 + 
 Nominally, the currrent multiplier is (1.2) * (1 / (2^23 - 1)) / R8 [output in A; R8 in mR]
 */
 
-//SPI ports and GPIOs for PSM. Varies for each motherboard. To be initialized in main.c
-struct PSM_Ports{
+struct PSM_Peripheral{
+	//SPI ports and GPIOs for PSM. Varies for each motherboard. To be initialized in main.c
 	GPIO_TypeDef* CSPort0;
 	uint16_t CSPin0;
 
@@ -61,38 +61,38 @@ struct PSM_Ports{
 
 	GPIO_TypeDef* DreadyPort;
 	uint16_t DreadyPin;
+
+	//Constants for each channel
+	float VDCOS_CH1;
+	float CDCOS_CH1;
+	float VM_CH1;
+	float CM_CH1;
+
+	float VDCOS_CH2;
+	float CDCOS_CH2;
+	float VM_CH2;
+	float CM_CH2;
+
+	float VDCOS_CH3;
+	float CDCOS_CH3;
+	float VM_CH3;
+	float CM_CH3;
+
+	float VDCOS_CH4;
+	float CDCOS_CH4;
+	float VM_CH4;
+	float CM_CH4;
 };
-
-//Constants for each channel
-float VDCOS_CH1;
-float CDCOS_CH1;
-float VM_CH1;
-float CM_CH1;
-
-float VDCOS_CH2;
-float CDCOS_CH2;
-float VM_CH2;
-float CM_CH2;
-
-float VDCOS_CH3;
-float CDCOS_CH3;
-float VM_CH3;
-float CM_CH3;
-
-float VDCOS_CH4;
-float CDCOS_CH4;
-float VM_CH4;
-float CM_CH4;
 
 //------ FUNCTION PROTOTYPES ------//
 double arrayToDouble(uint8_t* aryPtr, uint8_t size);
-void PSM_Init(struct PSM_Ports* psmPorts, uint8_t PSM_ID);
-void writeOnePSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber);
-void writeMultiplePSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,
-uint8_t EN_c1, uint8_t EN_c2, uint8_t EN_c3, uint8_t EN_c4);
-void readFromPSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer, uint16_t numBytes, uint8_t channelNumber);
-void configPSM(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels);
-void PSMRead(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen);
-void PSMReadTemperature(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM);
-void PSMCalib(struct PSM_Ports* psmPorts, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
+void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID);
+void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber);
+void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,
+				uint8_t EN_c1, uint8_t EN_c2, uint8_t EN_c3, uint8_t EN_c4);
+void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer, uint16_t numBytes, uint8_t channelNumber);
+void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels);
+void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen);
+void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM);
+void PSMCalib(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
 double shuntResistance, uint8_t masterPSM, uint8_t channelNumber);
