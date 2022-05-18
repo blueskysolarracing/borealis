@@ -400,9 +400,16 @@ Mcu.PinsNb=127
 Mcu.ThirdPartyNb=0
 Mcu.UserConstants=
 Mcu.UserName=STM32H753BITx
+<<<<<<< HEAD
 MxCube.Version=6.4.0
 MxDb.Version=DB.6.0.40
 NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
+=======
+MxCube.Version=6.3.0
+MxDb.Version=DB.6.0.30
+NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
+NVIC.DMA1_Stream0_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
+>>>>>>> new_lights
 NVIC.DMA1_Stream1_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA1_Stream2_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA1_Stream3_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
@@ -412,7 +419,10 @@ NVIC.DMA1_Stream6_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA1_Stream7_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA2_Stream0_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA2_Stream1_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
+<<<<<<< HEAD
 NVIC.DMA2_Stream2_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
+=======
+>>>>>>> new_lights
 NVIC.DebugMonitor_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.EXTI0_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.EXTI15_10_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
@@ -437,7 +447,11 @@ NVIC.UART8_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.USART2_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.USART3_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.UsageFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
+<<<<<<< HEAD
 PA0.Signal=S_TIM2_CH1_ETR
+=======
+PA0.Signal=S_TIM2_CH1
+>>>>>>> new_lights
 PA10.Mode=Output_TC2
 PA10.Signal=HRTIM_CHC2
 PA11.Locked=true

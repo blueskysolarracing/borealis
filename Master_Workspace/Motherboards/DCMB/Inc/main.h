@@ -75,6 +75,9 @@ void Error_Handler(void);
 #define ACC_sig_GPIO_Port GPIOF
 #define Fan_ctrl_Pin GPIO_PIN_0
 #define Fan_ctrl_GPIO_Port GPIOG
+#define GPIO_IN0_Pin GPIO_PIN_0
+#define GPIO_IN0_GPIO_Port GPIOJ
+#define GPIO_IN0_EXTI_IRQn EXTI0_IRQn
 #define GPIO_IN10_Pin GPIO_PIN_10
 #define GPIO_IN10_GPIO_Port GPIOD
 #define GPIO_IN10_EXTI_IRQn EXTI15_10_IRQn
@@ -88,3 +91,5 @@ void Error_Handler(void);
 #endif
 
 #endif /* __MAIN_H */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

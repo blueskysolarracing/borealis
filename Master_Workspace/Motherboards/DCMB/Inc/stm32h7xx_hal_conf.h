@@ -508,3 +508,4 @@
 #endif
 
 #endif /* STM32H7xx_HAL_CONF_H */
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
