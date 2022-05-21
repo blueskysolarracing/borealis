@@ -23,6 +23,8 @@ def fixLine(lineToChange)->str:
     endStr = lineToChange[replaceToIdx:]
 
     newLine = beginStr + topRepoPath + endStr
+    print("Your updated path:")
+    print(newLine)
     return newLine
 
 def main():

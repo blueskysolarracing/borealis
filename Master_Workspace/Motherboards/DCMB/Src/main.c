@@ -735,11 +735,11 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_16BIT;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1456,13 +1456,10 @@ static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
@@ -1490,6 +1487,10 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
+  /* DMA2_Stream2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
+
 }
 
 /* FMC initialization function */
@@ -1561,13 +1562,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOK_CLK_ENABLE();
-    
-    /*Configure GPIO pin Output Level */
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1807,6 +1809,7 @@ static void lightsTmr(TimerHandle_t xTimer){
 //		disp_setDCMBStopLightState(0);
 //	}
 //	B_tcpSend(btcp, buf, 4);
+}
 
 static void mc2StateTmr(TimerHandle_t xTimer){
 	static uint8_t started = 0;
@@ -1924,15 +1927,13 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 	        B_tcpSend(btcp, bufh, 2);
 		}
 
-		// TODO other buttons
-		disp_setDCMBAccPotPosition(accel_value);
-		B_tcpSend(btcp, buf, 8);
-		buf[2] = outputVal;
-//		HAL_UART_Transmit_IT(&huart2, buf2, strlen(buf2));
-		// TODO other buttons
-		disp_setDCMBAccPotPosition(outputVal);
-		B_tcpSend(btcp, buf, 8);
-	}
+//		// TODO other buttons
+//		disp_setDCMBAccPotPosition(accel_value);
+//		B_tcpSend(btcp, buf, 8);
+////		HAL_UART_Transmit_IT(&huart2, buf2, strlen(buf2));
+//		// TODO other buttons
+//		disp_setDCMBAccPotPosition(outputVal);
+//		B_tcpSend(btcp, buf, 8);
 }
 
 void ignition_check(uint8_t data){
@@ -2388,4 +2389,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -92,6 +92,9 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+//PSM
+struct PSM_Peripheral psmPeriph;
+
 B_uartHandle_t *buart;
 B_uartHandle_t *radioBuart;
 B_tcpHandle_t *btcp;
@@ -106,6 +109,10 @@ uint8_t vfmResetState = 0;
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 
+int16_t batteryVoltage = 0;
+
+
+
 // Struct for reading PWM input (in this case: speed pulse from motor)
 typedef struct {
 	uint32_t icValue1;
@@ -117,28 +124,6 @@ typedef struct {
 } PWM_INPUT_CAPTURE;
 PWM_INPUT_CAPTURE pwm_in = {0, 0, 1, 0, 0.0, 0};
 // diffCapture must not be set to zero as it needs to be used as division and dividing by zero causes undefined behaviour
-
-// Initialize psmPorts
-PSM_Ports psmPorts = {
-		.CSPort0 = GPIOI,
-		.CSPin0 = GPIO_PIN_0,
-
-		.CSPort1 = GPIOJ,
-		.CSPin1 = GPIO_PIN_13,
-
-		.CSPort2 = GPIOJ,
-		.CSPin2 = GPIO_PIN_14,
-
-		.CSPort3 = GPIOJ,
-		.CSPin3 = GPIO_PIN_15,
-
-		.LVDSPort = GPIOJ,
-		.LVDSPin = GPIO_PIN_12,
-
-		.DreadyPort = GPIOK,
-		.DreadyPin = GPIO_PIN_3
-};
-
 
 /* USER CODE END PV */
 
@@ -176,6 +161,9 @@ static void spdTmr(TimerHandle_t xTimer);
 static void tempSenseTmr(TimerHandle_t xTimer);
 /* ============================================================*/
 
+//Cruise control task
+void cruiseControlTaskHandler(void* parameters);
+
 //Tasks for temperature reading and PSM
 void tempSenseTaskHandler(void* parameters);
 void PSMTaskHandler(void* parameters);
@@ -191,10 +179,6 @@ float ADCMapToVolt(float ADCValue);
 float convertToTemp(float Vadc);
 float getTemperature(ADC_HandleTypeDef *hadcPtr);
 /*================================================================*/
-
-
-
-
 
 /* USER CODE END PFP */
 
@@ -251,11 +235,8 @@ int main(void)
   //radioBuart = B_uartStart(&huart8);
   //B_uartHandle_t * sendBuarts[2] = {buart, radioBuart};
 
-
-
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
   btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
-
 
   HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
   HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
@@ -281,8 +262,24 @@ int main(void)
   MCP4161_Pot_Write(accValue, GPIOK, GPIO_PIN_2, &hspi3);
 
   //Initialize PSM
-  PSM_Init(&psmPorts);
+  psmPeriph.CSPin0 = BBMB_PSM_CS_0_Pin;
+  psmPeriph.CSPin1 = PSM_CS_1_Pin;
+  psmPeriph.CSPin2 = PSM_CS_2_Pin;
+  psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
+  psmPeriph.CSPort0 = GPIOB;
+  psmPeriph.CSPort1 = GPIOG;
+  psmPeriph.CSPort2 = GPIOG;
+  psmPeriph.CSPort3 = GPIOG;
+
+  psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+  psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+
+  psmPeriph.DreadyPin = PSM_DReady_Pin;
+  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+
+  PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
+  configPSM(&psmPeriph, &hspi2, &huart2, "1", 1); //Use channel #1 only with master being channel 1
 
   xTimerStart(xTimerCreate("motorStateTimer", 10, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
@@ -810,10 +807,10 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1449,7 +1446,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15|GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
+                          |GPIO_PIN_15|PSM_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET);
@@ -1459,8 +1456,11 @@ static void MX_GPIO_Init(void)
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5|PSM_LVDS_EN_Pin|PSM_CS_1_Pin|PSM_CS_2_Pin
+                          |PSM_CS_3_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(BBMB_PSM_CS_0_GPIO_Port, BBMB_PSM_CS_0_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
@@ -1477,9 +1477,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PI9 PI12 PI13 PI14
-                           PI15 PI0 PI4 PI7 */
+                           PI15 PSM_CS_0_Pin PI4 PI7 */
   GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15|GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_7;
+                          |GPIO_PIN_15|PSM_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1523,10 +1523,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PJ5 PJ12 PJ13 PJ14
-                           PJ15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+  /*Configure GPIO pins : PJ5 PSM_LVDS_EN_Pin PSM_CS_1_Pin PSM_CS_2_Pin
+                           PSM_CS_3_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_5|PSM_LVDS_EN_Pin|PSM_CS_1_Pin|PSM_CS_2_Pin
+                          |PSM_CS_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1540,11 +1540,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF12_OTG2_FS;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : BBMB_PSM_CS_0_Pin */
+  GPIO_InitStruct.Pin = BBMB_PSM_CS_0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(BBMB_PSM_CS_0_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PD9 */
   GPIO_InitStruct.Pin = GPIO_PIN_9;
@@ -1646,11 +1647,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF5_SPI6;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PK3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pin : PSM_DReady_Pin */
+  GPIO_InitStruct.Pin = PSM_DReady_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
+  HAL_GPIO_Init(PSM_DReady_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB6 */
   GPIO_InitStruct.Pin = GPIO_PIN_6;
@@ -1745,7 +1746,6 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr) {
 	return temperature;
 }
 
-
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorState = 0;
 	static uint8_t currentFwdRevState = 0;
@@ -1756,7 +1756,7 @@ static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t vfm_up_count = 0;
 	static uint8_t vfm_down_count = 0;
 	static uint8_t vfmCount = 0;
-	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //what does this mean? Stops accel if serialParse stops being called?
+	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //Stops accel if serialParse stops being called (this means uart connection is lost)
 		accValue = 0; // Just send here instead;
 	}
 	if(currentMotorState != motorState){
@@ -1779,7 +1779,6 @@ static void motorTmr(TimerHandle_t xTimer){
 		}
 	}
 
-	// Local accValue and regenValue are necessary because we do not want the variables be changed by another thread in the following code
 	uint16_t localAccValue = accValue;
 	uint16_t localRegenValue = regenValue;
 	// Since the max you can send to potentiometer is 256 but the max value from DCMB is 255, we will just set 255 to 256 for simplicity
@@ -1789,11 +1788,14 @@ static void motorTmr(TimerHandle_t xTimer){
 	if (regenValue == 255) {
 		localRegenValue = 256;
 	}
+	if (batteryVoltage > 110 || batteryVoltage < 110) {
+		localRegenValue = 0;
+	}
 
 	// The follow if statement is to prevent sending Accel and Regen signals to the motor at the same time
-	// Accel is prioritized at the moment (if both signals received from DCMB are not zero, we will force Regen to be zero)
+	// REgen is prioritized at the moment (if both signals received from DCMB are not zero, we will force Accel to be zero)
 	if (localAccValue != 0 && localRegenValue != 0) {
-		localRegenValue = 0;
+		localAccValue = 0;
 	}
 
 
@@ -1871,9 +1873,17 @@ static void spdTmr(TimerHandle_t xTimer){
 	}
 	//Note 16 pulse per rotation
 	static uint8_t buf[4] = {MCMB_SPEED_PULSE_ID, 0x00, 0x00, 0x00};
+
+	// Can divide by 16 and multiply by 60 for Rotation per min
+
+	// Get KM per Hour
+	float meterPerSecond = pwm_in.frequency / 16 * 1.7156;
+			// Note: 1.7156 = 0.5461 * pi  is the circumference of the wheel
+	uint8_t kmPerHour = meterPerSecond / 1000 * 3600;
 	// Send frequency to DCMB (for now)
-	// Should divide by 16 and multiply by 60 for Rotation per min
-	buf[1] = pwm_in.frequency;
+	//buf[1] = pwm_in.frequency;
+	// Send motor speed to DCMB
+	buf[1] = kmPerHour;
 	B_tcpSend(btcp, buf, 4);
 }
 
@@ -1977,27 +1987,24 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 }
 
 void PSMTaskHandler(void* parameters) {
-
-	enum measurementResult {VOLTAGE, CURRENT};
 	while (1) {
 		//vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
-		vTaskDelay(pdMS_TO_TICKS(1000));
+		vTaskDelay(pdMS_TO_TICKS(200)); //Every 200ms
 
 		double voltageCurrent[2] = {0};
 		//PSMRead will fill first element with voltage, second with current
-		PSMRead(&psmPorts, &hspi2, &huart2,
-				/*CLKOUT=*/ 1,
-				/*masterPSM=*/ 2,
-				/*channelNumber=*/ 2,
-				/*dataOut[]=*/voltageCurrent,
-				/*dataLen=*/sizeof(voltageCurrent));
-
+		PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 1, voltageCurrent, 1);
 		uint8_t busMetrics[20] = {0};
 		busMetrics[0] = MCMB_BUS_METRICS_ID;
-		doubleToArray(voltageCurrent[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
-		doubleToArray(voltageCurrent[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
+		doubleToArray(voltageCurrent[0], busMetrics+4); // fills 3 - 11 of busMetrics
+		doubleToArray(voltageCurrent[1], busMetrics+12); // fills 11 - 19 of busMetrics
 
 		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		// convert voltage to int and store globally
+		float x = (float)voltageCurrent[0];
+		x = x + 0.5 - (x<0); // Adds 0.5 if x > 0 and subtracts 0.5 if x < 0
+		batteryVoltage = (int16_t)x;
+
 	}
 }
 
@@ -2068,4 +2075,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

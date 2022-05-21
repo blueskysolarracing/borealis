@@ -32,16 +32,7 @@
 		<link>
 			<name>BlueSkyTransmissionProtocol</name>
 			<type>2</type>
-<<<<<<< HEAD
 			<location>/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol</location>
-=======
-			<location>/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
-		</link>
-		<link>
-			<name>btcp_src</name>
-			<type>2</type>
-			<location>/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
->>>>>>> new_lights
 		</link>
 	</linkedResources>
 </projectDescription>
