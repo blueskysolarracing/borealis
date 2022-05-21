@@ -3,7 +3,7 @@ ADC1.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_2
 ADC1.Channel-1\#ChannelRegularConversion=ADC_CHANNEL_4
 ADC1.ContinuousConvMode=DISABLE
 ADC1.EOCSelection=ADC_EOC_SEQ_CONV
-ADC1.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,OffsetNumber-0\#ChannelRegularConversion,OffsetSignedSaturation-0\#ChannelRegularConversion,NbrOfConversionFlag,ContinuousConvMode,master,NbrOfConversion,EOCSelection,Rank-1\#ChannelRegularConversion,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,OffsetNumber-1\#ChannelRegularConversion,OffsetSignedSaturation-1\#ChannelRegularConversion
+ADC1.IPParameters=Rank-0\#ChannelRegularConversion,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,OffsetNumber-0\#ChannelRegularConversion,OffsetSignedSaturation-0\#ChannelRegularConversion,NbrOfConversionFlag,ContinuousConvMode,NbrOfConversion,EOCSelection,Rank-1\#ChannelRegularConversion,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,OffsetNumber-1\#ChannelRegularConversion,OffsetSignedSaturation-1\#ChannelRegularConversion,master
 ADC1.NbrOfConversion=2
 ADC1.NbrOfConversionFlag=1
 ADC1.OffsetNumber-0\#ChannelRegularConversion=ADC_OFFSET_NONE
@@ -400,16 +400,9 @@ Mcu.PinsNb=127
 Mcu.ThirdPartyNb=0
 Mcu.UserConstants=
 Mcu.UserName=STM32H753BITx
-<<<<<<< HEAD
 MxCube.Version=6.4.0
 MxDb.Version=DB.6.0.40
 NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
-=======
-MxCube.Version=6.3.0
-MxDb.Version=DB.6.0.30
-NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
-NVIC.DMA1_Stream0_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
->>>>>>> new_lights
 NVIC.DMA1_Stream1_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA1_Stream2_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA1_Stream3_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
@@ -419,10 +412,7 @@ NVIC.DMA1_Stream6_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA1_Stream7_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA2_Stream0_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
 NVIC.DMA2_Stream1_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
-<<<<<<< HEAD
 NVIC.DMA2_Stream2_IRQn=true\:5\:0\:false\:false\:true\:true\:false\:true
-=======
->>>>>>> new_lights
 NVIC.DebugMonitor_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.EXTI0_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.EXTI15_10_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
@@ -447,11 +437,7 @@ NVIC.UART8_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.USART2_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.USART3_IRQn=true\:5\:0\:false\:false\:true\:true\:true\:true
 NVIC.UsageFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
-<<<<<<< HEAD
 PA0.Signal=S_TIM2_CH1_ETR
-=======
-PA0.Signal=S_TIM2_CH1
->>>>>>> new_lights
 PA10.Mode=Output_TC2
 PA10.Signal=HRTIM_CHC2
 PA11.Locked=true
@@ -936,9 +922,9 @@ SPI1.IPParameters=VirtualType,Mode,Direction,CalculateBaudRate,VirtualNSS,BaudRa
 SPI1.Mode=SPI_MODE_MASTER
 SPI1.VirtualNSS=VM_NSSHARD
 SPI1.VirtualType=VM_MASTER
-SPI2.BaudRatePrescaler=SPI_BAUDRATEPRESCALER_64
-SPI2.CalculateBaudRate=3.125 MBits/s
-SPI2.DataSize=SPI_DATASIZE_16BIT
+SPI2.BaudRatePrescaler=SPI_BAUDRATEPRESCALER_128
+SPI2.CalculateBaudRate=1.5625 MBits/s
+SPI2.DataSize=SPI_DATASIZE_8BIT
 SPI2.Direction=SPI_DIRECTION_2LINES
 SPI2.IPParameters=VirtualType,Mode,Direction,BaudRatePrescaler,CalculateBaudRate,NSSPolarity,DataSize,NSSPMode
 SPI2.Mode=SPI_MODE_MASTER

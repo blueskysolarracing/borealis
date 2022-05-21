@@ -105,7 +105,12 @@ uint16_t adcCount;
 QueueHandle_t lightsCtrl = NULL;
 TimerHandle_t blink_timer = NULL;
 
-
+//--- PSM ---//
+struct PSM_Peripheral psmPeriph;
+double voltageCurrent_Battery[30] = {0, 0, 0};
+double voltageCurrent_PHub[30] = {0, 0, 0};
+uint8_t busMetrics[20] = {0};
+uint8_t LP_busMetrics[20] = {0};
 
 /* USER CODE END PV */
 
@@ -248,13 +253,33 @@ int main(void)
 
   hpQ = xQueueCreate(10, sizeof(uint8_t));
 
-
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
   xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 1, NULL);
   xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 1, NULL);
 
-
   xTaskCreate(psmTaskHandle, "PSMTask", 1024, ( void * ) 1, 1, NULL);
+
+
+  //PSM-related variables
+	psmPeriph.CSPin0 = PSM_CS_0_Pin;
+	psmPeriph.CSPin1 = PSM_CS_1_Pin;
+	psmPeriph.CSPin2 = PSM_CS_2_Pin;
+	psmPeriph.CSPin3 = PSM_CS_3_Pin;
+
+	psmPeriph.CSPort0 = GPIOI;
+	psmPeriph.CSPort1 = GPIOG;
+	psmPeriph.CSPort2 = GPIOG;
+	psmPeriph.CSPort3 = GPIOG;
+
+	psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+	psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+
+	psmPeriph.DreadyPin = PSM_DReady_Pin;
+	psmPeriph.DreadyPort = GPIOK;
+
+	PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (1 for BBMB)
+	configPSM(&psmPeriph, &hspi2, &huart2, "12", 2); //Use channels #1 and #2 (#2 is master)
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -1689,14 +1714,14 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15
-                          |GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
+                          |PSM_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0|GPIO_PIN_1|PSM_CS_1_Pin|PSM_CS_2_Pin
+                          |PSM_CS_3_Pin|GPIO_PIN_5|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15, GPIO_PIN_RESET);
@@ -1705,10 +1730,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOH, GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(PSM_LVDS_EN_GPIO_Port, PSM_LVDS_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
+  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_1|PSM_DReady_Pin|GPIO_PIN_3|GPIO_PIN_4
                           |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1722,9 +1747,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PI9 PI12 PI13 PI15
-                           PI0 PI4 PI7 */
+                           PSM_CS_0_Pin PI4 PI7 */
   GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15
-                          |GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_7;
+                          |PSM_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1759,10 +1784,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PG0 PG1 PG2 PG3
-                           PG4 PG5 PG15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15;
+  /*Configure GPIO pins : PG0 PG1 PSM_CS_1_Pin PSM_CS_2_Pin
+                           PSM_CS_3_Pin PG5 PG15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|PSM_CS_1_Pin|PSM_CS_2_Pin
+                          |PSM_CS_3_Pin|GPIO_PIN_5|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1790,12 +1815,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  /*Configure GPIO pin : PSM_LVDS_EN_Pin */
+  GPIO_InitStruct.Pin = PSM_LVDS_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(PSM_LVDS_EN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : GPIO_IN10_Pin */
   GPIO_InitStruct.Pin = GPIO_IN10_Pin;
@@ -1810,9 +1835,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PK2 PK3 PK5 PK6
+  /*Configure GPIO pins : PSM_DReady_Pin PK3 PK5 PK6
                            PK7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_5|GPIO_PIN_6
+  GPIO_InitStruct.Pin = PSM_DReady_Pin|GPIO_PIN_3|GPIO_PIN_5|GPIO_PIN_6
                           |GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -2453,49 +2478,56 @@ void senderTaskHandle(void * argument)
 }
 
 void psmTaskHandle(void * argument){
-	HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_1);
+	enum measurementResult {VOLTAGE, CURRENT};
 
-	char buffer[100] = "PSM TEST\r\n";
-	// sprintf(buffer, "PSM TEST\r\n");
+	uint8_t junk = 10;
 
-	HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+	while (1) {
+		//vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
+		vTaskDelay(pdMS_TO_TICKS(200)); //Every 200ms
 
-	PSM_Ports psmPorts;
-	psmPorts.CSPort0 = GPIOI;
-	psmPorts.CSPin0 = GPIO_PIN_0;
+		//----BATTERY----//
 
-	psmPorts.CSPort1 = GPIOG;
-	psmPorts.CSPin1 = GPIO_PIN_2;
+		//PSMRead will fill first element with voltage, second with current
+//		PSMRead(&psmPeriph, &hspi2, &huart2,
+//				/*CLKOUT=*/ 1,
+//				/*masterPSM=*/ 2,
+//				/*channelNumber=*/ 2,
+//				/*dataOut[]=*/voltageCurrent_Battery,
+//				/*dataLen=*/sizeof(voltageCurrent_Battery));
 
-	psmPorts.CSPort2 = GPIOG;
-	psmPorts.CSPin2 = GPIO_PIN_3;
+//		busMetrics[0] = BBMB_BUS_METRICS_ID;
+//		doubleToArray(voltageCurrent_Battery[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
+//		doubleToArray(voltageCurrent_Battery[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
 
-	psmPorts.CSPort3 = GPIOG;
-	psmPorts.CSPin3 = GPIO_PIN_4;
+//		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
 
-	psmPorts.LVDSPort = GPIOB;
-	psmPorts.LVDSPin = GPIO_PIN_13;
 
-	psmPorts.DreadyPort = GPIOK;
-	psmPorts.DreadyPin = GPIO_PIN_2;
 
-	configPSM(&psmPorts, &hspi2, &huart2, "12");
-
-	double dataOut[2];
-	// PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, dataOut, 2);
-
-	// HAL_UART_Transmit(&huart2, dataOut, sizeof(dataOut), 100);
-
-	PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, dataOut, 2);
-
-	char dataMessage[64];
-	uint8_t dataMessageLength;
-
-	dataMessageLength = (uint8_t)sprintf(dataMessage, "voltage: 0x%X current: 0x%X\r\n", (unsigned int)dataOut[0], (unsigned int)dataOut[1]);
-	HAL_UART_Transmit(&huart2, (uint8_t*)dataMessage, (uint16_t)dataMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
-	//HAL_TIM_PWM_Stop(&htim12, TIM_CHANNEL_1);
-	//HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_9);
-
+		//----PHub----//
+		//PSMRead will fill first element with voltage, second with current
+// 		PSMRead(&psmPeriph, &hspi2, &huart2,
+//				/*CLKOUT=*/ 1,
+//				/*masterPSM=*/ 2,
+//				/*channelNumber=*/ 1,
+//				/*dataOut[]=*/voltageCurrent_PHub,
+//				/*dataLen=*/sizeof(voltageCurrent_PHub));
+//
+//		LP_busMetrics[0] = BBMB_LP_BUS_METRICS_ID;
+//		doubleToArray(voltageCurrent_PHub[VOLTAGE], LP_busMetrics+4); // fills 3 - 11 of busMetrics
+//		doubleToArray(voltageCurrent_PHub[CURRENT], LP_busMetrics+12); // fills 11 - 19 of busMetrics
+//
+//		B_tcpSend(btcp, LP_busMetrics, sizeof(LP_busMetrics));
+//
+//		//Store globally
+//		taskENTER_CRITICAL();
+//		PSM_Data_Battery[VOLTAGE] = voltageCurrent_Battery[VOLTAGE];
+//		PSM_Data_Battery[CURRENT] = voltageCurrent_Battery[CURRENT];
+//
+//		PSM_Data_PHub[VOLTAGE] = voltageCurrent_PHub[VOLTAGE];
+//		PSM_Data_PHub[CURRENT] = voltageCurrent_PHub[CURRENT];
+//		taskEXIT_CRITICAL();
+	}
 }
 
 
@@ -2569,4 +2601,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

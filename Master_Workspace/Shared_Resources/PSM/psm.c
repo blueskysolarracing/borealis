@@ -111,7 +111,6 @@ void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 
 	//16-bit write instruction to be sent to ade7912 chip in psm channel
 	uint8_t instruction[2] = {address<<3, data}; //leftshift address bits to five most significant bits of instruction
-	uint8_t dummyBuffer;
 	//set specified chip select pin to 0 to start SPI communication
 	switch(channelNumber){
 		case 1:
@@ -133,7 +132,7 @@ void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 			break;
 	}
 
-	if(HAL_SPI_TransmitReceive(spiInterface, instruction, &dummyBuffer, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		//successful transmission
 	} else{
 		//data could not be written! transmit some error message to the computer
@@ -161,7 +160,6 @@ void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterfac
 				uint8_t EN_c1, uint8_t EN_c2, uint8_t EN_c3, uint8_t EN_c4){
 	//16-bit write instruction to be sent to ade7912 chip in psm channel
 	uint8_t instruction[2] = {address<<3, data}; //leftshift address bits to five most significant bits of instruction
-	uint8_t dummyBuffer;
 
 	//set certain chip select pins to 0 to enable writing to specified PSM channels
 	if(EN_c1){
@@ -177,7 +175,7 @@ void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterfac
 		HAL_GPIO_WritePin(PSM->CSPort3, PSM->CSPin3, GPIO_PIN_RESET);
 	}
 
-	if(HAL_SPI_TransmitReceive(spiInterface, instruction, &dummyBuffer, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		//successful transmission
 	} else{
 		//data could not be written! transmit some error message to the computer
@@ -237,8 +235,10 @@ void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 	}
 
 	//send read instruction to ade7912 in specified PSM channel
-	if(HAL_SPI_TransmitReceive(spiInterface, &instruction, buffer, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){ //Used HAL_SPI_Transmit alone and _Receive inside function second
-		//successful transmission, so nothing to do
+	if(HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+		//successful transmission
+		//store received data into buffer
+		HAL_SPI_Receive(spiInterface, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
 	} else{
 		//instruction not sent!
 		//transmit some error message to the computer
@@ -265,7 +265,7 @@ void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t configCommand = CONFIG_COMMAND; //byte to be written to CONFIG register
-    uint8_t BW, SWRST, ADC_FREQ, PWRDWN_EN, CLKOUT_EN; //control bits in configCommand
+    uint8_t PWRDWN_EN, CLKOUT_EN; //control bits in configCommand
 
     //EN_cx = 1 means PSM channel x will be configured, EN_cx = 0 means PSM channel x will be ignored
     //for example EN_c2 = 1 means PSM channel 2 will be configured
@@ -299,7 +299,8 @@ void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART
 	//check if ade7912 of channel 2 is ready by reading bit 0 of STATUS0 register and seeing if it equals 0
     do{
 		readFromPSM(PSM, spiInterface, uartInterface, STATUS0, &buffer, 1, master);
-		channelStatus[master - 1] = buffer & 1; //buffer & 1 = STATUS0[0]
+     	channelStatus[master - 1] = buffer & 1; //buffer & 1 = STATUS0[0]
+
 	}while(channelStatus[master - 1] && 0x01);
 
 	if(EN_c2){
@@ -556,7 +557,8 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     }
 
 	//disable LVDS by outputting logic low to pin PB13
-	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+//	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_RESET);
 }
 
 //PSMPowerDown()

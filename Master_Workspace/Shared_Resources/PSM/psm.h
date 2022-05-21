@@ -1,3 +1,6 @@
+#ifndef _PSM_H_
+#define _PSM_H_
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -88,6 +91,7 @@ struct PSM_Peripheral{
 
 //------ FUNCTION PROTOTYPES ------//
 double arrayToDouble(uint8_t* aryPtr, uint8_t size);
+void doubleToArray(double val, uint8_t* aryPtr);
 void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID);
 void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber);
 void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,
@@ -98,3 +102,5 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
 void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM);
 void PSMCalib(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
 double shuntResistance, uint8_t masterPSM, uint8_t channelNumber);
+
+#endif /* _PSM_H_ */

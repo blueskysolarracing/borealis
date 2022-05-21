@@ -65,9 +65,23 @@ void Error_Handler(void);
 #define GPIO_IN0_Pin GPIO_PIN_0
 #define GPIO_IN0_GPIO_Port GPIOJ
 #define GPIO_IN0_EXTI_IRQn EXTI0_IRQn
+#define BBMB_PSM_CS_0_Pin GPIO_PIN_13
+#define BBMB_PSM_CS_0_GPIO_Port GPIOB
 #define GPIO_IN10_Pin GPIO_PIN_10
 #define GPIO_IN10_GPIO_Port GPIOD
 #define GPIO_IN10_EXTI_IRQn EXTI15_10_IRQn
+#define PSM_CS_0_Pin GPIO_PIN_0
+#define PSM_CS_0_GPIO_Port GPIOI
+#define PSM_LVDS_EN_Pin GPIO_PIN_12
+#define PSM_LVDS_EN_GPIO_Port GPIOJ
+#define PSM_CS_1_Pin GPIO_PIN_13
+#define PSM_CS_1_GPIO_Port GPIOJ
+#define PSM_CS_2_Pin GPIO_PIN_14
+#define PSM_CS_2_GPIO_Port GPIOJ
+#define PSM_CS_3_Pin GPIO_PIN_15
+#define PSM_CS_3_GPIO_Port GPIOJ
+#define PSM_DReady_Pin GPIO_PIN_3
+#define PSM_DReady_GPIO_Port GPIOK
 /* USER CODE BEGIN Private defines */
 #define TCP_ID 0x03
 /* USER CODE END Private defines */
@@ -77,5 +91,3 @@ void Error_Handler(void);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
