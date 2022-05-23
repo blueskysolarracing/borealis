@@ -260,7 +260,7 @@ class testHCCP:
             self.rest(3600)
 
         # 10% SoC time - approximate in seconds
-        timeStepSoC = ((0.001*(self.m_battery.m_totalCapacity))/self.m_battery.genInCurrent()[1])*60
+        timeStepSoC = ((0.0001*(self.m_battery.m_totalCapacity))/self.m_battery.genInCurrent()[1])*3600
 
         while (True):
 
@@ -282,7 +282,7 @@ class testHCCP:
                 break
             
             #rest for 1h
-            self.rest(180)
+            self.rest(600)
 
             self.m_numCycles += 1
             print("Cycle {} completed. \n".format(self.m_numCycles))
