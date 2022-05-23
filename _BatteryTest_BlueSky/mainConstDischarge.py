@@ -4,7 +4,7 @@ import pyvisa as pv
 import time
 import datetime
 
-from mainConstCharge import CRateIn
+#from mainConstCharge import CRateIn
 
 def executeDischarge(inBatteryObj, device):
 
@@ -53,6 +53,8 @@ def executeDischarge(inBatteryObj, device):
 
         currVoltage = device.voltage()
         currCurrent = device.current()
+
+        print("Current voltage: " + str(round(currVoltage, 4)) + "V")
 
         timeDelta = time.time() - prevTime
         totalTime += timeDelta
