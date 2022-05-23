@@ -63,10 +63,10 @@ void Error_Handler(void);
 #define DReady_GPIO_Port GPIOK
 #define SPI2_CS_1_Pin GPIO_PIN_2
 #define SPI2_CS_1_GPIO_Port GPIOG
-#define SPI2_CS_2_Pin GPIO_PIN_3
-#define SPI2_CS_2_GPIO_Port GPIOG
-#define SPI2_CS_3_Pin GPIO_PIN_4
+#define SPI2_CS_3_Pin GPIO_PIN_3
 #define SPI2_CS_3_GPIO_Port GPIOG
+#define SPI2_CS_2_Pin GPIO_PIN_4
+#define SPI2_CS_2_GPIO_Port GPIOG
 #define SPI2_CS_0_Pin GPIO_PIN_0
 #define SPI2_CS_0_GPIO_Port GPIOI
 /* USER CODE BEGIN Private defines */
