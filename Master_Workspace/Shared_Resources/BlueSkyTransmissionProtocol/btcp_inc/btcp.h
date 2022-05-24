@@ -7,6 +7,7 @@
 #include "protocol_ids.h"
 #include "cmsis_os.h"
 #include "string.h"
+#include "pack_data.h"
 #define MAX_PACKET_SIZE 256
 #define TCP_TRX_TASK_STACK_SIZE 256
 #define TCP_TX_TASK_PRIORITY 4

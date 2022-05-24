@@ -9,17 +9,17 @@ CDefines=USE_HAL_DRIVER;STM32H753xx;USE_HAL_DRIVER;USE_HAL_DRIVER;
 [PreviousGenFiles]
 AdvancedFolderStructure=true
 HeaderFileListSize=3
-HeaderFiles#0=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Inc/stm32h7xx_it.h
-HeaderFiles#1=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Inc/stm32h7xx_hal_conf.h
-HeaderFiles#2=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Inc/main.h
+HeaderFiles#0=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Inc/stm32h7xx_it.h
+HeaderFiles#1=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Inc/stm32h7xx_hal_conf.h
+HeaderFiles#2=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Inc/main.h
 HeaderFolderListSize=1
-HeaderPath#0=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Inc
+HeaderPath#0=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Inc
 HeaderFiles=;
 SourceFileListSize=3
-SourceFiles#0=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Src/stm32h7xx_it.c
-SourceFiles#1=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Src/stm32h7xx_hal_msp.c
-SourceFiles#2=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Src/main.c
+SourceFiles#0=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Src/stm32h7xx_it.c
+SourceFiles#1=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Src/stm32h7xx_hal_msp.c
+SourceFiles#2=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Src/main.c
 SourceFolderListSize=1
-SourcePath#0=/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Sandbox/Core/Src
+SourcePath#0=/Users/nkusanda/Documents/GitHub/gen11_blueskyelec/PSM_Test/Core/Src
 SourceFiles=;
 

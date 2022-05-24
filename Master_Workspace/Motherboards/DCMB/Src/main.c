@@ -2180,9 +2180,9 @@ static void steeringWheelTask(const void *pv){
         uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
     	if ((steeringData[1] & 0b00000001) == 0){ //Extend left indicator
-        	bufh[1] = 0b01000000;
+        	bufh[1] = 0b01000010;
     	} else { //Retract left indicator
-        	bufh[1] = 0b00000000;
+        	bufh[1] = 0b00000010;
     	}
         B_tcpSend(btcp, bufh, 2);
     }
@@ -2194,9 +2194,9 @@ static void steeringWheelTask(const void *pv){
         uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
     	if ((steeringData[1] & 0b00000010) == 0){ //Extend right indicator
-        	bufh[1] = 0b01000001;
+        	bufh[1] = 0b01000011;
     	} else { //Retract right indicator
-        	bufh[1] = 0b00000001;
+        	bufh[1] = 0b00000011;
     	}
         B_tcpSend(btcp, bufh, 2);
     }

@@ -79,7 +79,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-   HAL_Init();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -130,6 +130,11 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  char printString[50];
 
+//	  double PSMBuffer2[30] = {-1, -1, -1};
+//	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer2, 2);
+//	  sprintf(printString, "PSMBuffer2[0]: %lf\nPSMBuffer2[1]: %lf\n", PSMBuffer2[0], PSMBuffer2[1]);
+//	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+
 	  double PSMBuffer[30] = {-1, -1, -1};
 	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, PSMBuffer, 2);
 	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
@@ -140,7 +145,7 @@ int main(void)
 //	  sprintf(printString, "PSMBuffer2[0]: %lf\nPSMBuffer2[1]: %lf\n\n", PSMBuffer2[0], PSMBuffer2[1]);
 //	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
 
-	  HAL_Delay(1000);
+	  HAL_Delay(2000);
 
 //	  int receiveBuffer = 0;
 
@@ -213,8 +218,9 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
-void SystemClock_Config(void){
-RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Supply configuration update enable
@@ -386,7 +392,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LVDS_EN_GPIO_Port, LVDS_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, SPI2_CS_1_Pin|SPI2_CS_2_Pin|SPI2_CS_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOG, SPI2_CS_1_Pin|SPI2_CS_3_Pin|SPI2_CS_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SPI2_CS_0_GPIO_Port, SPI2_CS_0_Pin, GPIO_PIN_RESET);
@@ -528,8 +534,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(DReady_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SPI2_CS_1_Pin SPI2_CS_2_Pin SPI2_CS_3_Pin */
-  GPIO_InitStruct.Pin = SPI2_CS_1_Pin|SPI2_CS_2_Pin|SPI2_CS_3_Pin;
+  /*Configure GPIO pins : SPI2_CS_1_Pin SPI2_CS_3_Pin SPI2_CS_2_Pin */
+  GPIO_InitStruct.Pin = SPI2_CS_1_Pin|SPI2_CS_3_Pin|SPI2_CS_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
