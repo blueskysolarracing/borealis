@@ -239,9 +239,9 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED); //Calibrate ADC (used for acceleration pedal)
+//  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED); //Calibrate ADC (used for acceleration pedal)
   displayInit();
-  xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
+//  xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
   xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
   xTimerStart(xTimerCreate("display", 200, pdTRUE, 0, displayTmr), 0);
   buart = B_uartStart(&huart4);
@@ -2242,7 +2242,6 @@ static void sidePanelTask(const void *pv){
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
-  B_tcpHandle_t* btcp = pv;
   B_bufQEntry_t *e;
   uint8_t input_buffer[MAX_PACKET_SIZE + 4];
   uint8_t started = 0;
@@ -2260,7 +2259,7 @@ static void sidePanelTask(const void *pv){
 		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
 	}
 
-	//Check CRC, optinal
+	//Check CRC, optional
 
     B_uartDoneRead(e);
 
@@ -2285,10 +2284,10 @@ static void sidePanelTask(const void *pv){
   //AUX0 (DRL in GEN11)
   uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
-  if ((sidePanelData & 0b00000010) == 0b00000010){ //Turn on horn
-	bufh[2] = 0b00000100; //AUX0 == 1 -> DRL off
+  if ((sidePanelData & 0b00000010) == 0b00000010){
+	bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
   } else { //Turn off horn
-	bufh[2] = 0b00000000; //AUX0 == 0 -> DRL on
+	bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
   }
   B_tcpSend(btcp, bufh, 2);
 

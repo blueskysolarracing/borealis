@@ -94,6 +94,8 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 //PSM
 struct PSM_Peripheral psmPeriph;
+double voltageCurrent_Motor[2] = {0, 0};
+uint8_t busMetrics[20] = {0};
 
 B_uartHandle_t *buart;
 B_uartHandle_t *radioBuart;
@@ -258,12 +260,12 @@ int main(void)
   MCP4161_Pot_Write(accValue, GPIOK, GPIO_PIN_2, &hspi3);
 
   //Initialize PSM
-  psmPeriph.CSPin0 = BBMB_PSM_CS_0_Pin;
+  psmPeriph.CSPin0 = PSM_CS_0_Pin;
   psmPeriph.CSPin1 = PSM_CS_1_Pin;
   psmPeriph.CSPin2 = PSM_CS_2_Pin;
   psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  psmPeriph.CSPort0 = GPIOB;
+  psmPeriph.CSPort0 = GPIOI;
   psmPeriph.CSPort1 = GPIOG;
   psmPeriph.CSPort2 = GPIOG;
   psmPeriph.CSPort3 = GPIOG;
@@ -1742,6 +1744,30 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr) {
 	return temperature;
 }
 
+void psmTaskHandle(void * argument){
+	enum measurementResult {VOLTAGE, CURRENT};
+
+	while (1) {
+		vTaskDelay(pdMS_TO_TICKS(200)); //Every 200ms
+
+		//----MOTOR----//
+		//PSMRead will fill first element with voltage, second with current
+		taskENTER_CRITICAL();
+		PSMRead(&psmPeriph, &hspi2, &huart2,
+				/*CLKOUT=*/ 0,
+				/*masterPSM=*/ 1,
+				/*channelNumber=*/ 1,
+				/*dataOut[]=*/voltageCurrent_Motor,
+				/*dataLen=*/sizeof(voltageCurrent_Motor) / sizeof(double)	); //Needs to be 2
+
+		busMetrics[0] = MCMB_BUS_METRICS_ID;
+		doubleToArray(voltageCurrent_Motor[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
+		doubleToArray(voltageCurrent_Motor[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
+
+		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		taskEXIT_CRITICAL();
+	}
+}
 
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorState = 0;

@@ -64,15 +64,16 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 
 uint8_t getSwitchState(){
-	uint8_t switchState = 0;
-	switchState = (switchState & ~0b00000001) | (HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin) & 0b00000001); //Bit 0
-	switchState = (switchState & ~0b00000010) | (HAL_GPIO_ReadPin(GPIOC, AUX0_Pin) & 0b00000010); //Bit 1
-	switchState = (switchState & ~0b00000100) | (HAL_GPIO_ReadPin(GPIOB, AUX1_Pin) & 0b00000100); //Bit 2
-	switchState = (switchState & ~0b00001000) | (HAL_GPIO_ReadPin(GPIOB, AUX2_Pin) & 0b00001000); //Bit 3
-	switchState = (switchState & ~0b00010000) | (HAL_GPIO_ReadPin(GPIOC, FAN_Pin) & 0b00010000); //Bit 4
-	switchState = (switchState & ~0b00100000) | (HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin) & 0b00100000); //Bit 5
-	switchState = (switchState & ~0b01000000) | (HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin) & 0b01000000); //Bit 6
-	switchState = (switchState & ~0b10000000) | (HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin) & 0b10000000); //Bit 7
+	uint8_t switchState =
+
+	switchState |= HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin) << 0;
+	switchState |= HAL_GPIO_ReadPin(GPIOC, AUX0_Pin) 			<< 1;
+	switchState |= HAL_GPIO_ReadPin(GPIOB, AUX1_Pin) 			<< 2;
+	switchState |= HAL_GPIO_ReadPin(GPIOB, AUX2_Pin) 			<< 3;
+	switchState |= HAL_GPIO_ReadPin(GPIOC, FAN_Pin) 			<< 4;
+	switchState |= HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin) 		<< 5;
+	switchState |= HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin) 			<< 6;
+	switchState |= HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin) 		<< 7;
 
 	return switchState;
 }
@@ -130,12 +131,13 @@ int main(void)
 	 uint8_t buf[4] = {BSSR_SERIAL_START, 0x04, newSwitchState, 0x00}; //Last byte is CRC, optional
 
 	  if (newSwitchState != oldSwitchState){ //Switches changed; need to send
-		  HAL_UART_Transmit(&huart2, &buf, 4, 10);
+		  //print_switches();
+		  HAL_UART_Transmit(&huart2, &buf, 4, 10); //To DCMB
 	  }
 
 	  oldSwitchState = newSwitchState;
 
-	  HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
+	  HAL_Delay(100); //Wait for 5ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
@@ -347,51 +349,34 @@ static void switchStateTask(void const* pv){
 	}
 }
 
-void PIN_TEST(uint16_t GPIO_Pin) {
+void print_switches(){
   char buffer[100];
 
-  // CAMERA_Pin, AUX2_Pin, FWD_REV_Pin, AUX1_Pin, ARRAY_Pin, AUX0_Pin, IGNITION_Pin, FAN_Pin
+  if (HAL_GPIO_ReadPin(GPIOC, FAN_Pin)){	HAL_UART_Transmit(&huart4, "FAN: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "FAN: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & AUX0_Pin) {
-    sprintf(buffer, "AUX0_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(GPIOC, AUX0_Pin)){	HAL_UART_Transmit(&huart4, "AUX0: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "AUX0: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & AUX1_Pin) {
-    sprintf(buffer, "AUX1_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(GPIOB, AUX1_Pin)){	HAL_UART_Transmit(&huart4, "AUX1: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "AUX1: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & AUX2_Pin) {
-    sprintf(buffer, "AUX2_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(GPIOB, AUX2_Pin)){	HAL_UART_Transmit(&huart4, "AUX2: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "AUX2: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & CAMERA_Pin) {
-    sprintf(buffer, "CAMERA_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin)){	HAL_UART_Transmit(&huart4, "ARRAY: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "ARRAY: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & FWD_REV_Pin) {
-    sprintf(buffer, "FWDREV_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin)){	HAL_UART_Transmit(&huart4, "FWD/REV: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "FWD/REV: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & FAN_Pin) {
-    sprintf(buffer, "FAN_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin)){	HAL_UART_Transmit(&huart4, "CAMERA: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "CAMERA: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & IGNITION_Pin) {
-    sprintf(buffer, "IGNITION_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
+  if (HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin)){	HAL_UART_Transmit(&huart4, "IGNITION: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, "IGNITION: 1\n", 30, 100);	}
 
-  if (GPIO_Pin & ARRAY_Pin) {
-    sprintf(buffer, "ARRAY_Pin Pressed!\r\n");
-    HAL_UART_Transmit(&huart2, buffer, strlen(buffer), 100);
-  }
-
+  HAL_UART_Transmit(&huart4, buffer, "\n\n", 100);
 }
 /* USER CODE END 4 */
 
