@@ -108,10 +108,9 @@ uint8_t vfmDownState = 0;
 uint8_t vfmResetState = 0;
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
+uint8_t speedTarget;
 
 int16_t batteryVoltage = 0;
-
-
 
 // Struct for reading PWM input (in this case: speed pulse from motor)
 typedef struct {
@@ -124,6 +123,35 @@ typedef struct {
 } PWM_INPUT_CAPTURE;
 PWM_INPUT_CAPTURE pwm_in = {0, 0, 1, 0, 0.0, 0};
 // diffCapture must not be set to zero as it needs to be used as division and dividing by zero causes undefined behaviour
+
+// Struct for cruise control variables -> PID controller
+typedef struct{
+
+	// Controller Gains
+	float k_p;
+	float k_i;
+	float k_d;
+
+	// Controller inputs
+	float integrator;
+	float prevError;
+	float derivative;
+	float prevMeasurement;
+
+	// Controller output
+	float output;
+
+	// To set limits
+	float outMin;
+	float outMax;
+	float integralMin;
+	float integralMax;
+
+	float time; // Sample time
+
+} PIDController;
+PIDController pid = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1};
+// time must not be set to zero as it needs to be used as division
 
 /* USER CODE END PV */
 
@@ -179,6 +207,11 @@ float ADCMapToVolt(float ADCValue);
 float convertToTemp(float Vadc);
 float getTemperature(ADC_HandleTypeDef *hadcPtr);
 /*================================================================*/
+
+/*========== Helper functions for Cruise Control Implementation ========== */
+float PIDControllerUpdate(float setpoint, float measured);
+float speedToFrequency(uint8_t targetSpeed);
+
 
 /* USER CODE END PFP */
 
@@ -341,6 +374,17 @@ int main(void)
 				"none",  //Parameter passed into the task.
 				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
 				&PSM_handle  //Used to pass out the created task's handle.
+							);
+	configASSERT(status == pdPASS);// Error checking
+
+	TaskHandle_t cruiseControl_handle;
+
+	status = xTaskCreate(cruiseControlTaskHandler,  //Function that implements the task.
+				"cruiseControlTask",  //Text name for the task.
+				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+				"none",  //Parameter passed into the task.
+				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
+				&cruiseControl_handle  //Used to pass out the created task's handle.
 							);
 	configASSERT(status == pdPASS);// Error checking
 
@@ -1746,6 +1790,63 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr) {
 	return temperature;
 }
 
+float speedToFrequency(uint8_t targetSpeed){
+
+	float frequency = targetSpeed * 16 / (3600 * 1000 * 1.7156);
+	// 1.7156 is the circumference of the wheel
+	// This is assuming targetSpeed will be given in kmPerHour
+	return frequency;
+
+}
+
+// Function to implement PID controller for cruise control
+float PIDControllerUpdate(float setpoint, float measured){
+
+	float error = setpoint - measured;
+
+	// Proportional term
+	float proportional = pid->k_p * error;
+	// Integral term
+	pid->integrator = pid->integrator + pid->k_d * pid->time * (error + pid->prevError)/2.0;
+
+	// Calculate integral limits
+	if(pid->outMax > proportional){
+		integralMax = pid->outMax - proportional;
+	} else {
+		integralMax = 0.0;
+	}
+
+	if(pid->outMax < proportional){
+		integralMin = pid->outMax - proportional;
+	} else {
+		integralMin = 0.0;
+	}
+
+	// Set limits to integration - integral anti-windup
+	if(pid->integrator > pid->integralMax){
+		pid->integrator = pid->integralMax;
+	} else if(pid->integrator < pid->integralMin){
+		pid->integrator = pid->integralMin;
+	}
+
+	// Derivative term
+	pid->derivative = (error - pid->prevError)/pid->time;
+
+	// Output
+	pid->output = proportional + pid->integrator + pid->derivative;
+
+	if(pid->output > pid->outMax){
+		pid->output = pid->outMax;
+	} else if(pid->output < pid->outMin){
+		pid->output = pid->outMin;
+	}
+
+	pid->prevError = error;
+	pid->prevMeasurement = measured;
+
+	return pid->output;
+}
+
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorState = 0;
 	static uint8_t currentFwdRevState = 0;
@@ -1900,6 +2001,15 @@ static void tempSenseTmr(TimerHandle_t xTimer){
 
 	buf[1] = temperature;
 	B_tcpSend(btcp, buf, 4);
+}
+
+void cruiseControlTaskHandler(void* parameters){
+
+	while(1) {
+		float target = speedToFrequency(speedTarget);
+		pwm_in.frequency = PIDControllerUpdate(target, pwm_in.frequency);
+	}
+
 }
 
 
