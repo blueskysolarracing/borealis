@@ -1834,6 +1834,9 @@ float PIDControllerUpdate(float setpoint, float measured){
 	// Derivative term
 	pid->derivative = (error - pid->prevError)/pid->time;
 
+	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
+	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
+
 	// Output
 	pid->output = proportional + pid->integrator + pid->derivative;
 
