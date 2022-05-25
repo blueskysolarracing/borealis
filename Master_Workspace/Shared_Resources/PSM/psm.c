@@ -423,9 +423,7 @@ void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART
 //ex: masterPSM = 2 means that PSM channel 2 provides the clock.
 void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen){
 	//enable LVDS by outputting logic high at pin PB13
-
-	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
 	uint8_t dataIn[6] = {0};//data received from ade7912
@@ -527,15 +525,16 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     uint8_t dataOutIndex = 0;
     uint8_t* ptr = (uint8_t*)&voltage;
 
-    for(; dataOutIndex < sizeof(voltage); dataOutIndex++){
-    	dataOut[dataOutIndex] = *ptr;
-    	ptr++;
-    }
-    ptr = (uint8_t*)&current;
-    for(; dataOutIndex < dataOutLen; dataOutIndex++){
-    	dataOut[dataOutIndex] = *ptr;
-    	ptr++;
-    }
+//    for(; dataOutIndex < sizeof(voltage); dataOutIndex++){
+//    	dataOut[dataOutIndex] = *ptr;
+//    	ptr++;
+//    }
+
+//    ptr = (uint8_t*)&current;
+//    for(; dataOutIndex < dataOutLen; dataOutIndex++){
+//    	dataOut[dataOutIndex] = *ptr;
+//    	ptr++;
+//    }
 
     if (dataOutLen == 2) {
     	dataOut[0] = voltage;

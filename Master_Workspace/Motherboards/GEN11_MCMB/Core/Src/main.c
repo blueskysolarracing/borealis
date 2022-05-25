@@ -94,6 +94,8 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 //PSM
 struct PSM_Peripheral psmPeriph;
+double voltageCurrent_Motor[2] = {0, 0};
+uint8_t busMetrics[20] = {0};
 
 B_uartHandle_t *buart;
 B_uartHandle_t *radioBuart;
@@ -295,12 +297,12 @@ int main(void)
   MCP4161_Pot_Write(accValue, GPIOK, GPIO_PIN_2, &hspi3);
 
   //Initialize PSM
-  psmPeriph.CSPin0 = BBMB_PSM_CS_0_Pin;
+  psmPeriph.CSPin0 = PSM_CS_0_Pin;
   psmPeriph.CSPin1 = PSM_CS_1_Pin;
   psmPeriph.CSPin2 = PSM_CS_2_Pin;
   psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  psmPeriph.CSPort0 = GPIOB;
+  psmPeriph.CSPort0 = GPIOI;
   psmPeriph.CSPort1 = GPIOG;
   psmPeriph.CSPort2 = GPIOG;
   psmPeriph.CSPort3 = GPIOG;

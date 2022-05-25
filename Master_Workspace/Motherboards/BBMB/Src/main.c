@@ -107,10 +107,13 @@ TimerHandle_t blink_timer = NULL;
 
 //--- PSM ---//
 struct PSM_Peripheral psmPeriph;
-double voltageCurrent_Battery[30] = {0, 0, 0};
-double voltageCurrent_PHub[30] = {0, 0, 0};
+double voltageCurrent_Battery[2] = {0, 0};
+double voltageCurrent_PHub[2] = {0, 0};
 uint8_t busMetrics[20] = {0};
 uint8_t LP_busMetrics[20] = {0};
+
+//--- LIGHTS ---//
+uint8_t lightInstruction = 0;
 
 /* USER CODE END PV */
 
@@ -229,37 +232,6 @@ int main(void)
   MX_FDCAN1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  MX_USART2_UART_Init();
-  MX_SPI2_Init();
-
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); //BSD
-  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET); //PRE
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_RESET); // GND
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET); // ON
-
-  adcMutex = xSemaphoreCreateMutex();
-  xSemaphoreGive(adcMutex);
-  buart = B_uartStart(&huart4);
-  btcp = B_tcpStart(BBMB_ID, &buart, buart, 1, &hcrc);
-  //badc = B_adcStart(&hadc1, 1);
-  //BSSR_CAN_TASK_INIT(&hfdcan1, &huart2, btcp);
-
-  //blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
-  //xTimerStart(blink_timer, 0);
-
-  xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 1, NULL); // 5
-  xTaskCreate(adcTask, "adcTask", 1024, badc, 1, NULL); //3
-  //xTimerStart(xTimerCreate("busPwrSendTimer", 50, pdTRUE, NULL, busPwrSendTmr), 0);
-
-  hpQ = xQueueCreate(10, sizeof(uint8_t));
-
-  lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
-  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 1, NULL);
-  xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 1, NULL);
-
-  xTaskCreate(psmTaskHandle, "PSMTask", 1024, ( void * ) 1, 1, NULL);
-
-
   //PSM-related variables
 	psmPeriph.CSPin0 = PSM_CS_0_Pin;
 	psmPeriph.CSPin1 = PSM_CS_1_Pin;
@@ -279,6 +251,44 @@ int main(void)
 
 	PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (1 for BBMB)
 	configPSM(&psmPeriph, &hspi2, &huart2, "12", 2); //Use channels #1 and #2 (#2 is master)
+
+  MX_USART2_UART_Init();
+  MX_SPI2_Init();
+
+  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); //BSD
+  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_RESET); //PRE
+  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_RESET); // GND
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET); // ON
+
+  adcMutex = xSemaphoreCreateMutex();
+  xSemaphoreGive(adcMutex);
+  buart = B_uartStart(&huart4);
+  btcp = B_tcpStart(BBMB_ID, &buart, buart, 1, &hcrc);
+
+  //badc = B_adcStart(&hadc1, 1);
+  //BSSR_CAN_TASK_INIT(&hfdcan1, &huart2, btcp);
+
+  blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
+  xTimerStart(blink_timer, 0);
+
+  xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 1, NULL); // 5
+  xTaskCreate(adcTask, "adcTask", 1024, badc, 1, NULL); //3
+  //xTimerStart(xTimerCreate("busPwrSendTimer", 50, pdTRUE, NULL, busPwrSendTmr), 0);
+
+  hpQ = xQueueCreate(10, sizeof(uint8_t));
+
+  lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
+  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
+  xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 4, NULL);
+  configASSERT(xTaskCreate(psmTaskHandle, "PSMTask", 1024, ( void * ) 1, 4, NULL) == pdPASS);
+
+  //Initial state of lights; all off
+  turn_off_indicators(0);
+  turn_off_indicators(1);
+  turn_off_DRL();
+  turn_off_brake_lights();
+  turn_off_hazard_lights();
+  turn_off_fault_indicator();
 
   /* USER CODE END 2 */
 
@@ -891,7 +901,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1360,7 +1370,6 @@ static void MX_TIM12_Init(void)
   /* USER CODE END TIM12_Init 0 */
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM12_Init 1 */
 
@@ -1380,27 +1389,9 @@ static void MX_TIM12_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim12) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 20000;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.Pulse = 0;
-  if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM12_Init 2 */
 
   /* USER CODE END TIM12_Init 2 */
-  HAL_TIM_MspPostInit(&htim12);
 
 }
 
@@ -1710,7 +1701,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOK_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|LED2_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15
@@ -1727,7 +1718,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin|GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(PSM_LVDS_EN_GPIO_Port, PSM_LVDS_EN_Pin, GPIO_PIN_RESET);
@@ -1739,8 +1730,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3|GPIO_PIN_6, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PE3 PE0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_0;
+  /*Configure GPIO pins : PE3 LED2_Pin PE0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|LED2_Pin|GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1793,10 +1784,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PE11 PE12 PE13 PE14
-                           PE15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+  /*Configure GPIO pins : PE11 PE12 PE13 PE15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -1808,8 +1797,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PH12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  /*Configure GPIO pins : LED0_Pin LED1_Pin PH12 */
+  GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -2024,7 +2013,7 @@ static void busPwrSendTmr(TimerHandle_t xTimer){
 void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_rate, double on_period)
 {
 	double frequency = blink_rate / 60; // blink_rate given in bpm
-	double period_master = frequency * 16000; // based on internal clock, pre-scaler
+	double period_master = frequency * 75000; // based on internal clock, pre-scaler (assumes 75MHz TIM2 clock frequency)
 
 	double pulse_slave = on_period; // 160 ticks
 	double period_slave = on_period / pwm_duty_cycle; // 160 / 0.10 = 1600
@@ -2035,8 +2024,6 @@ void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_r
 
 	my_MX_TIM1_Init(period_master);
 	my_MX_TIM2_Init(pulse_slave, period_slave);
-
-
 
 	if (left_or_right == 0){
 		rotate(0, 0, &hspi5); // anti-clockwise: out for left
@@ -2051,7 +2038,6 @@ void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_r
 	}
 	//HAL_Delay(5000);
 	//HAL_GPIO_WritePin(GPIOK, GPIO_PIN_5, 0); // write to depower board
-
 }
 
 void turn_off_indicators(int left_or_right){
@@ -2067,7 +2053,7 @@ void turn_off_indicators(int left_or_right){
 		HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
 		rotate(0, 1, &hspi5); // anti-clockwise: in for right
 	}
-	// HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1); master timer - need to turn off?
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);// master timer - need to turn off?
 
 }
 
@@ -2109,7 +2095,7 @@ void turn_off_brake_lights(void){
 void turn_on_hazard_lights(double pwm_duty_cycle, double blink_rate)
 {
 	double frequency = blink_rate / 60; // blink_rate given in bpm
-	double period_master = frequency * 16000; // based on internal clock, pre-scaler
+	double period_master = frequency * 75000; // based on internal clock, pre-scaler (assumes 75MHz TIM2 clock frequency)
 
 	double on_period = 160; // Constant for hazard lights
 	double pulse_slave = on_period; // 160
@@ -2447,11 +2433,15 @@ void senderTaskHandle(void * argument)
 {
   /* USER CODE BEGIN senderTaskHandle */
   /* Infinite loop */
+
 	struct msgPrio{
 		uint8_t message;
 		uint8_t priority;
 	} tx;
 
+	B_bufQEntry_t *e;
+
+	for(;;){
 //	tx.message = 0x42; // left indicator start
 //	tx.priority = 0;
 //
@@ -2460,73 +2450,77 @@ void senderTaskHandle(void * argument)
 //	vTaskDelay(5000);
 //	tx.message = 0x02;
 //	xQueueSend(lightsCtrl, &tx.message, 200);
-//
 
-  for(;;)
-  {
-	  tx.message = 0x02;
-	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
-	  xQueueSend(lightsCtrl, &tx.message, 200);
-	  vTaskDelay(500);
-	  tx.message = 0x42;
-	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
-	  xQueueSend(lightsCtrl, &tx.message, 200);
-	  vTaskDelay(500);
+  e = B_uartRead(buart);
+  taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
+  if (e->buf[0] == BSSR_SERIAL_START && e->buf[4] == 0x03){
+	  if (lightInstruction != e->buf[5]){
+		  lightInstruction = e->buf[5];
+		  xQueueSend(lightsCtrl, lightInstruction, 200);
+	  } //Only update if different (it should be different)
   }
+
+  taskEXIT_CRITICAL(); // data into global variable -> enter critical section
+
+  //Check CRC, optional
+  B_uartDoneRead(e);
+
+  //Add to lights task's queue
+//  for(;;){
+//	  tx.message = 0x02;
+//	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
+//	  xQueueSend(lightsCtrl, &tx.message, 200);
+//	  vTaskDelay(500);
+//	  tx.message = 0x42;
+//	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
+//	  xQueueSend(lightsCtrl, &tx.message, 200);
+//	  vTaskDelay(500);
+//
+//  }
   /* USER CODE END senderTaskHandle */
+	}
 }
 
 void psmTaskHandle(void * argument){
 	enum measurementResult {VOLTAGE, CURRENT};
 
-	uint8_t junk = 10;
-
 	while (1) {
-		//vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
 		vTaskDelay(pdMS_TO_TICKS(200)); //Every 200ms
 
 		//----BATTERY----//
-
 		//PSMRead will fill first element with voltage, second with current
-//		PSMRead(&psmPeriph, &hspi2, &huart2,
-//				/*CLKOUT=*/ 1,
-//				/*masterPSM=*/ 2,
-//				/*channelNumber=*/ 2,
-//				/*dataOut[]=*/voltageCurrent_Battery,
-//				/*dataLen=*/sizeof(voltageCurrent_Battery));
+		taskENTER_CRITICAL();
+		PSMRead(&psmPeriph, &hspi2, &huart2,
+				/*CLKOUT=*/ 1,
+				/*masterPSM=*/ 2,
+				/*channelNumber=*/ 2,
+				/*dataOut[]=*/voltageCurrent_Battery,
+				/*dataLen=*/sizeof(voltageCurrent_Battery) / sizeof(double)	);
 
-//		busMetrics[0] = BBMB_BUS_METRICS_ID;
-//		doubleToArray(voltageCurrent_Battery[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
-//		doubleToArray(voltageCurrent_Battery[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
+		busMetrics[0] = BBMB_BUS_METRICS_ID;
+		doubleToArray(voltageCurrent_Battery[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
+		doubleToArray(voltageCurrent_Battery[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
 
-//		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
 
 
 
 		//----PHub----//
 		//PSMRead will fill first element with voltage, second with current
-// 		PSMRead(&psmPeriph, &hspi2, &huart2,
-//				/*CLKOUT=*/ 1,
-//				/*masterPSM=*/ 2,
-//				/*channelNumber=*/ 1,
-//				/*dataOut[]=*/voltageCurrent_PHub,
-//				/*dataLen=*/sizeof(voltageCurrent_PHub));
-//
-//		LP_busMetrics[0] = BBMB_LP_BUS_METRICS_ID;
-//		doubleToArray(voltageCurrent_PHub[VOLTAGE], LP_busMetrics+4); // fills 3 - 11 of busMetrics
-//		doubleToArray(voltageCurrent_PHub[CURRENT], LP_busMetrics+12); // fills 11 - 19 of busMetrics
-//
-//		B_tcpSend(btcp, LP_busMetrics, sizeof(LP_busMetrics));
-//
-//		//Store globally
-//		taskENTER_CRITICAL();
-//		PSM_Data_Battery[VOLTAGE] = voltageCurrent_Battery[VOLTAGE];
-//		PSM_Data_Battery[CURRENT] = voltageCurrent_Battery[CURRENT];
-//
-//		PSM_Data_PHub[VOLTAGE] = voltageCurrent_PHub[VOLTAGE];
-//		PSM_Data_PHub[CURRENT] = voltageCurrent_PHub[CURRENT];
-//		taskEXIT_CRITICAL();
+ 		PSMRead(&psmPeriph, &hspi2, &huart2,
+				/*CLKOUT=*/ 1,
+				/*masterPSM=*/ 2,
+				/*channelNumber=*/ 1,
+				/*dataOut[]=*/voltageCurrent_PHub,
+				/*dataLen=*/sizeof(voltageCurrent_PHub) / sizeof(double));
+
+		LP_busMetrics[0] = BBMB_LP_BUS_METRICS_ID;
+		doubleToArray(voltageCurrent_PHub[VOLTAGE], LP_busMetrics+4); // fills 3 - 11 of busMetrics
+		doubleToArray(voltageCurrent_PHub[CURRENT], LP_busMetrics+12); // fills 11 - 19 of busMetrics
+
+		B_tcpSend(btcp, LP_busMetrics, sizeof(LP_busMetrics));
+		taskEXIT_CRITICAL();
 	}
 }
 
