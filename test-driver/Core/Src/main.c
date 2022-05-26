@@ -104,8 +104,7 @@ uint8_t correct_Y(uint8_t y){
 	return ((y+48)%64);
 }
 
-// draw p1 labels
-void drawP1(){
+void drawP1Default(int value[4]){
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
 	char* labelspeed = "km/h";
@@ -139,14 +138,8 @@ void drawP1(){
 		x++;
 	}
 
-	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
-	glcd_write();
-	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
-}
 
-// pass in array of values in order of solar, motor, battery, and speed
-void updateP1(int value[4]){
-
+	// draw the numbers
 	char valueS[4][4];
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -197,6 +190,94 @@ void updateP1(int value[4]){
 	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
 	glcd_write();
 	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+void drawP1Detailed(int value[9]){
+	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
+	int labelsP1L = 3;
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 5;
+
+	// draw the labels
+	for(int i = 0; i < labelsP1L; i++){
+		char* label = labelsP1[i];
+		int j = 0;
+		// char by char cuz draw xy only with char
+		while(label[j] != 0){
+			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
+			j++;
+		}
+		glcd_tiny_draw_char_xy(72, correct_Y(y), 'w');
+		// go next rows, these value are just what I think will look good
+		y+=23;
+	}
+
+	// draw the numbers
+	char valueS[9][4];
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+
+	// get it in strings
+	for(int i = 0; i < 9; i++){
+		// sign
+		int v = value[i];
+		if(v<0){
+			valueS[i][0] = '-';
+			v *= -1;
+		}
+		else{
+			valueS[i][0] = '+';
+		}
+		// hundred
+		if(v/100 != 0){
+			valueS[i][1] = '0' + v/100;
+		}
+		else{
+			valueS[i][1] = ' ';
+		}
+		// tenth
+		if((v/10)%10 != 0 || valueS[i][1] != ' '){
+			valueS[i][2] = '0' + (v/10)%10;
+		}
+		else{
+			valueS[i][2] = ' ';
+		}
+		// ones
+		valueS[i][3] = '0' + v%10;
+	}
+
+	// write the 3 small values
+	int y = 5;
+	for(int i = 0; i < 3; i++){
+		for(int j = 0; j < 4; j++){
+			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+		}
+		y+=23;
+	}
+
+	// write the 6 small values
+	int y = 5;
+	for(int i = 0; i < 3; i++){
+		for(int j = 0; j < 4; j++){
+			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+		}
+		y+=23;
+	}
+
+
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+// draw p1 labels
+void drawP1(){
+	drawP1Default();
 }
 
 // draw p2 labels
