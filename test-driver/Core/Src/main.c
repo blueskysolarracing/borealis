@@ -174,7 +174,7 @@ void drawP1Default(int value[4]){
 	}
 
 	// write the 3 small values
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 3; i++){
 		for(int j = 0; j < 4; j++){
 			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
@@ -251,7 +251,7 @@ void drawP1Detailed(int value[9]){
 	}
 
 	// write the 3 small values
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 3; i++){
 		for(int j = 0; j < 4; j++){
 			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
@@ -260,7 +260,7 @@ void drawP1Detailed(int value[9]){
 	}
 
 	// write the 6 small values
-	int y = 5;
+	y = 5;
 	for(int i = 3; i < 9; i+=2){
         glcd_tiny_draw_char_xy(78, correct_Y(y), '(');
         glcd_tiny_draw_char_xy(82, correct_Y(y), valueS[i][2]);
@@ -409,7 +409,14 @@ void drawP1BMSFault(){
 
 // draw p1
 void drawP1(){
-	drawP1Default(/*enter the argument you want to show here*/);
+	int defaultTest[4] = {420, 874, -454, 69};
+	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	drawP1Default(defaultTest);
+//	drawP1Detailed(defaultDetailed);
+//	drawP1Activate();
+//	drawP1Deactivate();
+//	drawP1IgnitionOff();
+//	drawP1BMSFault();
 }
 
 // p2 stuff start
@@ -420,7 +427,7 @@ void drawP2Default(int value[4]){
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	int y = 5;
+	uint8_t y = 5;
 	for(int i = 0; i < labelsP2L; i++){
 		char* label = labelsP2[i];
 		int j = 0;
@@ -437,7 +444,7 @@ void drawP2Default(int value[4]){
     glcd_tiny_set_font(Font5x7,5,7,32,127);
 
 	// write the 2 on off
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 2; i++){
 		char* status = "OFF";
 		if(value[i]) status = " ON";
@@ -472,7 +479,7 @@ void drawP2Detailed(int value[4]){
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	int y = 5;
+	uint8_t y = 5;
 	for(int i = 0; i < labelsP2L; i++){
 		char* label = labelsP2[i];
 		int j = 0;
@@ -516,7 +523,7 @@ void drawP2Detailed(int value[4]){
 	}
 
     // write the 4 small values
-	int y = 5;
+	y = 5;
     // the watt and V and A
     glcd_tiny_draw_char_xy(60, correct_Y(y), valueS[0][2]);
     glcd_tiny_draw_char_xy(65, correct_Y(y), valueS[0][3]);
@@ -614,7 +621,7 @@ void drawP2IgnitionOff(int value[4]){
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	int y = 5;
+	uint8_t y = 5;
 	for(int i = 0; i < labelsP2L; i++){
 		char* label = labelsP2[i];
 		int j = 0;
@@ -658,7 +665,7 @@ void drawP2IgnitionOff(int value[4]){
 	}
 
 	// write the 4 small values
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 3; i++){
         switch(i){
             case 0:
@@ -702,7 +709,7 @@ void drawP2BMSFault(int value[4]){
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	int y = 5;
+	uint8_t y = 5;
 	for(int i = 0; i < labelsP2L; i++){
 		char* label = labelsP2[i];
 		int j = 0;
@@ -746,7 +753,7 @@ void drawP2BMSFault(int value[4]){
 	}
 
 	// write the 4 small values
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 3; i++){
         switch(i){
             case 0:
@@ -785,7 +792,15 @@ void drawP2BMSFault(int value[4]){
 
 // draw p2
 void drawP2(){
-    drawP2Default(/*enter the argument you want to show here*/);
+	int defaultTest[4] = {1, 0, 1, 87};
+	int defaultDetailed[4] = {1, 2, 3, 4};
+	int defaultBMSFault[4] = {89, 13, 13, 49};
+	drawP2Default(defaultTest);
+//	drawP2Detailed(defaultDetailed);
+//	drawP2Activate();
+//	drawP2Deactivate();
+//	drawP2IgnitionOff(defaultBMSFault);
+//	drawP2BMSFault(defaultBMSFault);
 }
 
 /* USER CODE END 0 */
@@ -1104,9 +1119,10 @@ void StartDefaultTask(void *argument)
 	glcd_clear();
 	srand(time(NULL));   // Initialization, should only be called once.
 
-	int t = 100;
-	int p1values[4] = {420, 805, -404, 69};
-	int p2values[4] = {1, 1, 1, 87};
+	int t = 100;		// t is in ms
+
+	/* to try different layout on the panels, edit the drawP1() and drawP2 functions */
+
 
 	while(1){
 		drawP1();
