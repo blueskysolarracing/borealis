@@ -90,8 +90,8 @@ struct PSM_Peripheral{
 };
 
 //------ FUNCTION PROTOTYPES ------//
-double arrayToDouble(uint8_t* aryPtr, uint8_t size);
-void doubleToArray(double val, uint8_t* aryPtr);
+//double arrayToDouble(uint8_t* aryPtr, uint8_t size); To remove
+//void doubleToArray(double val, uint8_t* aryPtr);
 void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID);
 void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber);
 void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,

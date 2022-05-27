@@ -2,25 +2,27 @@
 
 // Helper functions that programmer could use
 // converts elements in an array back to double
-double arrayToDouble(uint8_t* aryPtr, uint8_t size) {
-	double val = 0;
-	uint8_t* valPtr = (uint8_t*)&val + sizeof(val)-1;
 
-	for (int i = size-1; i >= 0 && valPtr >= (uint8_t*)&val; i--) {
-		*valPtr = aryPtr[i];
-		valPtr--;
-	}
-	return val;
-}
-// writes elements in double into individual elements in an array
-void doubleToArray(double val, uint8_t* aryPtr) {
-    uint8_t aryIdx = 0;
-    uint8_t* ptr = (uint8_t*)&val;
-    for(; aryIdx<sizeof(val); aryIdx++){
-    	aryPtr[aryIdx] = *ptr;
-    	ptr++;
-    }
-}
+// These are not little endian (should remove)
+//double arrayToDouble(uint8_t* aryPtr, uint8_t size) {
+//	double val = 0;
+//	uint8_t* valPtr = (uint8_t*)&val + sizeof(val)-1;
+//
+//	for (int i = size-1; i >= 0 && valPtr >= (uint8_t*)&val; i--) {
+//		*valPtr = aryPtr[i];
+//		valPtr--;
+//	}
+//	return val;
+//}
+//// writes elements in double into individual elements in an array
+//void doubleToArray(double val, uint8_t* aryPtr) {
+//    uint8_t aryIdx = 0;
+//    uint8_t* ptr = (uint8_t*)&val;
+//    for(; aryIdx<sizeof(val); aryIdx++){
+//    	aryPtr[aryIdx] = *ptr;
+//    	ptr++;
+//    }
+//}
 
 
 //PSM_Init()
