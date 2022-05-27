@@ -79,6 +79,7 @@ uint8_t RIGHT_ENABLED = 0;
 uint8_t CENTER_ENABLED = 0;
 uint8_t FRONT_ENABLED = 0;
 uint8_t CAMERA_ENABLED = 0;
+uint8_t CRUISE_MULT = 1;
 
 uint8_t sidePanelData;
 uint8_t steeringData[3];
@@ -2174,7 +2175,7 @@ static void steeringWheelTask(const void *pv){
 
 	//INDICATOR LIGHTS - SEND TO BBMB
     //Left indicator
-    if ((steeringData[1] & 0b00000001) != (steeringData[1] & 0b00000001)){ //If the state of the left indicator changed, send new data to BBMB
+    if ((steeringData[1] & 0b00000001) != (oldSteeringData[1] & 0b00000001)){ //If the state of the left indicator changed, send new data to BBMB
     	//If LEFT_INDICATOR == 1 --> Retract lights
     	//If LEFT_INDICATOR == 0 --> Extend lights
         uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -2188,7 +2189,7 @@ static void steeringWheelTask(const void *pv){
     }
 
     //Right indicator
-    if ((steeringData[1] & 0b00000010) != (steeringData[1] & 0b00000010)){ //If the state of the right indicator changed, send new data to BBMB
+    if ((steeringData[1] & 0b00000010) != (oldSteeringData[1] & 0b00000010)){ //If the state of the right indicator changed, send new data to BBMB
     	//If RIGHT_INDICATOR == 1 --> Retract lights
     	//If RIGHT_INDICATOR == 0 --> Extend lights
         uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -2202,7 +2203,7 @@ static void steeringWheelTask(const void *pv){
     }
 
 	//Horn - SEND TO BBMB
-    if ((steeringData[1] & 0b00001000) != (steeringData[1] & 0b00001000)){
+    if ((steeringData[1] & 0b00001000) != (oldSteeringData[1] & 0b00001000)){
         uint8_t bufh[2] = {0x04, 0x00}; //[DATA ID, HORN STATE]
 
     	if ((steeringData[1] & 0b00001000) == 0){ //Turn on horn
@@ -2212,6 +2213,19 @@ static void steeringWheelTask(const void *pv){
     	}
         B_tcpSend(btcp, bufh, 2);
     }
+
+    //Encoder - SEND TO MCMB
+     if ((steeringData[0] & 0b11111111) != (oldsteeringData[0] & 0b11111111)){
+    	uint8_t old_ang = encoderMap8[oldSteeringData[0]];
+    	uint8_t new_ang = encoderMap8[steeringData[0]];
+
+    	uint8_t target = CRUISE_MULT * (new_ang - old_ang);
+
+        uint8_t bufh[2] = {0x04, target}; //[DATA ID, angle]
+        B_tcpSend(btcp, bufh, 2);
+    }
+
+
 
 	B_uartDoneRead(e);
 
