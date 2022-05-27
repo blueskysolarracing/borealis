@@ -112,6 +112,9 @@ double voltageCurrent_PHub[2] = {0, 0};
 uint8_t busMetrics[20] = {0};
 uint8_t LP_busMetrics[20] = {0};
 
+//--- LIGHTS ---//
+uint8_t lightInstruction = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -229,7 +232,7 @@ int main(void)
   MX_FDCAN1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-	//PSM-related variables
+  //PSM-related variables
 	psmPeriph.CSPin0 = PSM_CS_0_Pin;
 	psmPeriph.CSPin1 = PSM_CS_1_Pin;
 	psmPeriph.CSPin2 = PSM_CS_2_Pin;
@@ -247,7 +250,7 @@ int main(void)
 	psmPeriph.DreadyPort = GPIOK;
 
 	PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (1 for BBMB)
-	configPSM(&psmPeriph, &hspi2, &huart2, "12", 2); //Use channels #1 and #2 (#2 is master)
+	configPSM(&psmPeriph, &hspi2, &huart2, "12"); //Use channels #1 and #2 (#2 is master)
 
   MX_USART2_UART_Init();
   MX_SPI2_Init();
@@ -265,8 +268,8 @@ int main(void)
   //badc = B_adcStart(&hadc1, 1);
   //BSSR_CAN_TASK_INIT(&hfdcan1, &huart2, btcp);
 
-  //blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
-  //xTimerStart(blink_timer, 0);
+  blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
+  xTimerStart(blink_timer, 0);
 
   xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 1, NULL); // 5
   xTaskCreate(adcTask, "adcTask", 1024, badc, 1, NULL); //3
@@ -277,8 +280,15 @@ int main(void)
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
   xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
   xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 4, NULL);
-
   configASSERT(xTaskCreate(psmTaskHandle, "PSMTask", 1024, ( void * ) 1, 4, NULL) == pdPASS);
+
+  //Initial state of lights; all off
+  turn_off_indicators(0);
+//  turn_off_indicators(1);
+//  turn_off_DRL();
+//  turn_off_brake_lights();
+//  turn_off_hazard_lights();
+//  turn_off_fault_indicator();
 
   /* USER CODE END 2 */
 
@@ -1072,6 +1082,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -1086,6 +1097,15 @@ static void MX_TIM1_Init(void)
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -1255,6 +1275,7 @@ static void MX_TIM5_Init(void)
 
   /* USER CODE END TIM5_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -1267,6 +1288,15 @@ static void MX_TIM5_Init(void)
   htim5.Init.Period = 1600;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
   {
     Error_Handler();
@@ -2024,7 +2054,7 @@ static void busPwrSendTmr(TimerHandle_t xTimer){
 void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_rate, double on_period)
 {
 	double frequency = blink_rate / 60; // blink_rate given in bpm
-	double period_master = frequency * 16000; // based on internal clock, pre-scaler
+	double period_master = frequency * 75000; // based on internal clock, pre-scaler (assumes 75MHz TIM2 clock frequency)
 
 	double pulse_slave = on_period; // 160 ticks
 	double period_slave = on_period / pwm_duty_cycle; // 160 / 0.10 = 1600
@@ -2035,8 +2065,6 @@ void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_r
 
 	my_MX_TIM1_Init(period_master);
 	my_MX_TIM2_Init(pulse_slave, period_slave);
-
-
 
 	if (left_or_right == 0){
 		rotate(0, 0, &hspi5); // anti-clockwise: out for left
@@ -2051,7 +2079,6 @@ void turn_on_indicators(int left_or_right, double pwm_duty_cycle, double blink_r
 	}
 	//HAL_Delay(5000);
 	//HAL_GPIO_WritePin(GPIOK, GPIO_PIN_5, 0); // write to depower board
-
 }
 
 void turn_off_indicators(int left_or_right){
@@ -2067,7 +2094,7 @@ void turn_off_indicators(int left_or_right){
 		HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
 		rotate(0, 1, &hspi5); // anti-clockwise: in for right
 	}
-	// HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1); master timer - need to turn off?
+	HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);// master timer - need to turn off?
 
 }
 
@@ -2109,7 +2136,7 @@ void turn_off_brake_lights(void){
 void turn_on_hazard_lights(double pwm_duty_cycle, double blink_rate)
 {
 	double frequency = blink_rate / 60; // blink_rate given in bpm
-	double period_master = frequency * 16000; // based on internal clock, pre-scaler
+	double period_master = frequency * 75000; // based on internal clock, pre-scaler (assumes 75MHz TIM2 clock frequency)
 
 	double on_period = 160; // Constant for hazard lights
 	double pulse_slave = on_period; // 160
@@ -2447,11 +2474,15 @@ void senderTaskHandle(void * argument)
 {
   /* USER CODE BEGIN senderTaskHandle */
   /* Infinite loop */
+
 	struct msgPrio{
 		uint8_t message;
 		uint8_t priority;
 	} tx;
 
+	B_bufQEntry_t *e;
+
+	for(;;){
 //	tx.message = 0x42; // left indicator start
 //	tx.priority = 0;
 //
@@ -2460,30 +2491,42 @@ void senderTaskHandle(void * argument)
 //	vTaskDelay(5000);
 //	tx.message = 0x02;
 //	xQueueSend(lightsCtrl, &tx.message, 200);
-//
 
-  for(;;)
-  {
-	  tx.message = 0x02;
-	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
-	  xQueueSend(lightsCtrl, &tx.message, 200);
-	  vTaskDelay(500);
-	  tx.message = 0x42;
-	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
-	  xQueueSend(lightsCtrl, &tx.message, 200);
-	  vTaskDelay(500);
+  e = B_uartRead(buart);
+  taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
+  if (e->buf[0] == BSSR_SERIAL_START && e->buf[4] == 0x03){
+	  if (lightInstruction != e->buf[5]){
+		  lightInstruction = e->buf[5];
+		  xQueueSend(lightsCtrl, lightInstruction, 200);
+	  } //Only update if different (it should be different)
   }
+
+  taskEXIT_CRITICAL(); // data into global variable -> enter critical section
+
+  //Check CRC, optional
+  B_uartDoneRead(e);
+
+  //Add to lights task's queue
+//  for(;;){
+//	  tx.message = 0x02;
+//	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
+//	  xQueueSend(lightsCtrl, &tx.message, 200);
+//	  vTaskDelay(500);
+//	  tx.message = 0x42;
+//	  // osMessageQueuePut(lightsCtrlHandle, &tx.message, tx.priority, 200);
+//	  xQueueSend(lightsCtrl, &tx.message, 200);
+//	  vTaskDelay(500);
+//
+//  }
   /* USER CODE END senderTaskHandle */
+	}
 }
 
 void psmTaskHandle(void * argument){
 	enum measurementResult {VOLTAGE, CURRENT};
 
-	uint8_t junk = 10;
-
 	while (1) {
-		//vTaskDelayUntil(pxPreviousWakeTime, xTimeIncrement);
 		vTaskDelay(pdMS_TO_TICKS(200)); //Every 200ms
 
 		//----BATTERY----//
