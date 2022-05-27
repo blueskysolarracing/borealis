@@ -10,7 +10,7 @@ from threading import Thread
 import time as time_mod
 
 #Serial communication setup
-serial = serial.Serial('/dev/cu.usbserial-1430', 115200, timeout=0.002)
+serial = serial.Serial('/dev/cu.usbserial-1420', 115200, timeout=0.002)
 
 #Commands
 #Generic command encoding is command_name::umppt_id,,value
@@ -248,7 +248,7 @@ def meas_loop(arg):
 def send_and_receive(cmd, receive, uMPPT_num = 1, newVal = 1.0):
     global serial
     #Prepare and send data
-    string = cmd + str(uMPPT_num) + ',,{:.3f}'.format(float(newVal))
+    string = cmd + str(uMPPT_num) + ',,{:4f}'.format(float(newVal))
     string = pad_message(string, length_message)
     serial.write(string.encode('utf-8'))
     

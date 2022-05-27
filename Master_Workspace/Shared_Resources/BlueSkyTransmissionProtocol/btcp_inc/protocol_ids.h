@@ -10,7 +10,8 @@ enum Sender_ID {
 	PPTMB_ID,
 	MCMB_ID,
 	DCMB_ID,
-	CHASE_ID
+	CHASE_ID,
+	BMS_ID
 };
 
 
@@ -21,6 +22,7 @@ enum BBMB_Data_ID {
 	BBMB_BSD_ID,
 	BBMB_BMS_MCU_STATUS_ID,
 	BBMB_STATE_OF_CHARGE_ID,
+	BBMB_SOC_REQUEST = 0x05,
 	
 	BBMB_LP_BUS_METRICS_ID = 0x0D,
 	BBMB_CORE_TEMP_ID = 0x0E,
@@ -65,7 +67,11 @@ enum Chase_Data_ID {
 	CHASE_SET_RTC_ID
 };
 
-
+enum BMS_Data_ID {
+	BMS_CELL_TEMP,
+	BMS_CELL_VOLT,
+	BMS_CELL_SO = 0x04
+};
 
 
 #endif

@@ -1814,7 +1814,7 @@ float PIDControllerUpdate(float setpoint, float measured){
 	// Proportional term
 	float proportional = pid->k_p * error;
 	// Integral term
-	pid->integrator = pid->integrator + pid->k_d * pid->time * (error + pid->prevError)/2.0;
+	pid->integrator = pid->integrator + pid->k_i * pid->time * (error + pid->prevError)/2.0;
 
 	// Calculate integral limits
 	if(pid->outMax > proportional){
@@ -1837,7 +1837,7 @@ float PIDControllerUpdate(float setpoint, float measured){
 	}
 
 	// Derivative term
-	pid->derivative = (error - pid->prevError)/pid->time;
+	pid->derivative = pid->k_d * (error - pid->prevError) / pid->time;
 
 	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
 	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
