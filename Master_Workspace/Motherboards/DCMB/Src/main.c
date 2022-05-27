@@ -2206,9 +2206,9 @@ static void steeringWheelTask(const void *pv){
         uint8_t bufh[2] = {0x04, 0x00}; //[DATA ID, HORN STATE]
 
     	if ((steeringData[1] & 0b00001000) == 0){ //Turn on horn
-            bufh[2] = 0x01; //[DATA ID, HORN STATE]
+            bufh[1] = 0x01; //[DATA ID, HORN STATE]
     	} else { //Turn off horn
-            bufh[2] = 0x00; //[DATA ID, HORN STATE]
+            bufh[1] = 0x00; //[DATA ID, HORN STATE]
     	}
         B_tcpSend(btcp, bufh, 2);
     }

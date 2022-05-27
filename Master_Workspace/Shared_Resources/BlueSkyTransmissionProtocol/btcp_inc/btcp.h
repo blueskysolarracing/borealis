@@ -1,7 +1,6 @@
 #ifndef __BTCP_H
 #define __BTCP_H
 
-
 #include "buart.h"
 #include "main.h"
 #include "protocol_ids.h"
