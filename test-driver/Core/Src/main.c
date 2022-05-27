@@ -104,6 +104,8 @@ uint8_t correct_Y(uint8_t y){
 	return ((y+48)%64);
 }
 
+// p1 stuff start
+
 void drawP1Default(int value[4]){
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
@@ -142,8 +144,6 @@ void drawP1Default(int value[4]){
 	// draw the numbers
 	char valueS[4][4];
 
-	glcd_tiny_set_font(Font5x7,5,7,32,127);
-
 	// get it in strings
 	for(int i = 0; i < 4; i++){
 		// sign
@@ -174,7 +174,7 @@ void drawP1Default(int value[4]){
 	}
 
 	// write the 3 small values
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 3; i++){
 		for(int j = 0; j < 4; j++){
 			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
@@ -251,7 +251,7 @@ void drawP1Detailed(int value[9]){
 	}
 
 	// write the 3 small values
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 3; i++){
 		for(int j = 0; j < 4; j++){
 			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
@@ -260,35 +260,174 @@ void drawP1Detailed(int value[9]){
 	}
 
 	// write the 6 small values
-	int y = 5;
-	for(int i = 0; i < 3; i++){
-		for(int j = 0; j < 4; j++){
-			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
-		}
+	y = 5;
+	for(int i = 3; i < 9; i+=2){
+        glcd_tiny_draw_char_xy(78, correct_Y(y), '(');
+        glcd_tiny_draw_char_xy(82, correct_Y(y), valueS[i][2]);
+        glcd_tiny_draw_char_xy(87, correct_Y(y), valueS[i][3]);
+        glcd_tiny_draw_char_xy(92, correct_Y(y), 'V');
+        glcd_tiny_draw_char_xy(97, correct_Y(y), ',');
+        glcd_tiny_draw_char_xy(102, correct_Y(y), valueS[i+1][2]);
+        glcd_tiny_draw_char_xy(107, correct_Y(y), valueS[i+1][3]);
+        glcd_tiny_draw_char_xy(112, correct_Y(y), 'A');
+        glcd_tiny_draw_char_xy(117, correct_Y(y), ')');
 		y+=23;
 	}
-
-
 
 	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
 	glcd_write();
 	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
 }
 
-// draw p1 labels
-void drawP1(){
-	drawP1Default();
+void drawP1Activate(){
+	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 12;
+    uint8_t x = 22;
+
+    char* ptr = labels[0];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    y = 36;
+    x = 37;
+
+    ptr = labels[1];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
 }
 
-// draw p2 labels
-void drawP2(){
+void drawP1Deactivate(){
+	char* labels[] = {"CRUISE CONTROL", "DEACTIVATED"};
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 12;
+    uint8_t x = 22;
+
+    char* ptr = labels[0];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    y = 36;
+    x = 31;
+
+    ptr = labels[1];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+void drawP1IgnitionOff(){
+    char* labels[] = {"CAR IS", "SLEEPING"};
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 12;
+    uint8_t x = 46;
+
+    char* ptr = labels[0];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    y = 36;
+    x = 40;
+
+    ptr = labels[1];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+void drawP1BMSFault(){
+    char* labels[] = {"BMS FAULT DETECTED", "CAR OFF"};
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 12;
+    uint8_t x = 10;
+
+    char* ptr = labels[0];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    y = 36;
+    x = 43;
+
+    ptr = labels[1];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
+}
+
+// draw p1
+void drawP1(){
+	int defaultTest[4] = {420, 874, -454, 69};
+	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	drawP1Default(defaultTest);
+//	drawP1Detailed(defaultDetailed);
+//	drawP1Activate();
+//	drawP1Deactivate();
+//	drawP1IgnitionOff();
+//	drawP1BMSFault();
+}
+
+// p2 stuff start
+void drawP2Default(int value[4]){
 	char* labelsP2[] = {"Cruise:", "Light:"};
 	int labelsP2L = 2;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	int y = 5;
+	uint8_t y = 5;
 	for(int i = 0; i < labelsP2L; i++){
 		char* label = labelsP2[i];
 		int j = 0;
@@ -302,17 +441,10 @@ void drawP2(){
 	glcd_draw_line(44, 0,  44, 63, BLACK);
 	glcd_tiny_draw_char_xy(19, correct_Y(52), '%');
 
-	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
-	glcd_write();
-	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
-}
-
-// pass in array of values in order of cruise, light, regen, battery
-void updateP2(int value[4]){
-	glcd_tiny_set_font(Font5x7,5,7,32,127);
+    glcd_tiny_set_font(Font5x7,5,7,32,127);
 
 	// write the 2 on off
-	int y = 5;
+	y = 5;
 	for(int i = 0; i < 2; i++){
 		char* status = "OFF";
 		if(value[i]) status = " ON";
@@ -339,6 +471,338 @@ void updateP2(int value[4]){
 	glcd_write();
 	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
 }
+
+void drawP2Detailed(int value[4]){
+	char* labelsP2[] = {"Low voltage:", "Max pack temp:"};
+	int labelsP2L = 2;
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	uint8_t y = 5;
+	for(int i = 0; i < labelsP2L; i++){
+		char* label = labelsP2[i];
+		int j = 0;
+		while(label[j] != 0){
+			glcd_tiny_draw_char_xy(j*(5), correct_Y(y), label[j]);
+			j++;
+		}
+		y+=23;
+	}
+
+    // draw the numbers
+	char valueS[4][4];
+
+	// get it in strings
+	for(int i = 0; i < 4; i++){
+		// sign
+		int v = value[i];
+		if(v<0){
+			valueS[i][0] = '-';
+			v *= -1;
+		}
+		else{
+			valueS[i][0] = '+';
+		}
+		// hundred
+		if(v/100 != 0){
+			valueS[i][1] = '0' + v/100;
+		}
+		else{
+			valueS[i][1] = ' ';
+		}
+		// tenth
+		if((v/10)%10 != 0 || valueS[i][1] != ' '){
+			valueS[i][2] = '0' + (v/10)%10;
+		}
+		else{
+			valueS[i][2] = ' ';
+		}
+		// ones
+		valueS[i][3] = '0' + v%10;
+	}
+
+    // write the 4 small values
+	y = 5;
+    // the watt and V and A
+    glcd_tiny_draw_char_xy(60, correct_Y(y), valueS[0][2]);
+    glcd_tiny_draw_char_xy(65, correct_Y(y), valueS[0][3]);
+    glcd_tiny_draw_char_xy(70, correct_Y(y), 'W');
+    glcd_tiny_draw_char_xy(75, correct_Y(y), '(');
+    glcd_tiny_draw_char_xy(80, correct_Y(y), valueS[1][2]);
+    glcd_tiny_draw_char_xy(85, correct_Y(y), valueS[1][3]);
+    glcd_tiny_draw_char_xy(90, correct_Y(y), 'V');
+    glcd_tiny_draw_char_xy(95, correct_Y(y), ',');
+    glcd_tiny_draw_char_xy(100, correct_Y(y), valueS[2][2]);
+    glcd_tiny_draw_char_xy(105, correct_Y(y), valueS[2][3]);
+    glcd_tiny_draw_char_xy(110, correct_Y(y), 'A');
+    glcd_tiny_draw_char_xy(115, correct_Y(y), ')');
+    // the temp
+    y+=23;
+    glcd_tiny_draw_char_xy(70, correct_Y(y), valueS[3][0]);
+    glcd_tiny_draw_char_xy(75, correct_Y(y), valueS[3][1]);
+    glcd_tiny_draw_char_xy(80, correct_Y(y), valueS[3][2]);
+    glcd_tiny_draw_char_xy(85, correct_Y(y), valueS[3][3]);
+    glcd_tiny_draw_char_xy(90, correct_Y(y), 'C');
+
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
+
+void drawP2Activate(){
+	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 12;
+    uint8_t x = 22;
+
+    char* ptr = labels[0];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    y = 36;
+    x = 37;
+
+    ptr = labels[1];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
+
+void drawP2Deactivate(){
+	char* labels[] = {"CRUISE CONTROL", "DEACTIVATED"};
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	// start drawing at y = 5
+	uint8_t y = 12;
+    uint8_t x = 22;
+
+    char* ptr = labels[0];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    y = 36;
+    x = 31;
+
+    ptr = labels[1];
+
+    while(*ptr != '\0'){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+        x+=6;
+    }
+
+    HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
+
+void drawP2IgnitionOff(int value[4]){
+	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
+	int labelsP2L = 3;
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	uint8_t y = 5;
+	for(int i = 0; i < labelsP2L; i++){
+		char* label = labelsP2[i];
+		int j = 0;
+		while(label[j] != 0){
+			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
+			j++;
+		}
+		y+=23;
+	}
+
+    // draw the numbers
+	char valueS[4][4];
+
+	// get it in strings
+	for(int i = 0; i < 4; i++){
+		// sign
+		int v = value[i];
+		if(v<0){
+			valueS[i][0] = '-';
+			v *= -1;
+		}
+		else{
+			valueS[i][0] = '+';
+		}
+		// hundred
+		if(v/100 != 0){
+			valueS[i][1] = '0' + v/100;
+		}
+		else{
+			valueS[i][1] = ' ';
+		}
+		// tenth
+		if((v/10)%10 != 0 || valueS[i][1] != ' '){
+			valueS[i][2] = '0' + (v/10)%10;
+		}
+		else{
+			valueS[i][2] = ' ';
+		}
+		// ones
+		valueS[i][3] = '0' + v%10;
+	}
+
+	// write the 4 small values
+	y = 5;
+	for(int i = 0; i < 3; i++){
+        switch(i){
+            case 0:
+                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[0][2]);
+                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[0][3]);
+                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
+                break;
+            case 1:
+                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[1][2]);
+                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[1][3]);
+                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
+                glcd_tiny_draw_char_xy(66, correct_Y(y), '(');
+                glcd_tiny_draw_char_xy(72, correct_Y(y), valueS[2][2]);
+                glcd_tiny_draw_char_xy(78, correct_Y(y), valueS[2][3]);
+                glcd_tiny_draw_char_xy(84, correct_Y(y), 'W');
+                glcd_tiny_draw_char_xy(90, correct_Y(y), ')');
+                break;
+            case 2:
+                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[3][2]);
+                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[3][3]);
+                glcd_tiny_draw_char_xy(60, correct_Y(y), '%');
+                break;
+            default:
+                break;
+        }
+		for(int j = 0; j < 4; j++){
+			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+		}
+		y+=23;
+	}
+
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
+
+void drawP2BMSFault(int value[4]){
+	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
+	int labelsP2L = 3;
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	uint8_t y = 5;
+	for(int i = 0; i < labelsP2L; i++){
+		char* label = labelsP2[i];
+		int j = 0;
+		while(label[j] != 0){
+			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
+			j++;
+		}
+		y+=23;
+	}
+
+    // draw the numbers
+	char valueS[4][4];
+
+	// get it in strings
+	for(int i = 0; i < 4; i++){
+		// sign
+		int v = value[i];
+		if(v<0){
+			valueS[i][0] = '-';
+			v *= -1;
+		}
+		else{
+			valueS[i][0] = '+';
+		}
+		// hundred
+		if(v/100 != 0){
+			valueS[i][1] = '0' + v/100;
+		}
+		else{
+			valueS[i][1] = ' ';
+		}
+		// tenth
+		if((v/10)%10 != 0 || valueS[i][1] != ' '){
+			valueS[i][2] = '0' + (v/10)%10;
+		}
+		else{
+			valueS[i][2] = ' ';
+		}
+		// ones
+		valueS[i][3] = '0' + v%10;
+	}
+
+	// write the 4 small values
+	y = 5;
+	for(int i = 0; i < 3; i++){
+        switch(i){
+            case 0:
+                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[0][2]);
+                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[0][3]);
+                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
+                break;
+            case 1:
+                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[1][2]);
+                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[1][3]);
+                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
+                glcd_tiny_draw_char_xy(66, correct_Y(y), '(');
+                glcd_tiny_draw_char_xy(72, correct_Y(y), valueS[2][2]);
+                glcd_tiny_draw_char_xy(78, correct_Y(y), valueS[2][3]);
+                glcd_tiny_draw_char_xy(84, correct_Y(y), 'W');
+                glcd_tiny_draw_char_xy(90, correct_Y(y), ')');
+                break;
+            case 2:
+                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[3][2]);
+                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[3][3]);
+                glcd_tiny_draw_char_xy(60, correct_Y(y), '%');
+                break;
+            default:
+                break;
+        }
+		for(int j = 0; j < 4; j++){
+			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+		}
+		y+=23;
+	}
+
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_RESET);
+	glcd_write();
+	HAL_GPIO_WritePin(CS2_GPIO_Port, CS2_Pin, GPIO_PIN_SET);
+}
+
+// draw p2
+void drawP2(){
+	int defaultTest[4] = {1, 0, 1, 87};
+	int defaultDetailed[4] = {1, 2, 3, 4};
+	int defaultBMSFault[4] = {89, 13, 13, 49};
+	drawP2Default(defaultTest);
+//	drawP2Detailed(defaultDetailed);
+//	drawP2Activate();
+//	drawP2Deactivate();
+//	drawP2IgnitionOff(defaultBMSFault);
+//	drawP2BMSFault(defaultBMSFault);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -655,54 +1119,14 @@ void StartDefaultTask(void *argument)
 	glcd_clear();
 	srand(time(NULL));   // Initialization, should only be called once.
 
-	int t = 100;
-	int p1values[4] = {420, 805, -404, 69};
-	int p2values[4] = {1, 1, 1, 87};
+	int t = 100;		// t is in ms
 
-	drawP2();
-	updateP2(p2values);
+	/* to try different layout on the panels, edit the drawP1() and drawP2 functions */
 
-	drawP1();
-	updateP1(p1values);
-	delay_ms(t);
-//	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_RESET);
-//	glcd_test_hello_world();
-//	HAL_GPIO_WritePin(CS1_GPIO_Port, CS1_Pin, GPIO_PIN_SET);
-//
-//
-	HAL_GPIO_WritePin(ledtest_GPIO_Port,ledtest_Pin, GPIO_PIN_SET);
-	delay_ms(t);
+
 	while(1){
-		HAL_GPIO_WritePin(ledtest_GPIO_Port,ledtest_Pin, GPIO_PIN_RESET);
-		for(int i = 0; i < 3; i++){
-			int r = rand()%5;
-			if(rand()%2 == 0){
-				r*= -1;
-			}
-			p1values[i] += r;
-		}
-		int r = rand()%2;
-		if(rand()%2 == 0){
-			r*= -1;
-		}
-		p1values[3] += r;
 		drawP1();
-		updateP1(p1values);
-		delay_ms(t);
-
-		for(int i = 0; i < 3; i++){
-			int s = rand()%2;
-			p2values[i] = s;
-		}
-		int s = rand()%2;
-		if(rand()%2 == 0){
-			s*= -1;
-		}
-		p2values[3] += s;
 		drawP2();
-		updateP2(p2values);
-		delay_ms(t);
-		HAL_GPIO_WritePin(ledtest_GPIO_Port,ledtest_Pin, GPIO_PIN_SET);
 		delay_ms(t);
 	}
 
@@ -769,4 +1193,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
