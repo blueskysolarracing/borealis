@@ -34,17 +34,7 @@
 		<link>
 			<name>PSM</name>
 			<type>2</type>
-			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/PSM</location>
-		</link>
-		<link>
-			<name>btcp_inc</name>
-			<type>2</type>
-			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
-		</link>
-		<link>
-			<name>btcp_src</name>
-			<type>2</type>
-			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+			<location>/Applications/STM32CubeIDE.app/Contents/MacOS/C::/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/PSM</location>
 		</link>
 	</linkedResources>
 </projectDescription>
