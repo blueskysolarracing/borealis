@@ -10,7 +10,7 @@
 float arrayToFloat(uint8_t* aryPtr) {
 
 	float val = 0;
-	uint8_t* valPtr = (uint8_t*)&val;
+	int* valPtr = (uint8_t*)&val;
 	uint8_t aryIdx = sizeof(val)-1;
 
 	for (; aryIdx >= 0; aryIdx--) {
@@ -21,7 +21,7 @@ float arrayToFloat(uint8_t* aryPtr) {
 }
 
 void floatToArray(float val, uint8_t* aryPtr) {
-    uint8_t aryIdx = sizeof(val)-1;
+    int aryIdx = sizeof(val)-1;
     uint8_t* ptr = (uint8_t*)&val;
     for(; aryIdx >= 0; aryIdx--){
     	aryPtr[aryIdx] = *ptr;

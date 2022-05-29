@@ -38,8 +38,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define PSM_TASK_PRIORITY 4
-#define LIGHTS_TASK_PRIORITY 4
+#define PSM_TASK_PRIORITY 2
+#define LIGHTS_TASK_PRIORITY 2
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -83,8 +83,8 @@ QueueHandle_t lightsCtrl = NULL;
 
 //--- PSM ---//
 struct PSM_Peripheral psmPeriph;
-float voltageCurrent_Battery[2] = {0, 0};
-float voltageCurrent_PHub[2] = {0, 0};
+double voltageCurrent_Battery[2] = {0, 0};
+double voltageCurrent_PHub[2] = {0, 0};
 uint8_t busMetrics[20] = {0};
 uint8_t LP_busMetrics[20] = {0};
 uint8_t startPSM = 0;
@@ -187,8 +187,9 @@ int main(void)
   MX_UART8_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
   //--- RELAYS ---//
-  open_relays();
+//  open_relays();
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
@@ -207,11 +208,29 @@ int main(void)
   psmPeriph.DreadyPin = PSM_DReady_Pin;
   psmPeriph.DreadyPort = GPIOK;
 
-
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (1 for BBMB)
-  configPSM(&psmPeriph, &hspi2, &huart2, "12", 2); //Use channels #1 and #2 (#2 is master)
+  configPSM(&psmPeriph, &hspi2, &huart2, "12"); //Use channels #1 and #2 (#2 is master)
 
-  psm_timer = xTimerCreate("psmTimer",  pdMS_TO_TICKS(100), pdTRUE, (void *)0, psmCallback); // PSM measurements
+//  while (1){
+//	  double data[2] = {-1, -1};
+//
+//	PSMRead(&psmPeriph, &hspi2, &huart2,
+//			/*CLKOUT=*/ 1,
+//			/*masterPSM=*/ 2,
+//			/*channelNumber=*/ 2,
+//			/*dataOut[]=*/data,
+//			/*dataLen=*/sizeof(data) / sizeof(double));
+//
+//	char msg[50];
+//	sprintf(msg, "Voltage 2: %f\n", data[0]);
+//	HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+//	sprintf(msg, "Current 2: %f\n", data[1]);
+//	HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+//
+//	HAL_Delay(500);
+//  }
+
+  psm_timer = xTimerCreate("psmTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, psmCallback); // PSM measurements
   xTimerStart(psm_timer, 0);
   configASSERT(xTaskCreate(psmTask, "psmTask", 1024, ( void * ) 1, PSM_TASK_PRIORITY, NULL) == pdPASS);
 
@@ -227,8 +246,8 @@ int main(void)
 
   //--- LIGHTS ---//
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
-  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, LIGHTS_TASK_PRIORITY, NULL) == pdPASS);
-  configASSERT(xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 4, NULL) == pdPASS);
+//  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, LIGHTS_TASK_PRIORITY, NULL) == pdPASS);
+//  configASSERT(xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 4, NULL) == pdPASS);
 
   my_MX_TIM1_Init(1600);
   my_MX_TIM2_Init(200, 1600);
@@ -404,7 +423,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -946,25 +965,23 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PI8 PI10 PI11 PI12
-                           PI14 PI15 PI1 PI2
-                           PI3 PI4 PI5 PI6
-                           PI7 */
+                           PI14 PI15 PI4 PI5
+                           PI6 PI7 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
-                          |GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_1|GPIO_PIN_2
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7;
+                          |GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_4|GPIO_PIN_5
+                          |GPIO_PIN_6|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0
-                           PC3 PC4 PC5 PC6
-                           PC7 PC8 PC9 PC10
-                           PC11 PC12 */
+                           PC1 PC2 PC3 PC4
+                           PC5 PC6 PC7 PC8
+                           PC9 PC10 PC11 PC12 */
   GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12;
+                          |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -1013,14 +1030,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 PB11
-                           PB12 PB14 PB15 PB4
-                           PB5 PB6 PB7 PB8
-                           PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9;
+  /*Configure GPIO pins : PB0 PB1 PB2 PB10
+                           PB11 PB12 PB14 PB15
+                           PB4 PB5 PB6 PB7
+                           PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15
+                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7
+                          |GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -1125,55 +1142,78 @@ void psmTask(void * argument){
 
 	while (1){
 		//Check fif we need to start a new conversion
-		PSM_Start_Status = 0;
 		taskENTER_CRITICAL();
 		PSM_Start_Status = startPSM;
 		taskEXIT_CRITICAL();
 
-		if (startPSM){ //Time to start a new PSM measurements
-			//----BATTERY----//
-			//PSMRead will fill first element with voltage, second with current
-			taskENTER_CRITICAL();
-			PSMRead(&psmPeriph, &hspi2, &huart2,
-					/*CLKOUT=*/ 1,
-					/*masterPSM=*/ 2,
-					/*channelNumber=*/ 2,
-					/*dataOut[]=*/voltageCurrent_Battery,
-					/*dataLen=*/sizeof(voltageCurrent_Battery) / sizeof(double)	);
 
-			busMetrics[0] = BBMB_BUS_METRICS_ID;
+		if (PSM_Start_Status){
+			// PSMRead(&psmPorts, &hspi2, &huart2, 1, 2, 1, dataOut, 2);
 
-			//Send to UART bus
-			//Need to implement TODO
-			floatToArray(voltageCurrent_Battery[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
-			floatToArray(voltageCurrent_Battery[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
+			// HAL_UART_Transmit(&huart2, dataOut, sizeof(dataOut), 100);
 
-			B_tcpSend(btcp_main, busMetrics, sizeof(busMetrics));
+		  char printString[50];
 
-
-
-			//----PHub----//
-			//PSMRead will fill first element with voltage, second with current
-	 		PSMRead(&psmPeriph, &hspi2, &huart2,
-					/*CLKOUT=*/ 1,
-					/*masterPSM=*/ 2,
-					/*channelNumber=*/ 1,
-					/*dataOut[]=*/voltageCurrent_PHub,
-					/*dataLen=*/sizeof(voltageCurrent_PHub) / sizeof(double));
-
-			LP_busMetrics[0] = BBMB_LP_BUS_METRICS_ID;
-
-			//Send to UART bus
-			//Need to implement TODO
-			floatToArray(voltageCurrent_PHub[VOLTAGE], LP_busMetrics+4); // fills 3 - 11 of busMetrics
-			floatToArray(voltageCurrent_PHub[CURRENT], LP_busMetrics+12); // fills 11 - 19 of busMetrics
-
-			B_tcpSend(btcp_main, LP_busMetrics, sizeof(LP_busMetrics));
-			taskEXIT_CRITICAL();
-
-		} else { //Nothing to do; just yield to another thread
-			taskYIELD();
+		  double PSMBuffer[30] = {-1, -1, -1};
+		  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer, 2);
+		  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
+		  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
 		}
+//		if (PSM_Start_Status){ //Time to start a new PSM measurements
+//			//----BATTERY----//
+//			//PSMRead will fill first element with voltage, second with current
+//			taskENTER_CRITICAL();
+//			HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET);
+//			PSMRead(&psmPeriph, &hspi2, &huart2,
+//					/*CLKOUT=*/ 1,
+//					/*masterPSM=*/ 2,
+//					/*channelNumber=*/ 2,
+//					/*dataOut[]=*/voltageCurrent_Battery,
+//					/*dataLen=*/sizeof(voltageCurrent_Battery) / sizeof(double)	);
+//			HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
+//
+//			busMetrics[0] = BBMB_BUS_METRICS_ID;
+//
+//			//Send to UART bus
+//			//Need to implement TODO
+//			floatToArray(voltageCurrent_Battery[VOLTAGE], busMetrics+4); // fills 3 - 11 of busMetrics
+//			floatToArray(voltageCurrent_Battery[CURRENT], busMetrics+12); // fills 11 - 19 of busMetrics
+//
+//			B_tcpSend(btcp_main, busMetrics, sizeof(busMetrics));
+//			char msg[50];
+//			sprintf(msg, "Voltage 2: %f\n", voltageCurrent_Battery[VOLTAGE]);
+//			HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+//			sprintf(msg, "Current 2: %f\n", voltageCurrent_Battery[CURRENT]);
+//			HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+//
+//			//----PHub----//
+//			//PSMRead will fill first element with voltage, second with current
+//	 		PSMRead(&psmPeriph, &hspi2, &huart2,
+//					/*CLKOUT=*/ 1,
+//					/*masterPSM=*/ 2,
+//					/*channelNumber=*/ 1,
+//					/*dataOut[]=*/voltageCurrent_PHub,
+//					/*dataLen=*/sizeof(voltageCurrent_PHub) / sizeof(double));
+//
+//			LP_busMetrics[0] = BBMB_LP_BUS_METRICS_ID;
+//
+//			//Send to UART bus
+//			//Need to implement TODO
+//			floatToArray(voltageCurrent_PHub[VOLTAGE], LP_busMetrics+4); // fills 3 - 11 of busMetrics
+//			floatToArray(voltageCurrent_PHub[CURRENT], LP_busMetrics+12); // fills 11 - 19 of busMetrics
+//
+//			B_tcpSend(btcp_main, LP_busMetrics, sizeof(LP_busMetrics));
+//			sprintf(msg, "Voltage 1: %f\n", voltageCurrent_PHub[VOLTAGE]);
+//			HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+//			sprintf(msg, "Current 1: %f\n\n\n", voltageCurrent_PHub[CURRENT]);
+//			HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+//
+//			startPSM = 0;
+//			taskEXIT_CRITICAL();
+//
+//		} else { //Nothing to do; just yield to another thread
+//			taskYIELD();
+//		}
 	}
 }
 

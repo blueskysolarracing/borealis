@@ -249,6 +249,8 @@ int main(void)
 
   //--- DRIVER DISPLAYS ---//
   glcd_init();
+  glcd_test_circles();
+
   HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};

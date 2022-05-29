@@ -313,8 +313,27 @@ int main(void)
   psmPeriph.DreadyPin = PSM_DReady_Pin;
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
-  PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
-  configPSM(&psmPeriph, &hspi2, &huart2, "1", 1); //Use channel #1 only with master being channel 1
+  PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (2 for MCMB)
+  configPSM(&psmPeriph, &hspi2, &huart2, "1"); //Use channel #1 only
+
+  while (1){
+	  double data[2] = {-1, -1};
+
+	PSMRead(&psmPeriph, &hspi2, &huart2,
+			/*CLKOUT=*/ 1,
+			/*masterPSM=*/ 2,
+			/*channelNumber=*/ 2,
+			/*dataOut[]=*/data,
+			/*dataLen=*/sizeof(data) / sizeof(double));
+
+	char msg[50];
+	sprintf(msg, "Voltage 2: %f\n", data[0]);
+	HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+	sprintf(msg, "Current 2: %f\n", data[1]);
+	HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+
+	HAL_Delay(500);
+  }
 
   xTimerStart(xTimerCreate("motorStateTimer", 10, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
@@ -1302,7 +1321,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 500000;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -1807,55 +1826,55 @@ float speedToFrequency(uint8_t targetSpeed){
 }
 
 // Function to implement PID controller for cruise control
-float PIDControllerUpdate(float setpoint, float measured){
-
-	float error = setpoint - measured;
-
-	// Proportional term
-	float proportional = pid->k_p * error;
-	// Integral term
-	pid->integrator = pid->integrator + pid->k_i * pid->time * (error + pid->prevError)/2.0;
-
-	// Calculate integral limits
-	if(pid->outMax > proportional){
-		integralMax = pid->outMax - proportional;
-	} else {
-		integralMax = 0.0;
-	}
-
-	if(pid->outMax < proportional){
-		integralMin = pid->outMax - proportional;
-	} else {
-		integralMin = 0.0;
-	}
-
-	// Set limits to integration - integral anti-windup
-	if(pid->integrator > pid->integralMax){
-		pid->integrator = pid->integralMax;
-	} else if(pid->integrator < pid->integralMin){
-		pid->integrator = pid->integralMin;
-	}
-
-	// Derivative term
-	pid->derivative = pid->k_d * (error - pid->prevError) / pid->time;
-
-	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
-	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
-
-	// Output
-	pid->output = proportional + pid->integrator + pid->derivative;
-
-	if(pid->output > pid->outMax){
-		pid->output = pid->outMax;
-	} else if(pid->output < pid->outMin){
-		pid->output = pid->outMin;
-	}
-
-	pid->prevError = error;
-	pid->prevMeasurement = measured;
-
-	return pid->output;
-}
+//float PIDControllerUpdate(float setpoint, float measured){
+//
+//	float error = setpoint - measured;
+//
+//	// Proportional term
+//	float proportional = pid->k_p * error;
+//	// Integral term
+//	pid->integrator = pid->integrator + pid->k_i * pid->time * (error + pid->prevError)/2.0;
+//
+//	// Calculate integral limits
+//	if(pid->outMax > proportional){
+//		integralMax = pid->outMax - proportional;
+//	} else {
+//		integralMax = 0.0;
+//	}
+//
+//	if(pid->outMax < proportional){
+//		integralMin = pid->outMax - proportional;
+//	} else {
+//		integralMin = 0.0;
+//	}
+//
+//	// Set limits to integration - integral anti-windup
+//	if(pid->integrator > pid->integralMax){
+//		pid->integrator = pid->integralMax;
+//	} else if(pid->integrator < pid->integralMin){
+//		pid->integrator = pid->integralMin;
+//	}
+//
+//	// Derivative term
+//	pid->derivative = pid->k_d * (error - pid->prevError) / pid->time;
+//
+//	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
+//	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
+//
+//	// Output
+//	pid->output = proportional + pid->integrator + pid->derivative;
+//
+//	if(pid->output > pid->outMax){
+//		pid->output = pid->outMax;
+//	} else if(pid->output < pid->outMin){
+//		pid->output = pid->outMin;
+//	}
+//
+//	pid->prevError = error;
+//	pid->prevMeasurement = measured;
+//
+//	return pid->output;
+//}
 
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorState = 0;

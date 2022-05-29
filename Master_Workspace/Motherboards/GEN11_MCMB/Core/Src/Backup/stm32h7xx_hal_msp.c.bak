@@ -212,6 +212,7 @@ void HAL_HRTIM_MspInit(HRTIM_HandleTypeDef* hhrtim)
   /* USER CODE BEGIN HRTIM1_MspInit 0 */
 
   /* USER CODE END HRTIM1_MspInit 0 */
+
   /** Initializes the peripherals clock
   */
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_HRTIM1;
@@ -302,6 +303,7 @@ void HAL_LPTIM_MspInit(LPTIM_HandleTypeDef* hlptim)
   /* USER CODE BEGIN LPTIM1_MspInit 0 */
 
   /* USER CODE END LPTIM1_MspInit 0 */
+
   /** Initializes the peripherals clock
   */
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LPTIM1;
@@ -477,6 +479,7 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
   /* USER CODE BEGIN RTC_MspInit 0 */
 
   /* USER CODE END RTC_MspInit 0 */
+
   /** Initializes the peripherals clock
   */
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
@@ -642,6 +645,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
   /* USER CODE BEGIN SPI2_MspInit 0 */
 
   /* USER CODE END SPI2_MspInit 0 */
+
   /** Initializes the peripherals clock
   */
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SPI2;
@@ -1049,6 +1053,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
   /* USER CODE BEGIN UART4_MspInit 0 */
 
   /* USER CODE END UART4_MspInit 0 */
+
   /** Initializes the peripherals clock
   */
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_UART4;
@@ -1511,4 +1516,3 @@ void HAL_SRAM_MspDeInit(SRAM_HandleTypeDef* hsram){
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-
