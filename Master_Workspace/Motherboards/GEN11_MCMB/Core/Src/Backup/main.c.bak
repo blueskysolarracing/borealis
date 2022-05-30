@@ -53,7 +53,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
+ ADC_HandleTypeDef hadc1;
 
 CRC_HandleTypeDef hcrc;
 
@@ -314,7 +314,26 @@ int main(void)
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
-  configPSM(&psmPeriph, &hspi2, &huart2, "1", 1); //Use channel #1 only with master being channel 1
+  configPSM(&psmPeriph, &hspi2, &huart2, "1"); //Use channel #1 only with master being channel 1
+
+  while (1){
+	  double data[20] = {-1, -1};
+
+	PSMRead(&psmPeriph, &hspi2, &huart2,
+			/*CLKOUT=*/ 0,
+			/*masterPSM=*/ 1,
+			/*channelNumber=*/ 1,
+			/*dataOut[]=*/data,
+			/*dataLen=*/sizeof(data) / sizeof(double));
+
+	char msg[50];
+	sprintf(msg, "Voltage 2: %f\n", data[0]);
+	HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+	sprintf(msg, "Current 2: %f\n", data[1]);
+	HAL_UART_Transmit(&huart2, msg, sizeof(msg), 100);
+
+	HAL_Delay(500);
+  }
 
   xTimerStart(xTimerCreate("motorStateTimer", 10, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
@@ -419,14 +438,17 @@ void SystemClock_Config(void)
   /** Supply configuration update enable
   */
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+
   /** Configure the main internal regulator output voltage
   */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
+
   /** Macro to configure the PLL clock source
   */
   __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSI);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -450,6 +472,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -480,8 +503,7 @@ void PeriphCommonClock_Config(void)
 
   /** Initializes the peripherals clock
   */
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_QSPI|RCC_PERIPHCLK_ADC
-                              |RCC_PERIPHCLK_SDMMC;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_QSPI|RCC_PERIPHCLK_SDMMC;
   PeriphClkInitStruct.PLL2.PLL2M = 4;
   PeriphClkInitStruct.PLL2.PLL2N = 9;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
@@ -492,7 +514,6 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PLL2.PLL2FRACN = 3072;
   PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_PLL2;
   PeriphClkInitStruct.SdmmcClockSelection = RCC_SDMMCCLKSOURCE_PLL2;
-  PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL2;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -517,10 +538,10 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 1 */
 
   /* USER CODE END ADC1_Init 1 */
+
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
@@ -538,6 +559,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
+
   /** Configure the ADC multi-mode
   */
   multimode.Mode = ADC_MODE_INDEPENDENT;
@@ -545,6 +567,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
+
   /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_4;
@@ -782,6 +805,7 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
+
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
@@ -856,7 +880,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1297,7 +1321,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 500000;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -1802,55 +1826,55 @@ float speedToFrequency(uint8_t targetSpeed){
 }
 
 // Function to implement PID controller for cruise control
-float PIDControllerUpdate(float setpoint, float measured){
-
-	float error = setpoint - measured;
-
-	// Proportional term
-	float proportional = pid->k_p * error;
-	// Integral term
-	pid->integrator = pid->integrator + pid->k_d * pid->time * (error + pid->prevError)/2.0;
-
-	// Calculate integral limits
-	if(pid->outMax > proportional){
-		integralMax = pid->outMax - proportional;
-	} else {
-		integralMax = 0.0;
-	}
-
-	if(pid->outMax < proportional){
-		integralMin = pid->outMax - proportional;
-	} else {
-		integralMin = 0.0;
-	}
-
-	// Set limits to integration - integral anti-windup
-	if(pid->integrator > pid->integralMax){
-		pid->integrator = pid->integralMax;
-	} else if(pid->integrator < pid->integralMin){
-		pid->integrator = pid->integralMin;
-	}
-
-	// Derivative term
-	pid->derivative = (error - pid->prevError)/pid->time;
-
-	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
-	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
-
-	// Output
-	pid->output = proportional + pid->integrator + pid->derivative;
-
-	if(pid->output > pid->outMax){
-		pid->output = pid->outMax;
-	} else if(pid->output < pid->outMin){
-		pid->output = pid->outMin;
-	}
-
-	pid->prevError = error;
-	pid->prevMeasurement = measured;
-
-	return pid->output;
-}
+//float PIDControllerUpdate(float setpoint, float measured){
+//
+//	float error = setpoint - measured;
+//
+//	// Proportional term
+//	float proportional = pid->k_p * error;
+//	// Integral term
+//	pid->integrator = pid->integrator + pid->k_i * pid->time * (error + pid->prevError)/2.0;
+//
+//	// Calculate integral limits
+//	if(pid->outMax > proportional){
+//		integralMax = pid->outMax - proportional;
+//	} else {
+//		integralMax = 0.0;
+//	}
+//
+//	if(pid->outMax < proportional){
+//		integralMin = pid->outMax - proportional;
+//	} else {
+//		integralMin = 0.0;
+//	}
+//
+//	// Set limits to integration - integral anti-windup
+//	if(pid->integrator > pid->integralMax){
+//		pid->integrator = pid->integralMax;
+//	} else if(pid->integrator < pid->integralMin){
+//		pid->integrator = pid->integralMin;
+//	}
+//
+//	// Derivative term
+//	pid->derivative = pid->k_d * (error - pid->prevError) / pid->time;
+//
+//	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
+//	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
+//
+//	// Output
+//	pid->output = proportional + pid->integrator + pid->derivative;
+//
+//	if(pid->output > pid->outMax){
+//		pid->output = pid->outMax;
+//	} else if(pid->output < pid->outMin){
+//		pid->output = pid->outMin;
+//	}
+//
+//	pid->prevError = error;
+//	pid->prevMeasurement = measured;
+//
+//	return pid->output;
+//}
 
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorState = 0;
@@ -2013,6 +2037,7 @@ void cruiseControlTaskHandler(void* parameters){
 	while(1) {
 		float target = speedToFrequency(speedTarget);
 		pwm_in.frequency = PIDControllerUpdate(target, pwm_in.frequency);
+		// TODO: last line makes no sense
 	}
 
 }
@@ -2189,4 +2214,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-

@@ -26,7 +26,10 @@
 #include "buart.h"
 #include "btcp.h"
 #include "h7Boot.h"
-#include "disp_renderer.h"
+//#include "disp_renderer.h"
+#include "ACE128Map.h"
+#include "glcd.h"
+#include "bglcd.h"
 
 /* USER CODE END Includes */
 
@@ -185,8 +188,10 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 static void sidePanelTask(const void *pv);
 static void steeringWheelTask(const void *pv);
+static void displayTask();
 static void lightsTmr(TimerHandle_t xTimer);
 static void mc2StateTmr(TimerHandle_t xTimer);
+//static void displayTmr(TimerHandle_t xTimer);
 static void motCallback(uint8_t motState);
 static void vfmUpCallback();
 static void vfmDownCallback();
@@ -239,16 +244,44 @@ int main(void)
   MX_CRC_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  MX_SPI2_Init(); //I don't know why it's not being called above
 //  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED); //Calibrate ADC (used for acceleration pedal)
-  displayInit();
+
+  //--- DRIVER DISPLAYS ---//
+  glcd_init();
+  glcd_test_circles();
+
+  HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+	int defaultTest[4] = {420, 874, -454, 69};
+	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+//	drawP1Default(defaultTest);
+//	drawP1Detailed(defaultDetailed);
+//	drawP1Activate();
+//	drawP1Deactivate();
+	drawP1IgnitionOff();
+//	drawP1BMSFault();
+
+	int defaultTest2[4] = {1, 0, 1, 87};
+	int defaultDetailed2[4] = {1, 2, 3, 4};
+	int defaultBMSFault[4] = {89, 13, 13, 49};
+	drawP2Default(defaultTest2);
+	drawP2Detailed(defaultDetailed2);
+	drawP2Activate();
+	drawP2Deactivate();
+	drawP2IgnitionOff(defaultBMSFault);
+	drawP2BMSFault(defaultBMSFault);
+  HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
+//  displayInit(); //Legacy from GEN10
+//  glcd_clear();
+
 //  xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
   xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-  xTimerStart(xTimerCreate("display", 200, pdTRUE, 0, displayTmr), 0);
+//  xTimerStart(xTimerCreate("display", 200, pdTRUE, 0, displayTmr), 0);
   buart = B_uartStart(&huart4);
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   disp_attachMotOnCallback(motCallback);
@@ -737,10 +770,10 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1571,11 +1604,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOK_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, DISP_CS_1_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
-                          |Screen_Ctrl_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
+                          |Screen_Ctrl_Pin|DISP_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2|GPIO_PIN_15, GPIO_PIN_RESET);
@@ -1585,7 +1618,8 @@ static void MX_GPIO_Init(void)
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5|DISP_A0_Pin|DISP_LED_CTRL_Pin|DISP_RST_1_Pin
+                          |DISP_RST_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, GPIO_PIN_12, GPIO_PIN_RESET);
@@ -1600,17 +1634,17 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3|GPIO_PIN_6, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PE3 PE0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_0;
+  /*Configure GPIO pins : DISP_CS_1_Pin PE0 */
+  GPIO_InitStruct.Pin = DISP_CS_1_Pin|GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PI9 PI12 PI13 Cam_Ctrl_Pin
-                           Screen_Ctrl_Pin PI4 PI7 */
+                           Screen_Ctrl_Pin DISP_CS_0_Pin PI4 PI7 */
   GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
-                          |Screen_Ctrl_Pin|GPIO_PIN_4|GPIO_PIN_7;
+                          |Screen_Ctrl_Pin|DISP_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1662,8 +1696,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PJ5 PJ12 PJ13 PJ15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15;
+  /*Configure GPIO pins : PJ5 DISP_A0_Pin DISP_LED_CTRL_Pin DISP_RST_1_Pin
+                           DISP_RST_2_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_5|DISP_A0_Pin|DISP_LED_CTRL_Pin|DISP_RST_1_Pin
+                          |DISP_RST_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1712,28 +1748,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PH14 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1;
-  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PD3 PD6 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN2;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
@@ -2174,7 +2194,7 @@ static void steeringWheelTask(const void *pv){
 	// Cruise <- Not implemented
 
 	//INDICATOR LIGHTS - SEND TO BBMB
-    //Left indicator
+    //Left indicator - SEND TO BBMB
     if ((steeringData[1] & 0b00000001) != (oldSteeringData[1] & 0b00000001)){ //If the state of the left indicator changed, send new data to BBMB
     	//If LEFT_INDICATOR == 1 --> Retract lights
     	//If LEFT_INDICATOR == 0 --> Extend lights
@@ -2188,8 +2208,8 @@ static void steeringWheelTask(const void *pv){
         B_tcpSend(btcp, bufh, 2);
     }
 
-    //Right indicator
-    if ((steeringData[1] & 0b00000010) != (oldSteeringData[1] & 0b00000010)){ //If the state of the right indicator changed, send new data to BBMB
+    //Right indicator - SEND TO BBMB
+    else if ((steeringData[1] & 0b00000010) != (oldSteeringData[1] & 0b00000010)){ //If the state of the right indicator changed, send new data to BBMB
     	//If RIGHT_INDICATOR == 1 --> Retract lights
     	//If RIGHT_INDICATOR == 0 --> Extend lights
         uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -2203,7 +2223,7 @@ static void steeringWheelTask(const void *pv){
     }
 
 	//Horn - SEND TO BBMB
-    if ((steeringData[1] & 0b00001000) != (oldSteeringData[1] & 0b00001000)){
+    else if ((steeringData[1] & 0b00001000) != (oldSteeringData[1] & 0b00001000)){
         uint8_t bufh[2] = {0x04, 0x00}; //[DATA ID, HORN STATE]
 
     	if ((steeringData[1] & 0b00001000) == 0){ //Turn on horn
@@ -2215,7 +2235,7 @@ static void steeringWheelTask(const void *pv){
     }
 
     //Encoder - SEND TO MCMB
-     if ((steeringData[0] & 0b11111111) != (oldsteeringData[0] & 0b11111111)){
+    else if ((steeringData[0] & 0b11111111) != (oldSteeringData[0] & 0b11111111)){
     	uint8_t old_ang = encoderMap8[oldSteeringData[0]];
     	uint8_t new_ang = encoderMap8[steeringData[0]];
 
@@ -2225,7 +2245,46 @@ static void steeringWheelTask(const void *pv){
         B_tcpSend(btcp, bufh, 2);
     }
 
+    //Cruise - (Try to change) Motor state and send to MCMB
+    else if ((steeringData[1] & 0b00010000) != (oldSteeringData[1] & 0b00010000)){
 
+    	//To be implemented
+
+
+
+
+    //Radio - Enable driver voice radio
+    } else if ((steeringData[1] & 0b00000100) != (oldSteeringData[1] & 0b00000100)){
+    	//No plan to implement it in GEN11
+    }
+
+    //Select button pressed - Cycle through frames on driver display
+    else if ((steeringData[2] & 0b00010000) != (oldSteeringData[2] & 0b00010000)){
+
+    }
+
+    //Up button pressed
+    else if ((steeringData[2] & 0b00000001) != (oldSteeringData[2] & 0b00010000)){
+    	//No plan to implement it in GEN11
+    }
+
+    //Down button pressed
+    else if ((steeringData[2] & 0b00000010) != (oldSteeringData[2] & 0b00010000)){
+    	//No plan to implement it in GEN11
+
+    }
+
+    //Left button pressed
+    else if ((steeringData[2] & 0b00000100) != (oldSteeringData[2] & 0b00010000)){
+    	//No plan to implement it in GEN11
+
+    }
+
+    //Right button pressed
+    else if ((steeringData[2] & 0b00001000) != (oldSteeringData[2] & 0b00010000)){
+    	//No plan to implement it in GEN11
+
+    }
 
 	B_uartDoneRead(e);
 
@@ -2271,6 +2330,8 @@ static void sidePanelTask(const void *pv){
 
 	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
 		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
+	} else {
+		return; //Data received was not from side panel
 	}
 
 	//Check CRC, optional
@@ -2279,7 +2340,7 @@ static void sidePanelTask(const void *pv){
 
   //---------- Process data ----------//
   //REAR CAMERA AND SCREEN
-  if ( (sidePanelData & 0b01000000)  == 0b01000000){
+  if (sidePanelData & (1 << 6)){
 	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
 	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
   } else {
@@ -2289,7 +2350,7 @@ static void sidePanelTask(const void *pv){
   }
 
   //FAN
-  if ( (sidePanelData & 0b00010000) == 0b00010000){
+  if (sidePanelData & (1 << 4)){
 	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_SET); //Enable fan
   } else {
 	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_RESET); //Disable fan
@@ -2298,11 +2359,56 @@ static void sidePanelTask(const void *pv){
   //AUX0 (DRL in GEN11)
   uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
-  if ((sidePanelData & 0b00000010) == 0b00000010){
+  if (sidePanelData & (1 << 1)){
 	bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
   } else { //Turn off horn
 	bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
   }
+
+  //AUX1 (not implemented in GEN11)
+  if (sidePanelData & (1 << 2)){
+	  HAL_Delay(100);
+  } else { //Turn off horn
+	  HAL_Delay(100);
+  }
+
+  //AUX2 (not implemented in GEN11)
+  if (sidePanelData & (1 << 3)){
+	  HAL_Delay(100);
+  } else { //Turn off horn
+	  HAL_Delay(100);
+  }
+
+  //ARRAY (close solar array power relays (if allowed))
+  //To be implemented
+  if (sidePanelData & (1 << 0)){
+	  HAL_Delay(100);
+  } else { //Turn off horn
+	  HAL_Delay(100);
+  }
+
+  //FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
+  //To be implemented
+  if (sidePanelData & (1 << 5)){
+	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
+	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
+
+	  //Send new motor state (if allowed)
+  } else {
+	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
+	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
+
+	  //Send new motor state (if allowed)
+  }
+
+  //IGNITION (put car into drive mode (if allowed)
+  //To be implemented
+  if (sidePanelData & (1 << 7)){
+	  HAL_Delay(100);
+  } else {
+	  HAL_Delay(100);
+  }
+
   B_tcpSend(btcp, bufh, 2);
 
   taskEXIT_CRITICAL(); // exit critical section
@@ -2331,6 +2437,30 @@ void serialParse(B_tcpPacket_t *pkt){
 			disp_setMCMBPulseFreq(pkt->payload[7]*2);
 		}
 	}
+}
+
+void displayTask(TimerHandle_t xTimer){
+//	drawP1();
+	drawP2();
+
+	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
+
+//	uint32_t id = pvTimerGetTimerID(xTimer);
+//	if(id == 0){
+//		vTimerSetTimerID(xTimer, 1);
+//	}else if(id == 1){
+//		//Draw to displays
+//		drawP1();
+//		drawP2();
+//	}else if(id == 2){
+//		xTimerChangePeriod(xTimer, 25, portMAX_DELAY);
+//		vTimerSetTimerID(xTimer, 3);
+//	}else{
+////		if(xSemaphoreTake(dispMtx, 0) == pdPASS){
+////			lv_task_handler();
+////			xSemaphoreGive(dispMtx);
+////		}
+//	}
 }
 /* USER CODE END 4 */
 

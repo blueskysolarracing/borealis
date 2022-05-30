@@ -2,27 +2,49 @@
 
 // Helper functions that programmer could use
 // converts elements in an array back to double
+double arrayToDouble(uint8_t* aryPtr, uint8_t size) {
+	double val = 0;
+	uint8_t* valPtr = (uint8_t*)&val + sizeof(val)-1;
 
-// These are not little endian (should remove)
-//double arrayToDouble(uint8_t* aryPtr, uint8_t size) {
-//	double val = 0;
-//	uint8_t* valPtr = (uint8_t*)&val + sizeof(val)-1;
-//
-//	for (int i = size-1; i >= 0 && valPtr >= (uint8_t*)&val; i--) {
-//		*valPtr = aryPtr[i];
-//		valPtr--;
-//	}
-//	return val;
-//}
-//// writes elements in double into individual elements in an array
-//void doubleToArray(double val, uint8_t* aryPtr) {
-//    uint8_t aryIdx = 0;
-//    uint8_t* ptr = (uint8_t*)&val;
-//    for(; aryIdx<sizeof(val); aryIdx++){
-//    	aryPtr[aryIdx] = *ptr;
-//    	ptr++;
-//    }
-//}
+	for (int i = size-1; i >= 0 && valPtr >= (uint8_t*)&val; i--) {
+		*valPtr = aryPtr[i];
+		valPtr--;
+	}
+	return val;
+}
+// writes elements in double into individual elements in an array
+void doubleToArray(double val, uint8_t* aryPtr) {
+    uint8_t aryIdx = 0;
+    uint8_t* ptr = (uint8_t*)&val;
+    for(; aryIdx<sizeof(val); aryIdx++){
+    	aryPtr[aryIdx] = *ptr;
+    	ptr++;
+    }
+}
+
+#include "psm.h"
+
+// Helper functions that programmer could use
+// converts elements in an array back to double
+double arrayToDouble(uint8_t* aryPtr, uint8_t size) {
+	double val = 0;
+	uint8_t* valPtr = (uint8_t*)&val + sizeof(val)-1;
+
+	for (int i = size-1; i >= 0 && valPtr >= (uint8_t*)&val; i--) {
+		*valPtr = aryPtr[i];
+		valPtr--;
+	}
+	return val;
+}
+// writes elements in double into individual elements in an array
+void doubleToArray(double val, uint8_t* aryPtr) {
+    uint8_t aryIdx = 0;
+    uint8_t* ptr = (uint8_t*)&val;
+    for(; aryIdx<sizeof(val); aryIdx++){
+    	aryPtr[aryIdx] = *ptr;
+    	ptr++;
+    }
+}
 
 
 //PSM_Init()
@@ -265,7 +287,7 @@ void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 //spiInterface is the SPI pins that are used to communicate between the stm32 and the PSM
 //uartInterface is the UART pins of the serial monitor that will output messages for debugging and information
 //channels is a string containing the numbers of the channels you want to configure, ex: channels = "134" means configure PSM channels 1,3, and 4
-void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels, uint8_t master){
+void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels){
 	//enable LVDS by outputting logic high at pin PB13
 	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
@@ -425,6 +447,8 @@ void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART
 //ex: masterPSM = 2 means that PSM channel 2 provides the clock.
 void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen){
 	//enable LVDS by outputting logic high at pin PB13
+
+	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
@@ -524,20 +548,20 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     //voltage will make up 8 most significant bytes, current will make up 8 least significant bytes of array
     //TODO CHECK ENDIANNESS !!!
 
-    uint8_t dataOutIndex = 0;
-    uint8_t* ptr = (uint8_t*)&voltage;
-
+//    uint8_t dataOutIndex = 0;
+//    uint8_t* ptr = (uint8_t*)&voltage;
+//
 //    for(; dataOutIndex < sizeof(voltage); dataOutIndex++){
 //    	dataOut[dataOutIndex] = *ptr;
 //    	ptr++;
 //    }
-
 //    ptr = (uint8_t*)&current;
+//    dataOutIndex = 0;
 //    for(; dataOutIndex < dataOutLen; dataOutIndex++){
 //    	dataOut[dataOutIndex] = *ptr;
 //    	ptr++;
 //    }
-
+//
     if (dataOutLen == 2) {
     	dataOut[0] = voltage;
     	dataOut[1] = current;

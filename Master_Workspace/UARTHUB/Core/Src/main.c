@@ -148,15 +148,34 @@ void uart4To8Parser(void* pv){
 void uart8To4Parser(void* pv){
 	int port = (int)4;
 	uint8_t buf[2048];
-	B_uartStart(&buarts[port], huarts[port]);
+	uint32_t cnt = 0;
+	buf[0] = "T";
+	buf[1] = "E";
+	buf[2] = "S";
+	buf[3] = "T";
+	buf[4] = " ";
+	B_uartStart(&buarts[0], huarts[0]);
+	B_uartStart(&buarts[1], huarts[1]);
+	B_uartStart(&buarts[2], huarts[2]);
+	B_uartStart(&buarts[3], huarts[3]);
+	B_uartStart(&buarts[4], huarts[4]);
+
 	int i = 0;
 	for(;;){
-		size_t len = B_uartRead(&buarts[port], buf);
+//		size_t len = B_uartRead(&buarts[i], buf[5]);
 		/*for(size_t i = 0; i < 5; i++){
 			if(i == port) continue;
 			B_uartWrite(&buarts[i], buf, len);
 		}*/
-		B_uartWrite(&buarts[2], buf, len); //port 4 = uart8
+		buf[5] = cnt;
+		cnt++;
+		B_uartWrite(&buarts[0], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[1], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[2], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[3], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[4], buf, 6); //port 4 = uart8
+
+
 		i++;
 	}
 }
@@ -242,6 +261,34 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   //TODO : disable all except 2 and 4, and test if transmission still works
+
+	uint8_t buf[2048];
+	uint32_t cnt = 1;
+	char msg[50];
+	B_uartStart(&buarts[0], huarts[0]);
+	B_uartStart(&buarts[1], huarts[1]);
+	B_uartStart(&buarts[2], huarts[2]);
+	B_uartStart(&buarts[3], huarts[3]);
+	B_uartStart(&buarts[4], huarts[4]);
+
+	for(;;){
+//		size_t len = B_uartRead(&buarts[port], buf);
+//		B_uartWrite(&buarts[i], buf, len);
+		cnt++;
+//		B_uartWrite(&buarts[0], buf, 6); //port 4 = uart8
+//		B_uartWrite(&buarts[1], buf, 6); //port 4 = uart8
+		sprintf(msg, "Test: %d\n", cnt);
+//		HAL_UART_Transmit(&huart1, msg, 50, 10);
+		HAL_UART_Transmit(&huart2, msg, 50, 10);
+		HAL_UART_Transmit(&huart3, msg, 50, 10);
+		HAL_Delay(50);
+//		HAL_UART_Transmit(&huart4, msg, 50, 10);
+//		HAL_UART_Transmit(&huart5, msg, 50, 10);
+
+//		B_uartWrite(&buarts[2], buf, 6); //port 4 = uart8
+//		B_uartWrite(&buarts[3], buf, 6); //port 4 = uart8
+//		B_uartWrite(&buarts[4], buf, 6); //port 4 = uart8
+	}
 
   BaseType_t status;
   status = xTaskCreate(uartRxParser, "UartRxParser1", 4096, (void*)0, 4, NULL);
@@ -1665,14 +1712,30 @@ static void MX_GPIO_Init(void)
 void uartRxParser(void* pv){
 	int port = (int)pv;
 	uint8_t buf[2048];
+	uint32_t cnt = 1;
 	B_uartStart(&buarts[port], huarts[port]);
 	int i = 0;
+	B_uartStart(&buarts[0], huarts[0]);
+	B_uartStart(&buarts[1], huarts[1]);
+	B_uartStart(&buarts[2], huarts[2]);
+	B_uartStart(&buarts[3], huarts[3]);
+	B_uartStart(&buarts[4], huarts[4]);
+
 	for(;;){
-		size_t len = B_uartRead(&buarts[port], buf);
-		for(size_t i = 0; i < 5; i++){
-			if(i == port) continue;
-			B_uartWrite(&buarts[i], buf, len);
-		}
+//		size_t len = B_uartRead(&buarts[port], buf);
+//		B_uartWrite(&buarts[i], buf, len);
+		buf[5] = cnt;
+		cnt++;
+		B_uartWrite(&buarts[0], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[1], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[2], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[3], buf, 6); //port 4 = uart8
+		B_uartWrite(&buarts[4], buf, 6); //port 4 = uart8
+
+//		for(size_t i = 0; i < 5; i++){
+//			if(i == port) continue;
+//			B_uartWrite(&buarts[i], buf, len);
+//		}
 		i++;
 	}
 }

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdlib.h>
 
 //choosen delta t are from E2_DYNData_35_P25 script 1
@@ -49,65 +50,5 @@ void transpose_EKF(float* in, float* _out,  uint8_t* dimIn);
 void createIdentity_EKF(float* inBuffer, uint8_t size);
 uint8_t inverse_EKF(float* inMatrix, float* outMatrix, uint8_t* dim);
 void run_EKF();
-
-// -------------- CONSTANTS AND EKF ALGO VARIABLES --------------
-uint8_t dim1[2] = {STATE_NUM, STATE_NUM};
-uint8_t dim2[2] = {STATE_NUM, INPUT_NUM};
-uint8_t dim3[2] = {STATE_NUM, 1};
-uint8_t dim4[2] = {OUTPUT_NUM, STATE_NUM};
-uint8_t dim5[2] = {1, 1};
-uint8_t dim6[2] = {INPUT_NUM, 1};
-uint8_t dim7[2] = {OUTPUT_NUM, INPUT_NUM};
-
-// a priori state covariance matrix - k+1|k (prediction)
-float P_k[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-// noise in state measurement (sampled) - expected value of the distribution
-float Q[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-// noise in output sensor (sampled) - expected value of the distribution
-float R[OUTPUT_NUM] = {0.0f};
-// a priori measurement covariance 
-float S[OUTPUT_NUM] = {0.0f};
-// Kalman Weight
-float W[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
-
-float covList[STATE_NUM] = {VAR_Z, VAR_I_CT, VAR_I_D};
-float A[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-float B[STATE_NUM*INPUT_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-float C[STATE_NUM*OUTPUT_NUM] = {0, -R_CT, -R_D};
-float D[INPUT_NUM] = {-R_INT, 0.0f};
-
-float U[INPUT_NUM] = {0.0f, 0.0f};
-float V_Measured[1] = {0.0f};
-
-// ------------- HELPER VARIABLES TO COMPUTE INVERSES -------------
-
-float A_T[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-float A_P[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-float A_P_AT[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-float P_k1[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-
-float C_T[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
-float C_P[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
-float C_P_CT[OUTPUT_NUM*OUTPUT_NUM] = {0.0f};
-
-float SInv[OUTPUT_NUM*OUTPUT_NUM] = {0.0f};
-
-float P_CT[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
-
-float W_T[OUTPUT_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f};
-float W_S[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
-float W_S_WT[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-
-float A_X[STATE_NUM] = {0.0f, 0.0f, 0.0f};
-float B_U[STATE_NUM*INPUT_NUM] = {0.0f, 0.0f};
-
-float X_k1[STATE_NUM] = {0.0f, 0.0f, 0.0f};
-
-float Z_k1[OUTPUT_NUM] = {0.0f};
-float C_X[OUTPUT_NUM] = {0.0f};
-float D_U[OUTPUT_NUM] = {0.0f};
-
-float Z_err[OUTPUT_NUM] = {0.0f};
-float W_Zerr[STATE_NUM] = {0.0f};
 
 #endif // BATTERY_EKF_H
