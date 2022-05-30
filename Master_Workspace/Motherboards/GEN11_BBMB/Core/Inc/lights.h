@@ -49,3 +49,9 @@ void turn_on_hazard_lights(struct lights_stepper_ctrl* lights, double pwm_duty_c
 void turn_off_hazard_lights(struct lights_stepper_ctrl* lights);
 void turn_on_fault_indicator(struct lights_stepper_ctrl* lights);
 void turn_off_fault_indicator(struct lights_stepper_ctrl* lights);
+
+
+TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim5;
