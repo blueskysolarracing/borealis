@@ -40,36 +40,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-// SPB
-// GPIO PORT B: CAMERA, AUX2, FWD_REV, AUX1
-// GPIO PORT C: AUX0, IGNITION, FAN
-// GPIO PORT D: ARRAY
-// (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
-#define AUX1 1
-#define FWD_REV 2
-#define AUX2 4
-#define CAMERA 8
-#define FAN 16
-#define IGNITION 32
-#define AUX0 64
-#define ARRAY 128
-#define BSSR_SPB_RX_BUFFER_SIZE 256
-
-
-// SWB
-// GPIO PORT B: SELECT, RIGHT, DOWN, LEFT, UP, <blank>, CRUISE_SIGNAL
-// GPIO PORT C1: HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
-// GPIO PORT C2: ACC8 -> ACC1
-#define SELECT 64
-#define RIGHT 32
-#define DOWN 16
-#define LEFT 8
-#define UP 4
-#define CRUISE 1
-#define HORN 8
-#define RAD_SIG 4
-#define L_SIG 2
-#define R_SIG 1
 
 //#define RIGHT_SIG 16
 //#define HORN 128
@@ -249,17 +219,21 @@ int main(void)
 
   //--- DRIVER DISPLAYS ---//
   glcd_init();
+
+  //Testing testing
   glcd_test_circles();
 
-  HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-//	drawP1Default(defaultTest);
-//	drawP1Detailed(defaultDetailed);
-//	drawP1Activate();
-//	drawP1Deactivate();
+
+	change_to_P1();
+
+	drawP1Default(defaultTest);
+	drawP1Detailed(defaultDetailed);
+	drawP1Activate();
+	drawP1Deactivate();
 	drawP1IgnitionOff();
-//	drawP1BMSFault();
+	drawP1BMSFault();
 
 	int defaultTest2[4] = {1, 0, 1, 87};
 	int defaultDetailed2[4] = {1, 2, 3, 4};
@@ -270,13 +244,10 @@ int main(void)
 	drawP2Deactivate();
 	drawP2IgnitionOff(defaultBMSFault);
 	drawP2BMSFault(defaultBMSFault);
-  HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 //  displayInit(); //Legacy from GEN10
 //  glcd_clear();
 
-//  xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
   xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-//  xTimerStart(xTimerCreate("display", 200, pdTRUE, 0, displayTmr), 0);
   buart = B_uartStart(&huart4);
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
@@ -1853,41 +1824,6 @@ static void mc2StateTmr(TimerHandle_t xTimer){
     pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
     pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
     HAL_ADC_Stop(&hadc1);
-
-	//TR: I'm not quite sure what this does...
-//	int accValTemp = accValue == 255 ? currentValue : accValue;
-//	if(!started){
-//		started++;
-//		currentValue = accValTemp;
-//	} else{
-//		positiveTurn = (currentValue + 63) % 128;
-//		negativeTurn = (currentValue - 64) % 128;
-//		if(positiveTurn > currentValue){
-//			if(accValTemp <= positiveTurn && accValTemp >= currentValue){
-//				difference = accValTemp - currentValue;
-//			} else {
-//				if(accValTemp < currentValue){
-//					difference = accValTemp - currentValue;
-//				} else {
-//					difference = -(128 -(accValTemp - currentValue));
-//				}
-//			}
-//		} else {
-//			if(accValTemp <= currentValue && accValTemp >= negativeTurn){
-//				difference = -(currentValue - accValTemp);
-//			} else {
-//				if(currentValue < accValTemp){
-//					difference = accValTemp - currentValue;
-//				} else {
-//					difference = 128 - (currentValue - accValTemp);
-//				}
-//			}
-//		}
-//		difference = difference < 0 ? -difference * difference : difference * difference;
-//		outputVal += difference;
-////		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
-//
-//		currentValue = accValTemp;
 
 // -------- FORWARD/REVERSE -------- //
 		taskENTER_CRITICAL();

@@ -73,7 +73,7 @@ enum Chase_Data_ID {
 enum BMS_Data_ID {
 	BMS_CELL_TEMP,
 	BMS_CELL_VOLT,
-	BMS_CELL_SO = 0x04
+	BMS_CELL_SOC_ID = 0x04
 };
 
 

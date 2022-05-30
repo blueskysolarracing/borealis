@@ -52,6 +52,30 @@ void delay_ms(uint32_t ms);
 
 //#define BACKLIGHT_INVERT	// Uncomment if LED backlight turn on with low value
 
+void change_to_P2(){
+	#undef CONTROLLER_SPI_SS_PORT
+	#undef CONTROLLER_SPI_RST_PORT
+	#undef CONTROLLER_SPI_SS_PIN
+	#undef CONTROLLER_SPI_RST_PIN
+
+	#define CONTROLLER_SPI_SS_PORT DISP_CS_1_GPIO_Port
+	#define CONTROLLER_SPI_RST_PORT DISP_RST_2_GPIO_Port
+	#define CONTROLLER_SPI_SS_PIN DISP_CS_1_Pin
+	#define CONTROLLER_SPI_RST_PIN DISP_RST_2_Pin
+}
+
+void change_to_P1(){
+	#undef CONTROLLER_SPI_SS_PORT
+	#undef CONTROLLER_SPI_RST_PORT
+	#undef CONTROLLER_SPI_SS_PIN
+	#undef CONTROLLER_SPI_RST_PIN
+
+	#define CONTROLLER_SPI_SS_PORT DISP_CS_0_GPIO_Port
+	#define CONTROLLER_SPI_RST_PORT DISP_RST_1_GPIO_Port
+	#define CONTROLLER_SPI_SS_PIN DISP_CS_0_Pin
+	#define CONTROLLER_SPI_RST_PIN DISP_RST_1_Pin
+}
+
 void glcd_init(void)
 {
 

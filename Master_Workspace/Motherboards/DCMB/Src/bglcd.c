@@ -221,6 +221,7 @@ void drawP1Activate(){
         glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
         cnt++;
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -233,6 +234,7 @@ void drawP1Activate(){
         glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
         cnt++;
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -255,6 +257,7 @@ void drawP1Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -265,6 +268,7 @@ void drawP1Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -289,6 +293,7 @@ void drawP1IgnitionOff(){
         glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
         x+=6;
         cnt++;
+        ptr++;
     }
 
     y = 36;
@@ -299,6 +304,7 @@ void drawP1IgnitionOff(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -321,6 +327,7 @@ void drawP1BMSFault(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -331,6 +338,7 @@ void drawP1BMSFault(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -496,6 +504,7 @@ void drawP2Activate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -506,6 +515,7 @@ void drawP2Activate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
@@ -528,6 +538,7 @@ void drawP2Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -538,6 +549,7 @@ void drawP2Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
@@ -731,25 +743,4 @@ void drawP2(){
 //	drawP2Deactivate();
 //	drawP2IgnitionOff(defaultBMSFault);
 //	drawP2BMSFault(defaultBMSFault);
-}
-
-void selectP1(){
-//	#define CONTROLLER_SPI_SS_PORT  DISP_CS_0_GPIO_Port
-//	#define CONTROLLER_SPI_SS_PIN   DISP_CS_0_Pin
-//	#define CONTROLLER_SPI_SS_RCC	RCC_AHB4Periph_GPIOI
-//	#define CONTROLLER_SPI_RST_PORT DISP_RST_1_GPIO_Port
-//	#define CONTROLLER_SPI_RST_PIN  DISP_RST_1_Pin
-//	#define CONTROLLER_SPI_RST_RCC	RCC_AHB4Periph_GPIOJ
-}
-
-void selectP2(){
-	#define CONTROLLER_SPI_SS_PORT  DISP_CS_1_GPIO_Port
-	#define CONTROLLER_SPI_SS_PIN   DISP_CS_1_Pin
-	#define CONTROLLER_SPI_SS_RCC	RCC_AHB4Periph_GPIOE
-//	#define CONTROLLER_SPI_DC_PORT  DISP_A0_GPIO_Port
-//	#define CONTROLLER_SPI_DC_PIN   DISP_A0_Pin
-//	#define CONTROLLER_SPI_DC_RCC	RCC_AHB4Periph_GPIOJ
-	#define CONTROLLER_SPI_RST_PORT DISP_RST_2_GPIO_Port
-	#define CONTROLLER_SPI_RST_PIN  DISP_RST_2_Pin
-	#define CONTROLLER_SPI_RST_RCC	RCC_AHB4Periph_GPIOJ
 }

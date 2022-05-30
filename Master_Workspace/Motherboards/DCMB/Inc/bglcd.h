@@ -22,6 +22,4 @@ void drawP2Deactivate();
 void drawP2IgnitionOff(int value[4]);
 void drawP2BMSFault(int value[4]);
 void drawP2();
-void selectP1();
-void selectP2();
 #endif /* BGLCD_H_ */

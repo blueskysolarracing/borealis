@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 //choosen delta t are from E2_DYNData_35_P25 script 1
-#define NUM_14P_UNITS (29)
+#define NUM_14P_UNITS (5)
 #define DELTA_T (1.0f)  // sampling rate in seconds. constant
 
 #define STATE_NUM (3)

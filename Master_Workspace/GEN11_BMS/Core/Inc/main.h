@@ -79,9 +79,9 @@ void Error_Handler(void);
 //BMS monitors the module to operate withing these limits. If one is violated, it issues a BMS fault, which opens all the power
 //relays, switches the car to supplemental battery supply and overall puts the car into safe state
 //Constants from LG MJ1 datasheet: https://www.nkon.nl/sk/k/Specification%20INR18650MJ1%2022.08.2014.pdf
-#define OV_threshold 4.2 //Cell overvoltage trip point
-#define UV_threshold 2.5 //Cell undervoltage trip point
-#define OT_threshold 60 //Overtemperature trip point
+#define OV_THRESHOLD 4.2 //Cell overvoltage trip point
+#define UV_THRESHOLD 2.5 //Cell undervoltage trip point
+#define OT_THRESHOLD 60.0 //Overtemperature trip point
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
