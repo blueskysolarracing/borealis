@@ -170,7 +170,7 @@ static void accResetCallback();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint8_t pToggle = 0;
 /* USER CODE END 0 */
 
 /**
@@ -221,13 +221,23 @@ int main(void)
   glcd_init();
 
   //Testing testing
-  glcd_test_circles();
+  pToggle = 0;
+//  glcd_test_circles();
 
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-	change_to_P1();
+	uint8_t sel = 0;
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	while(1){
+		drawP1(sel);
+		drawP2(sel);
 
+		sel = sel + 1;
+		sel = sel % 6;
+
+		HAL_Delay(500);
+	}
 	drawP1Default(defaultTest);
 	drawP1Detailed(defaultDetailed);
 	drawP1Activate();
@@ -1892,7 +1902,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 //		disp_setDCMBAccPotPosition(outputVal);
 //		B_tcpSend(btcp, buf, 8);
 }
-
+/*
 void ignition_check(uint8_t data){
 	static long ignition_press_time =  0;
 	//static uint8_t ignition_state_inner = 0;
@@ -1920,7 +1930,8 @@ void ignition_check(uint8_t data){
 	}
 	taskEXIT_CRITICAL();
 }
-
+*/
+/*
 void array_check(uint8_t data){
 	static long array_press_time = 0;
 	static uint8_t button_pressed = 0;
@@ -1964,7 +1975,8 @@ void array_check(uint8_t data){
 	}
 	taskEXIT_CRITICAL();
 }
-
+*/
+/*
 static void buttonCheck(uint8_t state){
 // side panel
 // (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
@@ -2018,7 +2030,8 @@ static void buttonCheck(uint8_t state){
   prev_data = data;
   taskEXIT_CRITICAL();
 }
-
+*/
+/*
 static void steeringButtonCheck(uint8_t *state){
 	static long motor_press_time = 0;
 	static uint8_t motor_pressed = 0;
@@ -2093,6 +2106,7 @@ static void steeringButtonCheck(uint8_t *state){
 	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 
 }
+*/
 
 static void steeringWheelTask(const void *pv){
 // {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
@@ -2376,8 +2390,8 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void displayTask(TimerHandle_t xTimer){
-//	drawP1();
-	drawP2();
+	drawP1(0);
+	drawP2(0);
 
 	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
 
