@@ -117,18 +117,19 @@ int main(void)
 	psmPeriph.DreadyPin = DReady_Pin;
 	psmPeriph.DreadyPort = DReady_GPIO_Port;
 
-	PSM_Init(&psmPeriph, 3); //2nd argument is PSM ID
-	configPSM(&psmPeriph, &hspi2, &huart2, "1234", 2);
+	PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
+	configPSM(&psmPeriph, &hspi2, &huart2, "12");
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	char printString[50];
   while (1){
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  char printString[50];
+
 
 //	  double PSMBuffer2[30] = {-1, -1, -1};
 //	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer2, 2);
@@ -136,7 +137,7 @@ int main(void)
 //	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
 
 	  double PSMBuffer[30] = {-1, -1, -1};
-	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, PSMBuffer, 2);
+	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer, 2);
 	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
 	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
 

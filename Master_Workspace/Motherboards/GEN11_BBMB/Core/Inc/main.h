@@ -59,14 +59,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define ON_SIG_Pin GPIO_PIN_3
-#define ON_SIG_GPIO_Port GPIOE
-#define GND_SIG_Pin GPIO_PIN_9
-#define GND_SIG_GPIO_Port GPIOI
-#define PRE_SIG_Pin GPIO_PIN_2
-#define PRE_SIG_GPIO_Port GPIOF
-#define DISCHARGE_Pin GPIO_PIN_13
-#define DISCHARGE_GPIO_Port GPIOI
 #define LED2_Pin GPIO_PIN_14
 #define LED2_GPIO_Port GPIOE
 #define LED0_Pin GPIO_PIN_6
@@ -89,12 +81,11 @@ void Error_Handler(void);
 #define PSM_CS_3_GPIO_Port GPIOG
 #define PSM_CS_0_Pin GPIO_PIN_0
 #define PSM_CS_0_GPIO_Port GPIOI
-#define HORN_EN_Pin GPIO_PIN_3
-#define HORN_EN_GPIO_Port GPIOK
 #define TMC5160_CS1_Pin GPIO_PIN_4
 #define TMC5160_CS1_GPIO_Port GPIOK
 #define Light_ctrl_PWR_EN_Pin GPIO_PIN_5
 #define Light_ctrl_PWR_EN_GPIO_Port GPIOK
+
 /* USER CODE BEGIN Private defines */
 #define TCP_ID 0x01
 

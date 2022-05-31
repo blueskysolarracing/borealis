@@ -60,6 +60,7 @@ TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_uart4_rx;
 DMA_HandleTypeDef hdma_uart4_tx;
 
@@ -91,6 +92,7 @@ static void MX_SPI2_Init(void);
 static void MX_SPI5_Init(void);
 static void MX_CRC_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -144,7 +146,38 @@ int main(void)
   MX_SPI5_Init();
   MX_CRC_Init();
   MX_TIM3_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  struct PSM_Peripheral psmPeriph;
+
+  	psmPeriph.CSPin0 = PSM_CS_0_Pin;
+  	psmPeriph.CSPin1 = PSM_CS_1_Pin;
+  	psmPeriph.CSPin2 = PSM_CS_2_Pin;
+  	psmPeriph.CSPin3 = PSM_CS_3_Pin;
+
+  	psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
+  	psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
+  	psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
+  	psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
+
+  	psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+  	psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+
+  	psmPeriph.DreadyPin = PSM_DReady_Pin;
+  	psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+
+  PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
+  configPSM(&psmPeriph, &hspi2, &huart2, "12");
+
+  while(1){
+	  char printString[50];
+	  double PSMBuffer[30] = {-1, -1, -1};
+	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSMBuffer, 2);
+	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
+	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+	  HAL_Delay(2000);
+  }
+
   //--- LIGHTS ---//
   lightsPeriph.CSPin0 = TMC5160_CS0_Pin;
   lightsPeriph.CSPort0 = TMC5160_CS0_GPIO_Port;
@@ -744,6 +777,54 @@ static void MX_UART4_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart2, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart2, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -868,12 +949,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA2 PA3 PA4 PA5
-                           PA8 PA9 PA10 PA11
-                           PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_15;
+  /*Configure GPIO pins : PA4 PA5 PA8 PA9
+                           PA10 PA11 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_9
+                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
