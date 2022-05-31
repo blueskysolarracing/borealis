@@ -2052,11 +2052,27 @@ static void steeringButtonCheck(uint8_t *state){
 ////				motor_press_time = 0;
 ////				return;
 ////			}
-//			motor_pressed = 0;
-//			motor_press_time = 0;
-//			motor_state ^= 1;
-//			motorState = motor_state;
-//		}
+////		}
+////	} else {
+////		vfm_up_press_time = 0;
+////		vfm_up_pressed = 0;
+////	}
+////
+////	if(!(state[0]&DPAD_RIGHT)){
+////		if(vfm_down_press_time == 0){
+////			vfm_down_press_time = xTaskGetTickCount();
+////		} else if ((vfm_down_press_time + 1000 < xTaskGetTickCount()) && vfm_down_pressed == 0){
+////			vfm_down_press_time = 0;
+////			if(last_vfm_change_time + 500 < xTaskGetTickCount()){
+////				vfmDownState ^= 1;
+////				last_vfm_change_time = xTaskGetTickCount();
+////			}
+////		}
+////	} else {
+////		vfm_down_press_time = 0;
+////		vfm_down_pressed = 0;
+////	}
+//	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 //
 //	} else {
 //		motor_press_time = 0;
@@ -2417,7 +2433,7 @@ void displayTask(TimerHandle_t xTimer){
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
+  * @param  argument: Not used
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
@@ -2481,4 +2497,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
