@@ -74,6 +74,8 @@ void Error_Handler(void);
 #define LED1_GPIO_Port GPIOB
 #define LTC6810_CS_Pin GPIO_PIN_9
 #define LTC6810_CS_GPIO_Port GPIOC
+#define RS485_EN_Pin GPIO_PIN_5
+#define RS485_EN_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 //BMS monitors the module to operate withing these limits. If one is violated, it issues a BMS fault, which opens all the power
@@ -82,6 +84,11 @@ void Error_Handler(void);
 #define OV_THRESHOLD 4.2 //Cell overvoltage trip point
 #define UV_THRESHOLD 2.5 //Cell undervoltage trip point
 #define OT_THRESHOLD 60.0 //Overtemperature trip point
+#define NUM_TEMP_SENSE 6 //Number of temperature sensors on battery pack
+#define MEAS_PERIOD 100 //Time between temperature/voltage measurements (ms)
+#define SEND_PERIOD 3000 //Time between sending temperature/voltage measurements to BBMB (for broadcasting to rest of car; ms)
+
+#define TCP_ID BMS_ID
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

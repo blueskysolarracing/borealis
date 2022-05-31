@@ -73,7 +73,15 @@ enum Chase_Data_ID {
 enum BMS_Data_ID {
 	BMS_CELL_TEMP,
 	BMS_CELL_VOLT,
+	BMS_ERROR_STATUS = 0x03,
 	BMS_CELL_SOC_ID = 0x04
+};
+
+enum BMS_Error_Code {
+	BMS_OV = 0x01, //Cell overvoltage
+	BMS_UV = 0x02, //Cell undervoltage
+	BMS_OT = 0x03, //Cell overtemperature
+	BMS_LTC6810_MUTE = 0x04 //Not receiving response from LTC6810 (cause safe state because we can't measure cell voltage and temperature anymore)
 };
 
 
