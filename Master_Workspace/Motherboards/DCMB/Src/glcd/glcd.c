@@ -1,4 +1,4 @@
-/**
+ /**
 	\file glcd.c
 	\author Andy Gock
 	\brief Basic GLCD functions affecting bounding box manipulation,

@@ -37,7 +37,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define NUM_CELLS 5 //Number of cells in battery pack (always 5 except for 1 pack, where it is 4
-#define NUM_TEMP_SENSE 6 //Number of temperature sensors on battery pack
+
+// -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
+#define MY_ID 0 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS)
+// ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
 /* USER CODE END PD */
 
@@ -50,6 +53,8 @@
  CRC_HandleTypeDef hcrc;
 
 SPI_HandleTypeDef hspi2;
+
+TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart3;
@@ -66,11 +71,17 @@ static void MX_SPI2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_CRC_Init(void);
+static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void LTC6810_callback(TimerHandle_t xTimer);
-static void serial_Task(const void *pv);
+void LTC6810_Task(const void *pv);
+
+void serial_Task(const void *pv);
+
+void periodic_send_callback(TimerHandle_t xTimer);
+void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send);
 
 /* USER CODE END PFP */
 
@@ -79,11 +90,14 @@ static void serial_Task(const void *pv);
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
 
-float voltage_array[NUM_CELLS]; //Voltage of each cell
+EKF_Battery battery;
+
+float voltage_array[NUM_CELLS]; //Voltage measurements
 float SoC_array[NUM_CELLS]; //State of Charge of each cell
-float current; //Current drawn from module (comes from PSM from BBMB)
 float temperature_array[NUM_TEMP_SENSE]; //Temperature measurements
 
+uint8_t send_to_bus = 0; //Flag to send voltage and temperature measurements to bus
+uint8_t start_LTC6810_meas = 1; //Flag to start LTC6810 measurements
 /* USER CODE END 0 */
 
 /**
@@ -118,29 +132,23 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_CRC_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
-//  buart = B_uartStart(&huart1);
-//  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
-//
-//  LTC6810_tim = xTimerCreate("LTC6810_Timer",  pdMS_TO_TICKS(200), pdTRUE, (void *)0, LTC6810_callback); //LTC6810 measurements every 200ms
-//  xTimerStart(LTC6810_tim, 0);
+  //--- COMMS ---//
+  buart = B_uartStart(&huart1);
+  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+  xTaskCreate(serial_Task, "serial_Task", 1024, 0, 1, NULL);
+  xTimerStart(xTimerCreate("Periodic_Send_Timer",  pdMS_TO_TICKS(SEND_PERIOD), pdTRUE, (void *)0, periodic_send_callback), 0); //Generate flag to send data periodically to bus
 
-//  xTaskCreate(serial_Task, "serial_Task", 1024, badc, 1, NULL); //3
+  //--- MEASUREMENTS ---//
+  xTimerStart(xTimerCreate("LTC6810_Timer",  pdMS_TO_TICKS(MEAS_PERIOD), pdTRUE, (void *)0, LTC6810_callback), 0); //Temperature and voltage measurements
+  xTaskCreate(LTC6810_Task, "LTC6810_Task", 1024, 0, 1, NULL);
 
- EKF_Battery test;
- initBatteryAlgo(&test);
+  initBatteryAlgo(&battery);
 
-  while (1){
-	  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-	  for (int i = 0; i < 1000; i++){
-			for (int i = 0; i < 5; i++){
-				SoC_array[i] = runEKF(&test.batteryPack[0], 16.234, 3.82);
-			}
-	  }
-	  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
-
-	  HAL_Delay(1000);
-  }
+  //--- MCU OK LED ---//
+  NVIC_EnableIRQ(TIM7_IRQn);
+  HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
   /* USER CODE END 2 */
 
@@ -180,9 +188,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-  /* USER CODE END 3 */
   }
+  /* USER CODE END 3 */
 }
 
 /**
@@ -306,6 +313,44 @@ static void MX_SPI2_Init(void)
 }
 
 /**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 63999;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 999;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -397,7 +442,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, EN_PWR_Pin|EN_BLN_PWR_Pin|LED1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, EN_PWR_Pin|EN_BLN_PWR_Pin|LED1_Pin|RS485_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : AFE_WDT_Pin LTC6810_CS_Pin */
   GPIO_InitStruct.Pin = AFE_WDT_Pin|LTC6810_CS_Pin;
@@ -425,8 +470,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(PSENSE_ALERT_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : EN_PWR_Pin EN_BLN_PWR_Pin LED1_Pin */
-  GPIO_InitStruct.Pin = EN_PWR_Pin|EN_BLN_PWR_Pin|LED1_Pin;
+  /*Configure GPIO pins : EN_PWR_Pin EN_BLN_PWR_Pin LED1_Pin RS485_EN_Pin */
+  GPIO_InitStruct.Pin = EN_PWR_Pin|EN_BLN_PWR_Pin|LED1_Pin|RS485_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -435,79 +480,206 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//void LTC6810_callback(TimerHandle_t xTimer){
-//	//This callback is called periodically to update voltage and temperature measurements
-//
-//	//---- LTC6810 MEASUREMENTS ----//
-//	...do measurements here
-//
-//	//---- BATTERY FAULT CHECK----//
-//	//Check for UV, OV faults
-//	for (int i = 0; i < 5; i++){
-//		if (voltage[i] > OV_threshold){
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
-//		} else if (voltage[i] < UV_threshold){
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
-//		} else {
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-//		}
-//	}
-//
-//	//Check for OT faults
-//	for (int i = 0; i < 6; i++){
-//		if (temperature[i] > OT_threshold){
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
-//		} else {
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-//		}
-//	}
-//
-//	//Update global variables
-//	taskENTER_CRITICAL();
-//	voltage_array[] =
-//	temperature_array[] =
-//	taskEXIT_CRITICAL;
-//}
-//
-//void serial_Task(void * argument)
-//{
-//  /* USER CODE BEGIN senderTaskHandle */
-//  /* Infinite loop */
-//	B_bufQEntry_t *e;
-//
-//	for(;;){
-//
-//	e = B_uartRead(buart_main);
-//	//--- SoC REQUEST FROM BBMB ---//
-//	if ((e->buf[0] == BSSR_SERIAL_START) && (e->buf[2] == BBMB_ID) && (e->buf[4] == BBMB_SOC_REQUEST)){
-//
-//		//Get current
-//		taskENTER_CRITICAL();
-//		current =
-//		taskEXIT_CRITICAL;
-//
-//		//SoC computation for each 14P group
-//		for (int i = 0; i < NUM_CELLS; i++){
-//			SoC_array[i] = runEKF(0, 0, current, voltage_array[i]);
-//		}
-//
-//		//Send SoC data
-//		uint8_t buf[24];
-//		buf[0] = BMS_CELL_SOC;
-//	...prep buffer
-//		B_tcpSend(btcp, LP_busMetrics, sizeof(buf));
-//		taskEXIT_CRITICAL();
-//
-//
-//	} else if (...) {
-//	}
-//
-//
-//	//Check CRC, optional
-//	B_uartDoneRead(e);
-//  /* USER CODE END senderTaskHandle */
-//	}
-//}
+void LTC6810_callback(TimerHandle_t xTimer){
+	taskENTER_CRITICAL();
+	start_LTC6810_meas = 1; //Start LTC6810 measurements
+	taskEXIT_CRITICAL();
+}
+
+void periodic_send_callback(TimerHandle_t xTimer){
+	taskENTER_CRITICAL();
+	send_to_bus = 1; //Start sending current and voltage to bus
+	taskEXIT_CRITICAL();
+}
+
+void LTC6810_Task(const void *pv){
+	//This callback is called periodically to update voltage and temperature measurements
+	float local_voltage_array[NUM_CELLS]; //Voltage of each cell
+	float local_temp_array[NUM_TEMP_SENSE]; //Temperature readings
+
+	if (start_LTC6810_meas){
+		//---- LTC6810 MEASUREMENTS ----//
+		LTC6810_meas_voltage(local_voltage_array, NUM_CELLS); //Perform voltage measurements and store in array
+		LTC6810_meas_temperature(local_temp_array, NUM_TEMP_SENSE); //Perform temperature measurements and store in array
+
+		//---- BATTERY FAULT CHECK----//
+		//Check for UV, OV faults
+		for (int i = 0; i < 5; i++){
+			if (voltage_array[i] > OV_THRESHOLD){ //Overvoltage
+				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
+				htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //Switch to 12V power
+				send_error_msg(i, BMS_OV, voltage_array[i]);
+
+			} else if (voltage_array[i] < UV_THRESHOLD){ //Undervoltage
+				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
+				htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+				send_error_msg(i, BMS_UV, voltage_array[i]);
+
+			} else { //Voltage OK
+				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
+			}
+		}
+
+		//Check for OT faults
+		for (int i = 0; i < 6; i++){
+			if (temperature_array[i] > OT_THRESHOLD){
+				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
+				htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+				send_error_msg(i, BMS_OT, temperature_array[i]);
+
+			} else {
+				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
+			}
+		}
+
+		//Update global variables
+		taskENTER_CRITICAL();
+		for (int i = 0; i < NUM_CELLS; i++){	voltage_array[i] = local_voltage_array[i];	}
+		for (int i = 0; i < NUM_TEMP_SENSE; i++){	temperature_array[i] = local_temp_array[i];	}
+		start_LTC6810_meas = 0;
+		taskEXIT_CRITICAL();
+	} else {
+		taskYIELD();
+	}
+}
+
+void serial_Task(const void *pv)
+{
+  /* USER CODE BEGIN senderTaskHandle */
+  /* Infinite loop */
+	B_bufQEntry_t *e;
+
+	for(;;){
+	//Protocol: https://docs.google.com/document/d/1MUFU9wSo2Ry1m0lmkW3wfJLzdSD-2Bsz/edit#
+
+	//--- RECEIVE ---//
+	e = B_uartRead(buart); //Get data
+
+	if ((e->buf[0] == BSSR_SERIAL_START) && (e->buf[2] == BBMB_ID)){ //If data from BBMB
+		switch (e->buf[4]){ //Data ID
+		//--- SoC REQUEST FROM BBMB ---//
+			case BBMB_SOC_REQUEST_ID:
+				if (e->buf[5] == MY_ID){ //If BBMB is talking to me
+					float current;
+					current = arrayToFloat(e->buf + 6);
+					B_uartDoneRead(e);
+
+					//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough
+					for (int i = 0; i < NUM_CELLS; i++){
+						SoC_array[i] = runEKF(&battery.batteryPack[i], current, voltage_array[i]);
+					}
+
+					//Send back SoC for all cells
+					uint8_t buf_soc[4 + 5*4]; //[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+					buf_soc[0] = BMS_CELL_SOC_ID;
+					buf_soc[1] = MY_ID;
+
+					//Pack SoCs into buffer
+					for (int i = 0; i < 5; i++){
+						if (i >= NUM_CELLS){
+							for (int j = 0; j < sizeof(float); j++){	buf_soc[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
+
+						} else {
+							uint8_t floatArray[4];
+							floatToArray(SoC_array[i], floatArray); //Convert float into array
+
+							//Pack into buffer
+							for (int j = 0; j < sizeof(float); j++){
+								buf_soc[4 + sizeof(float) * i + j] = floatArray[j];
+							}
+						}
+					}
+					//Send
+					HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+					B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+					HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+				}
+				break;
+	//		case : <-- Use if more data types needed
+	//
+	//			break;
+			}
+	}
+
+	if (send_to_bus){ //Need to send voltage and current to bus
+	//--- SEND TEMPERATURE ---//
+		uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
+		buf_temp[0] = BMS_CELL_TEMP;
+		buf_temp[1] = MY_ID;
+
+		//Pack temperatures into buffer
+		for (int i = 0; i < 6; i++){
+			if (i >= NUM_TEMP_SENSE){ //Thermistors not populated
+				for (int j = 0; j < sizeof(float); j++){	buf_temp[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
+
+			} else {
+				uint8_t floatArray[4];
+				floatToArray(temperature_array[i], floatArray); //Convert float into array
+
+				//Pack into buffer
+				for (int j = 0; j < sizeof(float); j++){
+					buf_temp[4 + sizeof(float) * i + j] = floatArray[j];
+				}
+			}
+		}
+
+		//Send
+		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+		B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+
+	//--- SEND VOLTAGE ---//
+		uint8_t buf_voltage[4 + 6*4]; //[DATA ID, MODULE ID, Voltage group #0, Voltage group #1, ... , Voltage group #4]
+		buf_voltage[0] = BMS_CELL_VOLT;
+		buf_voltage[1] = MY_ID;
+
+		//Pack voltage into buffer
+		for (int i = 0; i < 6; i++){
+			if (i >= NUM_CELLS){ //Thermistors not populated
+				for (int j = 0; j < sizeof(float); j++){	buf_voltage[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
+
+			} else {
+				uint8_t floatArray[4];
+				floatToArray(voltage_array[i], floatArray); //Convert float into array
+
+				//Pack into buffer
+				for (int j = 0; j < sizeof(float); j++){
+					buf_voltage[4 + sizeof(float) * i + j] = floatArray[j];
+				}
+			}
+
+			//Send
+			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+			B_tcpSend(btcp, buf_voltage, sizeof(buf_voltage));
+			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+
+	//Clear flag
+		send_to_bus = 0;
+		}
+  /* USER CODE END senderTaskHandle */
+	}
+}
+}
+
+void send_error_msg(uint8_t cell_id, uint8_t error_code, float data_to_send){
+	//Called after a OV, UV or OT error and sends information to BBMB
+	uint8_t buf_err[8]; //[DATA ID, MODULE ID, CELL ID, data]
+	buf_err[0] = BMS_ERROR_STATUS;
+	buf_err[1] = MY_ID;
+	buf_err[2] = cell_id;
+	buf_err[3] = error_code;
+
+	uint8_t floatArray[4];
+	floatToArray(data_to_send, floatArray); //Convert float into array
+
+	//Pack into buffer
+	for (int i = 0; i < sizeof(float); i++){
+		buf_err[4 + i] = floatArray[i];
+	}
+
+	B_tcpSend(btcp, buf_err, sizeof(buf_err));
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -542,8 +714,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6) {
-    HAL_IncTick();
+    HAL_IncTick(); //FREERTOS stuff
+  } else if (htim->Instance == TIM7){
+	HAL_GPIO_TogglePin(GPIOB, LED1_Pin); //Toggle MCU OK LED
   }
+
   /* USER CODE BEGIN Callback 1 */
 
   /* USER CODE END Callback 1 */

@@ -87,7 +87,7 @@ void Error_Handler(void);
 #define Light_ctrl_PWR_EN_GPIO_Port GPIOK
 
 /* USER CODE BEGIN Private defines */
-#define TCP_ID 0x01
+#define TCP_ID BBMB_ID
 
 /* USER CODE END Private defines */
 

@@ -73,7 +73,6 @@ B_tcpHandle_t* btcp_bms;
 QueueHandle_t lightsCtrl = NULL;
 TimerHandle_t blink_timer = NULL;
 
-
 //--- LIGHTS ---//
 struct lights_stepper_ctrl lightsPeriph;
 uint8_t lightInstruction = 0;
