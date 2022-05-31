@@ -106,7 +106,8 @@ void glcd_init(void)
 //	GPIO_Init(CONTROLLER_SPI_RST_PORT, &GPIO_InitStructure);
 
 	/* Make sure chip is de-selected by default */
-	GLCD_DESELECT();
+	GLCD_DESELECT_P1();
+	GLCD_DESELECT_P2();
 
 	/*
 	 * Configuring SPI:
@@ -156,8 +157,6 @@ void glcd_init(void)
 //	SPI_Cmd(SPIx, ENABLE);
 
 	glcd_select_screen((uint8_t *)&glcd_buffer,&glcd_bbox);
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 
 	//ALREADY CONFIGURED
 //	RCC_AHB1PeriphClockCmd(LCD_LED_GPIO_RCC, ENABLE);
@@ -177,6 +176,9 @@ void glcd_init(void)
 #elif defined(GLCD_CONTROLLER_ST7565R)
 	glcd_reset();
 	glcd_enable_backlight(ENABLE);
+	pToggle = 0;
+	glcd_ST7565R_init();
+	pToggle = 1;
 	glcd_ST7565R_init();
 
 #else
@@ -284,8 +286,21 @@ void glcd_change_backlight(uint8_t value){
 void glcd_spi_write(uint8_t c)
 {
 	//uint8_t temp;
+	switch (pToggle){
+		case 1:
+			GLCD_SELECT_P2();
+			break;
+		default:
+			GLCD_SELECT_P1();
+			break;
+	}
+//	if(pToggle){
+//		GLCD_SELECT_P1();
+//	}
+//	else{
+//		GLCD_SELECT_P2();
+//	}
 
-	GLCD_SELECT();
 	/*!< Loop while DR register in not emplty */
 	//OLD while (SPI_I2S_GetFlagStatus(SPIx, SPI_I2S_FLAG_TXE) == RESET);
 
@@ -297,19 +312,30 @@ void glcd_spi_write(uint8_t c)
 
 	//temp = SPI_I2S_ReceiveData(SPIx);
 
-	GLCD_DESELECT();
+	switch (pToggle){
+		case 1:
+			GLCD_DESELECT_P2();
+			break;
+		default:
+			GLCD_DESELECT_P1();
+			break;
+	}
 }
 
 void glcd_reset(void)
 {
 	/* Toggle RST low to reset. Minimum pulse 100ns on datasheet. */
-	GLCD_SELECT();
-	GLCD_RESET_LOW();
+	GLCD_SELECT_P1();
+	GLCD_SELECT_P2();
+	GLCD_RESET_LOW_P1();
+	GLCD_RESET_LOW_P2();
 
-	HAL_Delay(1);
+	HAL_Delay(1000);
 	//DelayTask(GLCD_RESET_TIME);
-	GLCD_RESET_HIGH();
-	GLCD_DESELECT();
+	GLCD_RESET_HIGH_P1();
+	GLCD_RESET_HIGH_P2();
+	GLCD_DESELECT_P1();
+	GLCD_DESELECT_P2();
 }
 
 void delay_ms(uint32_t ms){

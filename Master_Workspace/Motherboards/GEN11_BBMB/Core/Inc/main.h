@@ -85,6 +85,7 @@ void Error_Handler(void);
 #define TMC5160_CS1_GPIO_Port GPIOK
 #define Light_ctrl_PWR_EN_Pin GPIO_PIN_5
 #define Light_ctrl_PWR_EN_GPIO_Port GPIOK
+
 /* USER CODE BEGIN Private defines */
 #define TCP_ID BBMB_ID
 

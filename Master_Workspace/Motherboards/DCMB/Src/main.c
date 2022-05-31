@@ -170,7 +170,7 @@ static void accResetCallback();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint8_t pToggle = 0;
 /* USER CODE END 0 */
 
 /**
@@ -221,13 +221,23 @@ int main(void)
   glcd_init();
 
   //Testing testing
-  glcd_test_circles();
+  pToggle = 0;
+//  glcd_test_circles();
 
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-	change_to_P1();
+	uint8_t sel = 0;
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	while(1){
+		drawP1(sel);
+		drawP2(sel);
 
+		sel = sel + 1;
+		sel = sel % 6;
+
+		HAL_Delay(500);
+	}
 	drawP1Default(defaultTest);
 	drawP1Detailed(defaultDetailed);
 	drawP1Activate();
@@ -1892,183 +1902,155 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 //		disp_setDCMBAccPotPosition(outputVal);
 //		B_tcpSend(btcp, buf, 8);
 }
+/*
+void ignition_check(uint8_t data){
+	static long ignition_press_time =  0;
+	//static uint8_t ignition_state_inner = 0;
+	static uint8_t button_pressed = 0;
+	taskENTER_CRITICAL(); // data into global variable -> enter critical section
+	if(!(data&IGNITION)){
+		if(ignition_press_time == 0){
+			ignition_press_time = xTaskGetTickCount();
+		} else if ((ignition_press_time + 1000 < xTaskGetTickCount()) && button_pressed == 0){
+			if(array_state == 1){ // PEKAC Mitigation
+				array_state = 0;
+				uint8_t array_buf[2] = {0x02, array_state};
+				B_tcpSend(btcp, array_buf, 2);
+				vTaskDelay(500);
+			}
+			ignition_press_time = 0;
+			ignition_state ^= 1;
+			uint8_t buf[2] = {0x01, ignition_state};
+			B_tcpSend(btcp, buf, 2);
+			button_pressed = 1;
+		}
+	} else {
+		ignition_press_time = 0;
+		button_pressed = 0;
+	}
+	taskEXIT_CRITICAL();
+}
+*/
+/*
+void array_check(uint8_t data){
+	static long array_press_time = 0;
+	static uint8_t button_pressed = 0;
+	static uint8_t hornON = 0;
+	uint8_t buf[10];
+	static long fwdRevPressTime = 0;
+	static uint8_t fwdRevPressed = 0;
+	taskENTER_CRITICAL(); // data into global variable -> enter critical section
+	if(!(data&ARRAY)){
+		if(array_press_time == 0){
+			array_press_time = xTaskGetTickCount();
+		} else if ((array_press_time + 1000 < xTaskGetTickCount()) && button_pressed == 0){
+			if(ignition_state != (uint8_t) 1){
+				button_pressed = 0;
+				array_press_time = 0;
+				// Change led to show invalid
+				return;
+			}
+			array_press_time = 0;
+			array_state ^=1;
+			uint8_t buf[2] = {0x02, array_state};
+			B_tcpSend(btcp, buf, 2);
+			button_pressed = 1;
+		}
+	} else {
+		array_press_time = 0;
+		button_pressed = 0;
+	}
+	if(!(data&FWD_REV)){
+		if(fwdRevPressTime == 0){
+			fwdRevPressTime = xTaskGetTickCount();
+		} else if ((fwdRevPressTime + 1000 < xTaskGetTickCount()) && fwdRevPressed == 0){
+			fwdRevPressTime = 0;
+			fwdRevPressed = 0;
+			fwdRevState ^= 1;
+			disp_setMCMBFwdRev(!fwdRevState);
+		}
+	} else {
+		fwdRevPressTime = 0;
+		fwdRevPressed = 0;
+	}
+	taskEXIT_CRITICAL();
+}
+*/
+/*
+static void buttonCheck(uint8_t state){
+// side panel
+// (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
+  ignition_check(state);
+  array_check(state);
+  static uint8_t consistent_count;
+  static uint8_t prev_data = 0;
+  static uint8_t horn_on = 0;
+  uint8_t data = state;
+  taskENTER_CRITICAL(); // enter critical section
+  if(data != 255){
+	  if(!(data&FAN) && !horn_on){
+		  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // write 1 when switch is 0
+//		  uint8_t buf[2] = {0x04, 0x01};
+//		  B_tcpSend(btcp, buf, 2);
+//		  horn_on = 1;
+	  }
+	  if(prev_data == data){
+		  consistent_count++;
+	  } else {
+		  consistent_count = 0;
+	  }
+	  if(consistent_count ==  2){
+		  if(!(data&AUX0)){
+			  LEFT_ENABLED ^=1;
+		  }
+		  if(!(data&AUX2)){
+			  RIGHT_ENABLED ^=1;
+		  }
+		  if(!(data&AUX1)){
+			  if(RIGHT_ENABLED && LEFT_ENABLED){
+				  RIGHT_ENABLED = 0;
+				  LEFT_ENABLED = 0;
+			  } else {
+				  RIGHT_ENABLED = 1;
+				  LEFT_ENABLED = 1;
+			  }
+		  }
+		  if(!(data&CAMERA)){
+			  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // write 1 to camera when switch is 0
+			  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // write 1 to screen when switch is 0
 
-//void ignition_check(uint8_t data){
-//	static long ignition_press_time =  0;
-//	//static uint8_t ignition_state_inner = 0;
-//	static uint8_t button_pressed = 0;
-//	taskENTER_CRITICAL(); // data into global variable -> enter critical section
-//	if(!(data&IGNITION)){
-//		if(ignition_press_time == 0){
-//			ignition_press_time = xTaskGetTickCount();
-//		} else if ((ignition_press_time + 1000 < xTaskGetTickCount()) && button_pressed == 0){
-//			if(array_state == 1){ // PEKAC Mitigation
-//				array_state = 0;
-//				uint8_t array_buf[2] = {0x02, array_state};
-//				B_tcpSend(btcp, array_buf, 2);
-//				vTaskDelay(500);
-//			}
-//			ignition_press_time = 0;
-//			ignition_state ^= 1;
-//			uint8_t buf[2] = {0x01, ignition_state};
-//			B_tcpSend(btcp, buf, 2);
-//			button_pressed = 1;
-//		}
-//	} else {
-//		ignition_press_time = 0;
-//		button_pressed = 0;
-//	}
-//	taskEXIT_CRITICAL();
-//}
-//
-//void array_check(uint8_t data){
-//	static long array_press_time = 0;
-//	static uint8_t button_pressed = 0;
-//	static uint8_t hornON = 0;
-//	uint8_t buf[10];
-//	static long fwdRevPressTime = 0;
-//	static uint8_t fwdRevPressed = 0;
-//	taskENTER_CRITICAL(); // data into global variable -> enter critical section
-//	if(!(data&ARRAY)){
-//		if(array_press_time == 0){
-//			array_press_time = xTaskGetTickCount();
-//		} else if ((array_press_time + 1000 < xTaskGetTickCount()) && button_pressed == 0){
-//			if(ignition_state != (uint8_t) 1){
-//				button_pressed = 0;
-//				array_press_time = 0;
-//				// Change led to show invalid
-//				return;
-//			}
-//			array_press_time = 0;
-//			array_state ^=1;
-//			uint8_t buf[2] = {0x02, array_state};
-//			B_tcpSend(btcp, buf, 2);
-//			button_pressed = 1;
-//		}
-//	} else {
-//		array_press_time = 0;
-//		button_pressed = 0;
-//	}
-//	if(!(data&FWD_REV)){
-//		if(fwdRevPressTime == 0){
-//			fwdRevPressTime = xTaskGetTickCount();
-//		} else if ((fwdRevPressTime + 1000 < xTaskGetTickCount()) && fwdRevPressed == 0){
-//			fwdRevPressTime = 0;
-//			fwdRevPressed = 0;
-//			fwdRevState ^= 1;
-//			disp_setMCMBFwdRev(!fwdRevState);
-//		}
-//	} else {
-//		fwdRevPressTime = 0;
-//		fwdRevPressed = 0;
-//	}
-//	taskEXIT_CRITICAL();
-//}
-//
-//static void buttonCheck(uint8_t state){
-//// side panel
-//// (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
-//  ignition_check(state);
-//  array_check(state);
-//  static uint8_t consistent_count;
-//  static uint8_t prev_data = 0;
-//  static uint8_t horn_on = 0;
-//  uint8_t data = state;
-//  taskENTER_CRITICAL(); // enter critical section
-//  if(data != 255){
-//	  if(!(data&FAN) && !horn_on){
-//		  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // write 1 when switch is 0
-////		  uint8_t buf[2] = {0x04, 0x01};
-////		  B_tcpSend(btcp, buf, 2);
-////		  horn_on = 1;
-//	  }
-//	  if(prev_data == data){
-//		  consistent_count++;
-//	  } else {
-//		  consistent_count = 0;
-//	  }
-//	  if(consistent_count ==  2){
-//		  if(!(data&AUX0)){
-//			  LEFT_ENABLED ^=1;
-//		  }
-//		  if(!(data&AUX2)){
-//			  RIGHT_ENABLED ^=1;
-//		  }
-//		  if(!(data&AUX1)){
-//			  if(RIGHT_ENABLED && LEFT_ENABLED){
-//				  RIGHT_ENABLED = 0;
-//				  LEFT_ENABLED = 0;
-//			  } else {
-//				  RIGHT_ENABLED = 1;
-//				  LEFT_ENABLED = 1;
-//			  }
-//		  }
-//		  if(!(data&CAMERA)){
-//			  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // write 1 to camera when switch is 0
-//			  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // write 1 to screen when switch is 0
-//
-////			  CAMERA_ENABLED ^=1;
-//		  }
-//	  }
-//  } else if (horn_on){
-//	  uint8_t bufh2[2] = {0x04, 0x00};
-//	  B_tcpSend(btcp, bufh2, 2);
-//	  horn_on = 0;
-//  }
-//  prev_data = data;
-//  taskEXIT_CRITICAL();
-//}
-//
-//static void steeringButtonCheck(uint8_t *state){
-//	static long motor_press_time = 0;
-//	static uint8_t motor_pressed = 0;
-//	static uint8_t motor_state = 0;
-//	static uint8_t buf[2];
-//	static uint8_t horn_on = 0;
-//	static uint8_t vfm_up_pressed = 0;
-//	static long vfm_up_press_time = 0;
-//	static uint8_t vfm_down_pressed = 0;
-//	static long vfm_down_press_time = 0;
-//	static long last_vfm_change_time = 0;
-////	if(!(state[0]&DPAD_DOWN)){
-////		if(motor_press_time == 0){
-////			motor_press_time = xTaskGetTickCount();
-////		} else if((motor_press_time + 1000 < xTaskGetTickCount()) && motor_pressed == 0){
-//////			if(ignition_state != (uint8_t) 1){
-//////				motor_pressed = 0;
-//////				motor_press_time = 0;
-//////				return;
-//////			}
-////			motor_pressed = 0;
-////			motor_press_time = 0;
-////			motor_state ^= 1;
-////			motorState = motor_state;
-////		}
-////
-////	} else {
-////		motor_press_time = 0;
-////		motor_pressed = 0;
-////	}
-//	if(!(state[0]&HORN)){
-//	  if(!horn_on){
-//        uint8_t bufh[2] = {0x04, 0x01};
-//	    B_tcpSend(btcp, bufh, 2);
-//	    horn_on = 1;
-//	  }
-//	} else if (horn_on){
-//      uint8_t bufh2[2] = {0x04, 0x00};
-//	  B_tcpSend(btcp, bufh2, 2);
-//	  horn_on = 0;
-//	}
-//
-////	if(!(state[0]&DPAD_LEFT)){
-////		if(vfm_up_press_time == 0){
-////			vfm_up_press_time = xTaskGetTickCount();
-////		} else if ((vfm_up_press_time + 1000 < xTaskGetTickCount()) && vfm_up_pressed == 0){
-////			vfm_up_press_time = 0;
-////			if(last_vfm_change_time + 500 < xTaskGetTickCount()){
-////				vfmUpState ^= 1;
-////				last_vfm_change_time = xTaskGetTickCount();
+//			  CAMERA_ENABLED ^=1;
+		  }
+	  }
+  } else if (horn_on){
+	  uint8_t bufh2[2] = {0x04, 0x00};
+	  B_tcpSend(btcp, bufh2, 2);
+	  horn_on = 0;
+  }
+  prev_data = data;
+  taskEXIT_CRITICAL();
+}
+*/
+/*
+static void steeringButtonCheck(uint8_t *state){
+	static long motor_press_time = 0;
+	static uint8_t motor_pressed = 0;
+	static uint8_t motor_state = 0;
+	static uint8_t buf[2];
+	static uint8_t horn_on = 0;
+	static uint8_t vfm_up_pressed = 0;
+	static long vfm_up_press_time = 0;
+	static uint8_t vfm_down_pressed = 0;
+	static long vfm_down_press_time = 0;
+	static long last_vfm_change_time = 0;
+//	if(!(state[0]&DPAD_DOWN)){
+//		if(motor_press_time == 0){
+//			motor_press_time = xTaskGetTickCount();
+//		} else if((motor_press_time + 1000 < xTaskGetTickCount()) && motor_pressed == 0){
+////			if(ignition_state != (uint8_t) 1){
+////				motor_pressed = 0;
+////				motor_press_time = 0;
+////				return;
 ////			}
 ////		}
 ////	} else {
@@ -2092,7 +2074,55 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 ////	}
 //	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 //
-//}
+//	} else {
+//		motor_press_time = 0;
+//		motor_pressed = 0;
+//	}
+	if(!(state[0]&HORN)){
+	  if(!horn_on){
+        uint8_t bufh[2] = {0x04, 0x01};
+	    B_tcpSend(btcp, bufh, 2);
+	    horn_on = 1;
+	  }
+	} else if (horn_on){
+      uint8_t bufh2[2] = {0x04, 0x00};
+	  B_tcpSend(btcp, bufh2, 2);
+	  horn_on = 0;
+	}
+
+//	if(!(state[0]&DPAD_LEFT)){
+//		if(vfm_up_press_time == 0){
+//			vfm_up_press_time = xTaskGetTickCount();
+//		} else if ((vfm_up_press_time + 1000 < xTaskGetTickCount()) && vfm_up_pressed == 0){
+//			vfm_up_press_time = 0;
+//			if(last_vfm_change_time + 500 < xTaskGetTickCount()){
+//				vfmUpState ^= 1;
+//				last_vfm_change_time = xTaskGetTickCount();
+//			}
+//		}
+//	} else {
+//		vfm_up_press_time = 0;
+//		vfm_up_pressed = 0;
+//	}
+//
+//	if(!(state[0]&DPAD_RIGHT)){
+//		if(vfm_down_press_time == 0){
+//			vfm_down_press_time = xTaskGetTickCount();
+//		} else if ((vfm_down_press_time + 1000 < xTaskGetTickCount()) && vfm_down_pressed == 0){
+//			vfm_down_press_time = 0;
+//			if(last_vfm_change_time + 500 < xTaskGetTickCount()){
+//				vfmDownState ^= 1;
+//				last_vfm_change_time = xTaskGetTickCount();
+//			}
+//		}
+//	} else {
+//		vfm_down_press_time = 0;
+//		vfm_down_pressed = 0;
+//	}
+	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
+
+}
+*/
 
 static void steeringWheelTask(const void *pv){
 // {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
@@ -2376,8 +2406,8 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void displayTask(TimerHandle_t xTimer){
-//	drawP1();
-	drawP2();
+	drawP1(0);
+	drawP2(0);
 
 	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
 
@@ -2403,7 +2433,7 @@ void displayTask(TimerHandle_t xTimer){
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
+  * @param  argument: Not used
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
@@ -2467,4 +2497,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
