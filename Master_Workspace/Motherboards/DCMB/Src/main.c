@@ -227,39 +227,23 @@ int main(void)
   glcd_init();
 
   //Testing testing
-//  pToggle = 0;
-////  glcd_test_circles();
-//
-//	int defaultTest[4] = {420, 874, -454, 69};
-//	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-//
-//	uint8_t sel = 0;
-//	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-//	while(1){
-//		drawP1(sel);
-//		drawP2(sel);
-//
-//		sel = sel + 1;
-//		sel = sel % 6;
-//
-//		HAL_Delay(500);
-//	}
-//	drawP1Default(defaultTest);
-//	drawP1Detailed(defaultDetailed);
-//	drawP1Activate();
-//	drawP1Deactivate();
-//	drawP1IgnitionOff();
-//	drawP1BMSFault();
-//
-//	int defaultTest2[4] = {1, 0, 1, 87};
-//	int defaultDetailed2[4] = {1, 2, 3, 4};
-//	int defaultBMSFault[4] = {89, 13, 13, 49};
-//	drawP2Default(defaultTest2);
-//	drawP2Detailed(defaultDetailed2);
-//	drawP2Activate();
-//	drawP2Deactivate();
-//	drawP2IgnitionOff(defaultBMSFault);
-//	drawP2BMSFault(defaultBMSFault);
+  pToggle = 0;
+//  glcd_test_circles();
+
+	int defaultTest[4] = {420, 874, -454, 69};
+	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+	uint8_t sel = 0;
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	while(1){
+		drawP1(sel);
+		drawP2(sel);
+
+		sel = sel + 1;
+		sel = sel % 6;
+
+		HAL_Delay(500);
+	}
 //  displayInit(); //Legacy from GEN10
 //  glcd_clear();
 
