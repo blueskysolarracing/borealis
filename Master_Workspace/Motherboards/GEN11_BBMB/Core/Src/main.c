@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "buart.h"
 #include "btcp.h"
+#include "bmisc.h"
 #include "psm.h"
 #include "h7Boot.h"
 #include "TMC5160_driver.h"

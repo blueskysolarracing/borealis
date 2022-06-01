@@ -23,12 +23,15 @@
 //#include "fonts/Earthbound_12x19_48to57.h"
 #include "fonts/font5x7.h"
 int correct_Y(uint8_t y){
-	return ((y+48)%64);
+	if(pToggle)
+		return ((y+48)%64);
+	return y;
 }
 
 // p1 stuff start
 
 void drawP1Default(int value[4]){
+	pToggle = 0;
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
 	char* labelspeed = "km/h";
@@ -106,18 +109,15 @@ void drawP1Default(int value[4]){
 
 	// now write the big speed
 	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-	glcd_draw_char_xy(85, 0, valueS[3][2]);
-	glcd_draw_char_xy(105, 0, valueS[3][3]);
+	glcd_draw_char_xy(85, 16, valueS[3][2]);
+	glcd_draw_char_xy(105, 16, valueS[3][3]);
 
-	uint8_t datajunk[3] = {1, 2, 7};
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(DISP_RST_1_GPIO_Port, DISP_RST_1_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	pToggle = 0;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
 }
 
 void drawP1Detailed(int value[9]){
+	pToggle = 0;
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
 
@@ -199,12 +199,12 @@ void drawP1Detailed(int value[9]){
 		y+=23;
 	}
 
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
+	pToggle = 0;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
 }
 
 void drawP1Activate(){
+	pToggle = 0;
 	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -215,11 +215,8 @@ void drawP1Activate(){
     uint8_t x = 22;
 
     char* ptr = labels[0];
-    int cnt = 0;
-    while(*ptr != 0){
-    	if (ptr[cnt] == 0){ break; }
-        glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
-        cnt++;
+    while(*ptr){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
         ptr++;
     }
@@ -228,21 +225,18 @@ void drawP1Activate(){
     x = 37;
 
     ptr = labels[1];
-    cnt = 0;
-    while(*ptr != 0){
-    	if (ptr[cnt] == 0){ break; }
-        glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
-        cnt++;
+    while(*ptr){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
         ptr++;
     }
 
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
-	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
+    pToggle = 0;
+    glcd_write();
 }
 
 void drawP1Deactivate(){
+	pToggle = 0;
 	char* labels[] = {"CRUISE CONTROL", "DEACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -254,7 +248,7 @@ void drawP1Deactivate(){
 
     char* ptr = labels[0];
 
-    while(*ptr != '\0'){
+    while(*ptr){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
         ptr++;
@@ -271,12 +265,12 @@ void drawP1Deactivate(){
         ptr++;
     }
 
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
-	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
+    pToggle = 0;
+    glcd_write();
 }
 
 void drawP1IgnitionOff(){
+	pToggle = 0;
     char* labels[] = {"CAR IS", "SLEEPING"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -287,12 +281,10 @@ void drawP1IgnitionOff(){
     uint8_t x = 46;
 
     char* ptr = labels[0];
-    int cnt = 0;
 
-    while(ptr[cnt] != NULL){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
+    while(*ptr){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
-        cnt++;
         ptr++;
     }
 
@@ -301,18 +293,18 @@ void drawP1IgnitionOff(){
 
     ptr = labels[1];
 
-    while(*ptr != '\0'){
+    while(*ptr){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
         ptr++;
     }
 
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
+	pToggle = 0;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
 }
 
 void drawP1BMSFault(){
+	pToggle = 0;
     char* labels[] = {"BMS FAULT DETECTED", "CAR OFF"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -341,25 +333,44 @@ void drawP1BMSFault(){
         ptr++;
     }
 
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
+	pToggle = 0;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_SET);
 }
 
 // draw p1
-void drawP1(){
+void drawP1(uint8_t sel){
+	pToggle = 0;
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-	drawP1Default(defaultTest);
-//	drawP1Detailed(defaultDetailed);
-//	drawP1Activate();
-//	drawP1Deactivate();
-//	drawP1IgnitionOff();
-//	drawP1BMSFault();
+
+	switch(sel){
+	case 0:
+		drawP1Default(defaultTest);
+		break;
+	case 1:
+		drawP1Detailed(defaultDetailed);
+		break;
+	case 2:
+		drawP1Activate();
+		break;
+	case 3:
+		drawP1Deactivate();
+		break;
+	case 4:
+		drawP1IgnitionOff();
+		break;
+	case 5:
+		drawP1BMSFault();
+		break;
+	default:
+		drawP1Default(defaultTest);
+		break;
+	}
 }
 
 // p2 stuff start
 void drawP2Default(int value[4]){
+	pToggle = 1;
 	char* labelsP2[] = {"Cruise:", "Light:"};
 	int labelsP2L = 2;
 
@@ -406,12 +417,12 @@ void drawP2Default(int value[4]){
 	glcd_draw_char_xy(0, 0, '0' + value[3]/10);
 	glcd_draw_char_xy(21, 0, '0' + value[3]%10);
 
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+	pToggle = 1;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 }
 
 void drawP2Detailed(int value[4]){
+	pToggle = 1;
 	char* labelsP2[] = {"Low voltage:", "Max pack temp:"};
 	int labelsP2L = 2;
 
@@ -484,12 +495,12 @@ void drawP2Detailed(int value[4]){
     glcd_tiny_draw_char_xy(85, correct_Y(y), valueS[3][3]);
     glcd_tiny_draw_char_xy(90, correct_Y(y), 'C');
 
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+    pToggle = 1;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 }
 
 void drawP2Activate(){
+	pToggle = 1;
 	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -518,12 +529,12 @@ void drawP2Activate(){
         ptr++;
     }
 
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+    pToggle = 1;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 }
 
 void drawP2Deactivate(){
+	pToggle = 1;
 	char* labels[] = {"CRUISE CONTROL", "DEACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -552,12 +563,12 @@ void drawP2Deactivate(){
         ptr++;
     }
 
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+    pToggle = 1;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 }
 
 void drawP2IgnitionOff(int value[4]){
+	pToggle = 1;
 	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
 	int labelsP2L = 3;
 
@@ -640,12 +651,12 @@ void drawP2IgnitionOff(int value[4]){
 		y+=23;
 	}
 
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+	pToggle = 1;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 }
 
 void drawP2BMSFault(int value[4]){
+	pToggle = 1;
 	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
 	int labelsP2L = 3;
 
@@ -728,40 +739,37 @@ void drawP2BMSFault(int value[4]){
 		y+=23;
 	}
 
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+	pToggle = 1;
 	glcd_write();
-	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 }
 
-void drawP2(){
+void drawP2(uint8_t sel){
+	pToggle = 1;
 	int defaultTest[4] = {1, 0, 1, 87};
 	int defaultDetailed[4] = {1, 2, 3, 4};
 	int defaultBMSFault[4] = {89, 13, 13, 49};
-	drawP2Default(defaultTest);
-//	drawP2Detailed(defaultDetailed);
-//	drawP2Activate();
-//	drawP2Deactivate();
-//	drawP2IgnitionOff(defaultBMSFault);
-//	drawP2BMSFault(defaultBMSFault);
-}
 
-void selectP1(){
-//	#define CONTROLLER_SPI_SS_PORT  DISP_CS_0_GPIO_Port
-//	#define CONTROLLER_SPI_SS_PIN   DISP_CS_0_Pin
-//	#define CONTROLLER_SPI_SS_RCC	RCC_AHB4Periph_GPIOI
-//	#define CONTROLLER_SPI_RST_PORT DISP_RST_1_GPIO_Port
-//	#define CONTROLLER_SPI_RST_PIN  DISP_RST_1_Pin
-//	#define CONTROLLER_SPI_RST_RCC	RCC_AHB4Periph_GPIOJ
-}
-
-void selectP2(){
-	#define CONTROLLER_SPI_SS_PORT  DISP_CS_1_GPIO_Port
-	#define CONTROLLER_SPI_SS_PIN   DISP_CS_1_Pin
-	#define CONTROLLER_SPI_SS_RCC	RCC_AHB4Periph_GPIOE
-//	#define CONTROLLER_SPI_DC_PORT  DISP_A0_GPIO_Port
-//	#define CONTROLLER_SPI_DC_PIN   DISP_A0_Pin
-//	#define CONTROLLER_SPI_DC_RCC	RCC_AHB4Periph_GPIOJ
-	#define CONTROLLER_SPI_RST_PORT DISP_RST_2_GPIO_Port
-	#define CONTROLLER_SPI_RST_PIN  DISP_RST_2_Pin
-	#define CONTROLLER_SPI_RST_RCC	RCC_AHB4Periph_GPIOJ
+	switch(sel){
+	case 0:
+		drawP2Default(defaultTest);
+		break;
+	case 1:
+		drawP2Detailed(defaultDetailed);
+		break;
+	case 2:
+		drawP2Activate();
+		break;
+	case 3:
+		drawP2Deactivate();
+		break;
+	case 4:
+		drawP2IgnitionOff(defaultBMSFault);
+		break;
+	case 5:
+		drawP2BMSFault(defaultBMSFault);
+		break;
+	default:
+		drawP2Default(defaultTest);
+		break;
+	}
 }

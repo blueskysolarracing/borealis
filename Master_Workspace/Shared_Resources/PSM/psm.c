@@ -91,16 +91,6 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 	}
 }
 
-// arrayToDouble()
-// Converts double data stored in an array back to double and returns the double
-// Don't use this function here. Use it on the board that shall receive the voltage and current in array form from UART
-/* @Param
- * 		aryPtr: pointer to the memory location of an element in an array
- * 		size: the number of consecutive array elements used to store data for the double value
- *
- */
-
-
 //writeOnePSM()
 //helper function for writing to ONE ade7912 with SPI
 //PARAMETERS:
