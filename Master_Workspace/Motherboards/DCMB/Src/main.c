@@ -111,10 +111,12 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+//--- COMMS ---//
 B_uartHandle_t* buart;
 B_uartHandle_t* spbBuart;
 B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
+
 uint8_t ignition_state = 0;
 uint8_t array_state = 0;
 SemaphoreHandle_t accMutex;
@@ -125,6 +127,9 @@ uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
+
+//--- DISPLAY ---//
+uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,13 +166,13 @@ void StartDefaultTask(void const * argument);
 static void sidePanelTask(const void *pv);
 static void steeringWheelTask(const void *pv);
 static void displayTask();
-static void lightsTmr(TimerHandle_t xTimer);
-static void mc2StateTmr(TimerHandle_t xTimer);
-//static void displayTmr(TimerHandle_t xTimer);
-static void motCallback(uint8_t motState);
-static void vfmUpCallback();
-static void vfmDownCallback();
-static void accResetCallback();
+static void motorDataTask();
+//static void lightsTmr(TimerHandle_t xTimer);
+static void displayTimer(TimerHandle_t xTimer);
+//static void motCallback(uint8_t motState);
+//static void vfmUpCallback();
+//static void vfmDownCallback();
+//static void accResetCallback();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -223,42 +228,53 @@ int main(void)
   //--- NUKE LED ---//
   HAL_TIM_Base_Start_IT(&htim7);
 
+  //--- COMMS ---//
+  buart = B_uartStart(&huart4);
+  spbBuart = B_uartStart(&huart3);
+  swBuart = B_uartStart(&huart8);
+  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+
+  //--- FREERTOS ---//
+  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
+  xTaskCreate(motorDataTask, "motorDataTask", 1024, 1, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+
   //--- DRIVER DISPLAYS ---//
   glcd_init();
+  pToggle = 0; //Left display to start
 
   //Testing testing
   pToggle = 0;
 //  glcd_test_circles();
 
-	int defaultTest[4] = {420, 874, -454, 69};
-	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-
-	uint8_t sel = 0;
-	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-	while(1){
-		drawP1(sel);
-		drawP2(sel);
-
-		sel = sel + 1;
-		sel = sel % 6;
-
-		HAL_Delay(500);
-	}
+//	int defaultTest[4] = {420, 874, -454, 69};
+//	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+//
+//	uint8_t sel = 0;
+//	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+//	while(1){
+//		drawP1(sel);
+//		drawP2(sel);
+//
+//		sel = sel + 1;
+//		sel = sel % 6;
+//
+//		HAL_Delay(500);
+//	}
 //  displayInit(); //Legacy from GEN10
 //  glcd_clear();
 
-  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-//  buart = B_uartStart(&huart4);
-//  spbBuart = B_uartStart(&huart3);
-//  swBuart = B_uartStart(&huart8);
-//  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+//  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
+  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
   xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
-  disp_attachMotOnCallback(motCallback);
-  disp_attachVfmUpCallback(vfmUpCallback);
-  disp_attachVfmDownCallback(vfmDownCallback);
-  disp_attachAccResetCallback(accResetCallback);
+//  disp_attachMotOnCallback(motCallback);
+//  disp_attachVfmUpCallback(vfmUpCallback);
+//  disp_attachVfmDownCallback(vfmDownCallback);
+//  disp_attachAccResetCallback(accResetCallback);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -1829,7 +1845,13 @@ static void lightsTmr(TimerHandle_t xTimer){
 //	B_tcpSend(btcp, buf, 4);
 }
 
-static void mc2StateTmr(TimerHandle_t xTimer){
+static void displayTimer(TimerHandle_t xTimer){
+	taskENTER_CRITICAL();
+	refresh_display = 1;
+	taskEXIT_CRITICAL();
+}
+
+static void motorDataTask(TimerHandle_t xTimer){
 	static uint8_t started = 0;
 	static char buf[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	static int currentValue = 0;
@@ -1909,6 +1931,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 	        uint8_t bufh[2] = {0x03, 0b00001000}; //[DATA ID, LIGHT INSTRUCTION]
 //	        B_tcpSend(btcp, bufh, 2);
 		}
+
 
 //		// TODO other buttons
 //		disp_setDCMBAccPotPosition(accel_value);
@@ -2422,10 +2445,33 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void displayTask(TimerHandle_t xTimer){
-	drawP1(0);
-	drawP2(0);
+	//Peridically runs and checks if/what it needs to refresh on the display
 
-	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
+	if (refresh_display){
+		drawP1(0);
+		drawP2(0);
+
+		int defaultTest[4] = {420, 874, -454, 69};
+		int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+		uint8_t sel = 0;
+		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+		while(1){
+			drawP1(sel);
+			drawP2(sel);
+
+			sel = sel + 1;
+			sel = sel % 6;
+
+			HAL_Delay(500);
+		}
+
+		taskENTER_CRITICAL(); // data into global variable -> enter critical section
+		refresh_display = 0;
+		taskEXIT_CRITICAL(); // data into global variable -> enter critical section
+	} else {
+		taskYIELD();
+	}
 
 //	uint32_t id = pvTimerGetTimerID(xTimer);
 //	if(id == 0){
