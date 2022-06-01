@@ -40,36 +40,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-// SPB
-// GPIO PORT B: CAMERA, AUX2, FWD_REV, AUX1
-// GPIO PORT C: AUX0, IGNITION, FAN
-// GPIO PORT D: ARRAY
-// (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
-#define AUX1 1
-#define FWD_REV 2
-#define AUX2 4
-#define CAMERA 8
-#define FAN 16
-#define IGNITION 32
-#define AUX0 64
-#define ARRAY 128
-#define BSSR_SPB_RX_BUFFER_SIZE 256
-
-
-// SWB
-// GPIO PORT B: SELECT, RIGHT, DOWN, LEFT, UP, <blank>, CRUISE_SIGNAL
-// GPIO PORT C1: HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
-// GPIO PORT C2: ACC8 -> ACC1
-#define SELECT 64
-#define RIGHT 32
-#define DOWN 16
-#define LEFT 8
-#define UP 4
-#define CRUISE 1
-#define HORN 8
-#define RAD_SIG 4
-#define L_SIG 2
-#define R_SIG 1
 
 //#define RIGHT_SIG 16
 //#define HORN 128
@@ -200,7 +170,7 @@ static void accResetCallback();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint8_t pToggle = 0;
 /* USER CODE END 0 */
 
 /**
@@ -249,17 +219,31 @@ int main(void)
 
   //--- DRIVER DISPLAYS ---//
   glcd_init();
-  glcd_test_circles();
 
-  HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
+  //Testing testing
+  pToggle = 0;
+//  glcd_test_circles();
+
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-//	drawP1Default(defaultTest);
-//	drawP1Detailed(defaultDetailed);
-//	drawP1Activate();
-//	drawP1Deactivate();
+
+	uint8_t sel = 0;
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	while(1){
+		drawP1(sel);
+		drawP2(sel);
+
+		sel = sel + 1;
+		sel = sel % 6;
+
+		HAL_Delay(500);
+	}
+	drawP1Default(defaultTest);
+	drawP1Detailed(defaultDetailed);
+	drawP1Activate();
+	drawP1Deactivate();
 	drawP1IgnitionOff();
-//	drawP1BMSFault();
+	drawP1BMSFault();
 
 	int defaultTest2[4] = {1, 0, 1, 87};
 	int defaultDetailed2[4] = {1, 2, 3, 4};
@@ -270,13 +254,10 @@ int main(void)
 	drawP2Deactivate();
 	drawP2IgnitionOff(defaultBMSFault);
 	drawP2BMSFault(defaultBMSFault);
-  HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_SET);
 //  displayInit(); //Legacy from GEN10
 //  glcd_clear();
 
-//  xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
   xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-//  xTimerStart(xTimerCreate("display", 200, pdTRUE, 0, displayTmr), 0);
   buart = B_uartStart(&huart4);
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
@@ -1854,41 +1835,6 @@ static void mc2StateTmr(TimerHandle_t xTimer){
     pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
     HAL_ADC_Stop(&hadc1);
 
-	//TR: I'm not quite sure what this does...
-//	int accValTemp = accValue == 255 ? currentValue : accValue;
-//	if(!started){
-//		started++;
-//		currentValue = accValTemp;
-//	} else{
-//		positiveTurn = (currentValue + 63) % 128;
-//		negativeTurn = (currentValue - 64) % 128;
-//		if(positiveTurn > currentValue){
-//			if(accValTemp <= positiveTurn && accValTemp >= currentValue){
-//				difference = accValTemp - currentValue;
-//			} else {
-//				if(accValTemp < currentValue){
-//					difference = accValTemp - currentValue;
-//				} else {
-//					difference = -(128 -(accValTemp - currentValue));
-//				}
-//			}
-//		} else {
-//			if(accValTemp <= currentValue && accValTemp >= negativeTurn){
-//				difference = -(currentValue - accValTemp);
-//			} else {
-//				if(currentValue < accValTemp){
-//					difference = accValTemp - currentValue;
-//				} else {
-//					difference = 128 - (currentValue - accValTemp);
-//				}
-//			}
-//		}
-//		difference = difference < 0 ? -difference * difference : difference * difference;
-//		outputVal += difference;
-////		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
-//
-//		currentValue = accValTemp;
-
 // -------- FORWARD/REVERSE -------- //
 		taskENTER_CRITICAL();
 		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
@@ -1956,7 +1902,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 //		disp_setDCMBAccPotPosition(outputVal);
 //		B_tcpSend(btcp, buf, 8);
 }
-
+/*
 void ignition_check(uint8_t data){
 	static long ignition_press_time =  0;
 	//static uint8_t ignition_state_inner = 0;
@@ -1984,7 +1930,8 @@ void ignition_check(uint8_t data){
 	}
 	taskEXIT_CRITICAL();
 }
-
+*/
+/*
 void array_check(uint8_t data){
 	static long array_press_time = 0;
 	static uint8_t button_pressed = 0;
@@ -2028,7 +1975,8 @@ void array_check(uint8_t data){
 	}
 	taskEXIT_CRITICAL();
 }
-
+*/
+/*
 static void buttonCheck(uint8_t state){
 // side panel
 // (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
@@ -2082,7 +2030,8 @@ static void buttonCheck(uint8_t state){
   prev_data = data;
   taskEXIT_CRITICAL();
 }
-
+*/
+/*
 static void steeringButtonCheck(uint8_t *state){
 	static long motor_press_time = 0;
 	static uint8_t motor_pressed = 0;
@@ -2103,11 +2052,27 @@ static void steeringButtonCheck(uint8_t *state){
 ////				motor_press_time = 0;
 ////				return;
 ////			}
-//			motor_pressed = 0;
-//			motor_press_time = 0;
-//			motor_state ^= 1;
-//			motorState = motor_state;
-//		}
+////		}
+////	} else {
+////		vfm_up_press_time = 0;
+////		vfm_up_pressed = 0;
+////	}
+////
+////	if(!(state[0]&DPAD_RIGHT)){
+////		if(vfm_down_press_time == 0){
+////			vfm_down_press_time = xTaskGetTickCount();
+////		} else if ((vfm_down_press_time + 1000 < xTaskGetTickCount()) && vfm_down_pressed == 0){
+////			vfm_down_press_time = 0;
+////			if(last_vfm_change_time + 500 < xTaskGetTickCount()){
+////				vfmDownState ^= 1;
+////				last_vfm_change_time = xTaskGetTickCount();
+////			}
+////		}
+////	} else {
+////		vfm_down_press_time = 0;
+////		vfm_down_pressed = 0;
+////	}
+//	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 //
 //	} else {
 //		motor_press_time = 0;
@@ -2157,6 +2122,7 @@ static void steeringButtonCheck(uint8_t *state){
 	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 
 }
+*/
 
 static void steeringWheelTask(const void *pv){
 // {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
@@ -2440,8 +2406,8 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void displayTask(TimerHandle_t xTimer){
-//	drawP1();
-	drawP2();
+	drawP1(0);
+	drawP2(0);
 
 	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
 
@@ -2467,7 +2433,7 @@ void displayTask(TimerHandle_t xTimer){
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
+  * @param  argument: Not used
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
@@ -2531,4 +2497,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-

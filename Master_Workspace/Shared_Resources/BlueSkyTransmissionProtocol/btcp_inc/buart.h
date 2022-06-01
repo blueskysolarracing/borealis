@@ -1,10 +1,8 @@
 #ifndef __BUART_H
 #define __BUART_H
 
-
 #include "main.h"
 #include "cmsis_os.h"
-
 
 typedef struct{
 	uint8_t* buf;

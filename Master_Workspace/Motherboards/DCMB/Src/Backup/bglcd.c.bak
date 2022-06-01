@@ -215,20 +215,26 @@ void drawP1Activate(){
     uint8_t x = 22;
 
     char* ptr = labels[0];
-
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+    int cnt = 0;
+    while(*ptr != 0){
+    	if (ptr[cnt] == 0){ break; }
+        glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
+        cnt++;
         x+=6;
+        ptr++;
     }
 
     y = 36;
     x = 37;
 
     ptr = labels[1];
-
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+    cnt = 0;
+    while(*ptr != 0){
+    	if (ptr[cnt] == 0){ break; }
+        glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
+        cnt++;
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -251,6 +257,7 @@ void drawP1Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -261,6 +268,7 @@ void drawP1Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -279,10 +287,13 @@ void drawP1IgnitionOff(){
     uint8_t x = 46;
 
     char* ptr = labels[0];
+    int cnt = 0;
 
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+    while(ptr[cnt] != NULL){
+        glcd_tiny_draw_char_xy(x, correct_Y(y), ptr[cnt]);
         x+=6;
+        cnt++;
+        ptr++;
     }
 
     y = 36;
@@ -293,6 +304,7 @@ void drawP1IgnitionOff(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -315,6 +327,7 @@ void drawP1BMSFault(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -325,6 +338,7 @@ void drawP1BMSFault(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_0_GPIO_Port, DISP_CS_0_Pin, GPIO_PIN_RESET);
@@ -490,6 +504,7 @@ void drawP2Activate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -500,6 +515,7 @@ void drawP2Activate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);
@@ -522,6 +538,7 @@ void drawP2Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
     y = 36;
@@ -532,6 +549,7 @@ void drawP2Deactivate(){
     while(*ptr != '\0'){
         glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
         x+=6;
+        ptr++;
     }
 
 	HAL_GPIO_WritePin(DISP_CS_1_GPIO_Port, DISP_CS_1_Pin, GPIO_PIN_RESET);

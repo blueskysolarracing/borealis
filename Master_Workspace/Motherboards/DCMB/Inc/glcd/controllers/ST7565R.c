@@ -7,6 +7,7 @@
 #if defined(GLCD_CONTROLLER_ST7565R)
 
 #include "../glcd.h"
+extern uint8_t pToggle;
 
 void glcd_command(uint8_t c)
 {

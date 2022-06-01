@@ -73,7 +73,6 @@ B_tcpHandle_t* btcp_bms;
 QueueHandle_t lightsCtrl = NULL;
 TimerHandle_t blink_timer = NULL;
 
-
 //--- LIGHTS ---//
 struct lights_stepper_ctrl lightsPeriph;
 uint8_t lightInstruction = 0;
@@ -116,7 +115,6 @@ void blinkCallback(TimerHandle_t xTimer);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -169,15 +167,15 @@ int main(void)
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
   configPSM(&psmPeriph, &hspi2, &huart2, "12");
 
+  char printString[50];
   while(1){
-	  char printString[50];
+
 	  double PSMBuffer[30] = {-1, -1, -1};
-	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSMBuffer, 2);
+	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer, 2);
 	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
 	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
 	  HAL_Delay(2000);
   }
-
   //--- LIGHTS ---//
   lightsPeriph.CSPin0 = TMC5160_CS0_Pin;
   lightsPeriph.CSPort0 = TMC5160_CS0_GPIO_Port;
@@ -265,6 +263,8 @@ int main(void)
   xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 4, NULL);
 
   //Initial state of lights; all off
+
+
 
   /* USER CODE END 2 */
 
