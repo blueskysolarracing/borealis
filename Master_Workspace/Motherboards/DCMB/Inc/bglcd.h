@@ -16,7 +16,7 @@ void drawP1IgnitionOff();
 void drawP1BMSFault();
 void drawP1(uint8_t sel);
 void drawP2Default(int value[4]);
-void drawP2Detailed(int value[4]);
+void drawP2Detailed(int value[5]);
 void drawP2Activate();
 void drawP2Deactivate();
 void drawP2IgnitionOff(int value[4]);
