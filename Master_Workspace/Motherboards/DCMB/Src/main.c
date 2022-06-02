@@ -90,6 +90,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim8;
 TIM_HandleTypeDef htim12;
 
@@ -110,10 +111,12 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+//--- COMMS ---//
 B_uartHandle_t* buart;
 B_uartHandle_t* spbBuart;
 B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
+
 uint8_t ignition_state = 0;
 uint8_t array_state = 0;
 SemaphoreHandle_t accMutex;
@@ -124,6 +127,9 @@ uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
+
+//--- DISPLAY ---//
+uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -153,19 +159,20 @@ static void MX_TIM12_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_CRC_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 static void sidePanelTask(const void *pv);
 static void steeringWheelTask(const void *pv);
 static void displayTask();
-static void lightsTmr(TimerHandle_t xTimer);
-static void mc2StateTmr(TimerHandle_t xTimer);
-//static void displayTmr(TimerHandle_t xTimer);
-static void motCallback(uint8_t motState);
-static void vfmUpCallback();
-static void vfmDownCallback();
-static void accResetCallback();
+static void motorDataTask();
+//static void lightsTmr(TimerHandle_t xTimer);
+static void displayTimer(TimerHandle_t xTimer);
+//static void motCallback(uint8_t motState);
+//static void vfmUpCallback();
+//static void vfmDownCallback();
+//static void accResetCallback();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -213,12 +220,30 @@ int main(void)
   MX_TIM1_Init();
   MX_CRC_Init();
   MX_ADC1_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   MX_SPI2_Init(); //I don't know why it's not being called above
 //  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED); //Calibrate ADC (used for acceleration pedal)
 
+  //--- NUKE LED ---//
+  HAL_TIM_Base_Start_IT(&htim7);
+
+  //--- COMMS ---//
+  buart = B_uartStart(&huart4);
+  spbBuart = B_uartStart(&huart3);
+  swBuart = B_uartStart(&huart8);
+  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+
+  //--- FREERTOS ---//
+  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
+  xTaskCreate(motorDataTask, "motorDataTask", 1024, 1, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+
   //--- DRIVER DISPLAYS ---//
   glcd_init();
+  pToggle = 0; //Left display to start
 
   //Testing testing
   pToggle = 0;
@@ -243,18 +268,15 @@ int main(void)
 //  displayInit(); //Legacy from GEN10
 //  glcd_clear();
 
-  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-  buart = B_uartStart(&huart4);
-  spbBuart = B_uartStart(&huart3);
-  swBuart = B_uartStart(&huart8);
-  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+//  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
+  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
   xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
-  disp_attachMotOnCallback(motCallback);
-  disp_attachVfmUpCallback(vfmUpCallback);
-  disp_attachVfmDownCallback(vfmDownCallback);
-  disp_attachAccResetCallback(accResetCallback);
+//  disp_attachMotOnCallback(motCallback);
+//  disp_attachVfmUpCallback(vfmUpCallback);
+//  disp_attachVfmDownCallback(vfmDownCallback);
+//  disp_attachAccResetCallback(accResetCallback);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -1160,6 +1182,44 @@ static void MX_TIM5_Init(void)
 }
 
 /**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 0;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 65535;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
   * @brief TIM8 Initialization Function
   * @param None
   * @retval None
@@ -1223,7 +1283,6 @@ static void MX_TIM12_Init(void)
   /* USER CODE END TIM12_Init 0 */
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM12_Init 1 */
 
@@ -1243,26 +1302,9 @@ static void MX_TIM12_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim12) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM12_Init 2 */
 
   /* USER CODE END TIM12_Init 2 */
-  HAL_TIM_MspPostInit(&htim12);
 
 }
 
@@ -1579,7 +1621,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOK_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, DISP_CS_1_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, DISP_CS_1_Pin|LED2_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
@@ -1597,7 +1639,7 @@ static void MX_GPIO_Init(void)
                           |DISP_RST_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin|GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -1609,8 +1651,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3|GPIO_PIN_6, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DISP_CS_1_Pin PE0 */
-  GPIO_InitStruct.Pin = DISP_CS_1_Pin|GPIO_PIN_0;
+  /*Configure GPIO pins : DISP_CS_1_Pin LED2_Pin PE0 */
+  GPIO_InitStruct.Pin = DISP_CS_1_Pin|LED2_Pin|GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1663,10 +1705,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PE11 PE12 PE13 PE14
-                           PE15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+  /*Configure GPIO pins : PE11 PE12 PE13 PE15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -1680,8 +1720,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PH12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  /*Configure GPIO pins : LED0_Pin LED1_Pin PH12 */
+  GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1807,7 +1847,13 @@ static void lightsTmr(TimerHandle_t xTimer){
 //	B_tcpSend(btcp, buf, 4);
 }
 
-static void mc2StateTmr(TimerHandle_t xTimer){
+static void displayTimer(TimerHandle_t xTimer){
+	taskENTER_CRITICAL();
+	refresh_display = 1;
+	taskEXIT_CRITICAL();
+}
+
+static void motorDataTask(TimerHandle_t xTimer){
 	static uint8_t started = 0;
 	static char buf[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	static int currentValue = 0;
@@ -1885,8 +1931,9 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 		//Check if we need to turn on braking lights
 		if (regen_value >= 10){ //If braking power is >= 10/255%, turn on break lights
 	        uint8_t bufh[2] = {0x03, 0b00001000}; //[DATA ID, LIGHT INSTRUCTION]
-	        B_tcpSend(btcp, bufh, 2);
+//	        B_tcpSend(btcp, bufh, 2);
 		}
+
 
 //		// TODO other buttons
 //		disp_setDCMBAccPotPosition(accel_value);
@@ -2135,7 +2182,7 @@ static void steeringWheelTask(const void *pv){
   uint8_t oldSteeringData[3] = {0, 0, 0};
 
   for(;;){
-	e = B_uartRead(swBuart);
+//	e = B_uartRead(swBuart);
 
 	taskENTER_CRITICAL();
 	//Save old data
@@ -2284,7 +2331,7 @@ static void sidePanelTask(const void *pv){
   uint32_t crcExpected;
 
   for(;;){
-    e = B_uartRead(spbBuart);
+//    e = B_uartRead(spbBuart);
 
 	taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
@@ -2296,7 +2343,7 @@ static void sidePanelTask(const void *pv){
 
 	//Check CRC, optional
 
-    B_uartDoneRead(e);
+//    B_uartDoneRead(e);
 
   //---------- Process data ----------//
   //REAR CAMERA AND SCREEN
@@ -2369,7 +2416,7 @@ static void sidePanelTask(const void *pv){
 	  HAL_Delay(100);
   }
 
-  B_tcpSend(btcp, bufh, 2);
+//  B_tcpSend(btcp, bufh, 2);
 
   taskEXIT_CRITICAL(); // exit critical section
 }
@@ -2400,10 +2447,33 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void displayTask(TimerHandle_t xTimer){
-	drawP1(0);
-	drawP2(0);
+	//Peridically runs and checks if/what it needs to refresh on the display
 
-	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
+	if (refresh_display){
+		drawP1(0);
+		drawP2(0);
+
+		int defaultTest[4] = {420, 874, -454, 69};
+		int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+		uint8_t sel = 0;
+		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+		while(1){
+			drawP1(sel);
+			drawP2(sel);
+
+			sel = sel + 1;
+			sel = sel % 6;
+
+			HAL_Delay(500);
+		}
+
+		taskENTER_CRITICAL(); // data into global variable -> enter critical section
+		refresh_display = 0;
+		taskEXIT_CRITICAL(); // data into global variable -> enter critical section
+	} else {
+		taskYIELD();
+	}
 
 //	uint32_t id = pvTimerGetTimerID(xTimer);
 //	if(id == 0){
@@ -2457,6 +2527,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6) {
     HAL_IncTick();
+  } else if (htim->Instance == TIM7) {
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
   }
   /* USER CODE BEGIN Callback 1 */
 
