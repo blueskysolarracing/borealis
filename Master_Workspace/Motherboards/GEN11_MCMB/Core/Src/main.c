@@ -1893,12 +1893,11 @@ float speedToFrequency(uint8_t targetSpeed){
 //}
 
 
-
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorOn = 0; //1 is on, 0 is off
 	static uint8_t currentFwdRevState = 0;
-	static uint16_t currentAccValue = 1;
-	static uint16_t currentRegenValue = 1;
+	static uint16_t currentAccValue = 0;
+	static uint16_t currentRegenValue = 0;
 	static uint8_t currentVfmUpState = 0;
 	static uint8_t currentVfmDownState = 0;
 	static uint8_t vfm_up_count = 0;
@@ -1906,20 +1905,25 @@ static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t vfmCount = 0;
 
 
-//	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //Stops accel if serialParse stops being called (this means uart connection is lost)
-//		accValue = 0; // Just send here instead;
-//	}
+	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //if serialParse stops being called (this means uart connection is lost)
+		MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3); //stops accel
+		return;
+	}
 
 	switch (motorState) {
 		case OFF:
 			if(currentMotorOn){
-				// if motor is on, turn it off
+				// if motor is on, turn it off by driving pin high
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
 				currentMotorOn = 0;
 			}
-			break;
+			return; //return instead of break here
 		case PEDAL:
-			currentMotorOn = 1;
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
+
 			if(currentFwdRevState != fwdRevState){
 				if(fwdRevState){
 					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
@@ -1929,110 +1933,99 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
-			// then, drive accel or regen pots
-		break;
-
+			// drive accel pots
+			uint16_t localAccValue = targetPower;
+			if(currentAccValue != localAccValue){
+				MCP4161_Pot_Write(localAccValue, GPIOK, GPIO_PIN_2, &hspi3);
+				currentAccValue = localAccValue;
+			}
+			break;
 		case CRUISE:
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
+			if(currentFwdRevState != fwdRevState){
+				if(fwdRevState){
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+					currentFwdRevState = 1;
+				} else {
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
+					currentFwdRevState = 0;
+				}
+			}
 			// TODO: call pid controller update
+			break;
+
+		case REGEN:
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
+			if(currentFwdRevState != fwdRevState){
+				if(fwdRevState){
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+					currentFwdRevState = 1;
+				} else {
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
+					currentFwdRevState = 0;
+				}
+			}
+			// drive regen pots
+			uint16_t localRegenValue = targetPower;
+			if (batteryVoltage > 110 || batteryVoltage < 110) {
+				localRegenValue = 0; // for safety
+			}
+			if(currentRegenValue != localRegenValue){
+				MCP4161_Pot_Write(localRegenValue, GPIOG, GPIO_PIN_2, &hspi3);
+				currentRegenValue = localRegenValue;
+			}
 			break;
 	}
 
 
-//	if(currentMotorOnOff != motorOnOff){
-//		if(motorOnOff){
-//			HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-//			currentMotorOnOff = 1;
-//		} else {
-//			HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
-//			currentMotorOnOff = 0;
-//		}
-//	}
+	// The VFMUpState comes from the DCMB
+	// Normally it is zero
+	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
+	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
+	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
+	if(currentVfmUpState != vfmUpState){
+		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount < 8){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
+			vfm_up_count++;
+			currentVfmUpState = 1;
+		} else if (vfm_up_count < 20){
+			vfm_up_count++;
+		} else if(vfm_up_count == 20){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
+				vfm_up_count++;
+		} else if(vfm_up_count < 40){
+			vfm_up_count++;
+		} else if(vfm_up_count == 40){
+			vfm_up_count = 0;
+			currentVfmUpState = 0;
+			vfmCount++;
+		}
+	}
 
-//	if(currentFwdRevState != fwdRevState){
-//		if(fwdRevState){
-//			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-//			currentFwdRevState = 1;
-//		} else {
-//			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-//			currentFwdRevState = 0;
-//		}
-//	}
-//
-//	uint16_t localAccValue = accValue;
-//	uint16_t localRegenValue = regenValue;
-//	// Since the max you can send to potentiometer is 256 but the max value from DCMB is 255, we will just set 255 to 256 for simplicity
-//	if (accValue == 255) {
-//		localAccValue = 256;
-//	}
-//	if (regenValue == 255) {
-//		localRegenValue = 256;
-//	}
-//	if (batteryVoltage > 110 || batteryVoltage < 110) {
-//		localRegenValue = 0;
-//	}
-//
-//	// The follow if statement is to prevent sending Accel and Regen signals to the motor at the same time
-//	// REgen is prioritized at the moment (if both signals received from DCMB are not zero, we will force Accel to be zero)
-//	if (localAccValue != 0 && localRegenValue != 0) {
-//		localAccValue = 0;
-//	}
-//
-//
-//	if(currentAccValue != localAccValue){
-//
-//		MCP4161_Pot_Write(localAccValue, GPIOK, GPIO_PIN_2, &hspi3);
-//		currentAccValue = localAccValue;
-//	}
-//
-//	if(currentRegenValue != localRegenValue){
-//
-//		MCP4161_Pot_Write(localRegenValue, GPIOG, GPIO_PIN_2, &hspi3);
-//		currentRegenValue = localRegenValue;
-//
-//	}
-//
-//	// The VFMUpState comes from the DCMB
-//	// Normally it is zero
-//	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
-//	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
-//	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-//	if(currentVfmUpState != vfmUpState){
-//		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount < 8){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-//			vfm_up_count++;
-//			currentVfmUpState = 1;
-//		} else if (vfm_up_count < 20){
-//			vfm_up_count++;
-//		} else if(vfm_up_count == 20){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
-//				vfm_up_count++;
-//		} else if(vfm_up_count < 40){
-//			vfm_up_count++;
-//		} else if(vfm_up_count == 40){
-//			vfm_up_count = 0;
-//			currentVfmUpState = 0;
-//			vfmCount++;
-//		}
-//	}
-//
-//	if(currentVfmDownState != vfmDownState){
-//		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount > 0){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-//			vfm_down_count++;
-//			currentVfmDownState = 1;
-//		} else if (vfm_down_count < 20){
-//			vfm_down_count++;
-//		} else if(vfm_down_count == 20){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-//				vfm_down_count++;
-//		} else if(vfm_down_count < 40){
-//			vfm_down_count++;
-//		} else if(vfm_down_count == 40){
-//			vfm_down_count = 0;
-//			currentVfmDownState = 0;
-//			vfmCount--;
-//		}
-//	}
+	if(currentVfmDownState != vfmDownState){
+		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount > 0){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
+			vfm_down_count++;
+			currentVfmDownState = 1;
+		} else if (vfm_down_count < 20){
+			vfm_down_count++;
+		} else if(vfm_down_count == 20){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
+				vfm_down_count++;
+		} else if(vfm_down_count < 40){
+			vfm_down_count++;
+		} else if(vfm_down_count == 40){
+			vfm_down_count = 0;
+			currentVfmDownState = 0;
+			vfmCount--;
+		}
+	}
 }
 
 // New implementation GEN11
