@@ -169,6 +169,17 @@ static void displayTask();
 static void motorDataTask();
 //static void lightsTmr(TimerHandle_t xTimer);
 static void displayTimer(TimerHandle_t xTimer);
+static void dummy(){
+	int i = 0;
+	while(1){
+		i++;
+		if(i%2 == 0)
+			HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+		else
+			HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_RESET);
+		osDelay(100);
+	}
+}
 //static void motCallback(uint8_t motState);
 //static void vfmUpCallback();
 //static void vfmDownCallback();
@@ -235,44 +246,29 @@ int main(void)
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
 
   //--- FREERTOS ---//
-  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
+//  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
   xTaskCreate(motorDataTask, "motorDataTask", 1024, 1, 5, NULL);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
-  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+//  xTaskCreate(displayTask, "displayTask", 102400, 1, 5, NULL);
+  xTaskCreate(dummy, "dummyTask", 1024, 1, 5, NULL);
+//  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+//  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
 
   //--- DRIVER DISPLAYS ---//
-  glcd_init();
-  pToggle = 0; //Left display to start
+//  glcd_init();
+//  pToggle = 0; //Left display to start
 
   //Testing testing
-  pToggle = 0;
 //  glcd_test_circles();
 
-	int defaultTest[4] = {420, 874, -454, 69};
-	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-	uint8_t sel = 0;
-	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-	while(1){
-		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_RESET);
-		drawP1(sel);
-		drawP2(sel);
-		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-
-		sel = sel + 1;
-		sel = sel % 6;
-
-		HAL_Delay(1000);
-	}
 //  displayInit(); //Legacy from GEN10
 //  glcd_clear();
 
 //  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
-  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+//  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
+//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+//  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+//  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
 //  disp_attachMotOnCallback(motCallback);
 //  disp_attachVfmUpCallback(vfmUpCallback);
 //  disp_attachVfmDownCallback(vfmDownCallback);
@@ -1848,9 +1844,9 @@ static void lightsTmr(TimerHandle_t xTimer){
 }
 
 static void displayTimer(TimerHandle_t xTimer){
-	taskENTER_CRITICAL();
+//	taskENTER_CRITICAL();
 	refresh_display = 1;
-	taskEXIT_CRITICAL();
+//	taskEXIT_CRITICAL();
 }
 
 static void motorDataTask(TimerHandle_t xTimer){
@@ -1876,9 +1872,9 @@ static void motorDataTask(TimerHandle_t xTimer){
     HAL_ADC_Stop(&hadc1);
 
 // -------- FORWARD/REVERSE -------- //
-		taskENTER_CRITICAL();
+//		taskENTER_CRITICAL();
 		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
-		taskEXIT_CRITICAL();
+//		taskEXIT_CRITICAL();
 
 // -------- ACCELERATION -------- //
 		//Get pedals reading, need to do it polling to ensure we have the latest measurements
@@ -2184,7 +2180,7 @@ static void steeringWheelTask(const void *pv){
   for(;;){
 //	e = B_uartRead(swBuart);
 
-	taskENTER_CRITICAL();
+//	taskENTER_CRITICAL();
 	//Save old data
 	for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
 
@@ -2295,7 +2291,7 @@ static void steeringWheelTask(const void *pv){
 
 	B_uartDoneRead(e);
 
-	taskEXIT_CRITICAL(); // exit critical section
+//	taskEXIT_CRITICAL(); // exit critical section
 
 	// print statement -> connect to serial monitor
     char buffer[100];
@@ -2333,7 +2329,7 @@ static void sidePanelTask(const void *pv){
   for(;;){
 //    e = B_uartRead(spbBuart);
 
-	taskENTER_CRITICAL(); // data into global variable -> enter critical section
+//	taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
 	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
 		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
@@ -2374,24 +2370,24 @@ static void sidePanelTask(const void *pv){
 
   //AUX1 (not implemented in GEN11)
   if (sidePanelData & (1 << 2)){
-	  HAL_Delay(100);
+	  osDelay(100);
   } else { //Turn off horn
-	  HAL_Delay(100);
+	  osDelay(100);
   }
 
   //AUX2 (not implemented in GEN11)
   if (sidePanelData & (1 << 3)){
-	  HAL_Delay(100);
+	  osDelay(100);
   } else { //Turn off horn
-	  HAL_Delay(100);
+	  osDelay(100);
   }
 
   //ARRAY (close solar array power relays (if allowed))
   //To be implemented
   if (sidePanelData & (1 << 0)){
-	  HAL_Delay(100);
+	  osDelay(100);
   } else { //Turn off horn
-	  HAL_Delay(100);
+	  osDelay(100);
   }
 
   //FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
@@ -2411,14 +2407,14 @@ static void sidePanelTask(const void *pv){
   //IGNITION (put car into drive mode (if allowed)
   //To be implemented
   if (sidePanelData & (1 << 7)){
-	  HAL_Delay(100);
+	  osDelay(100);
   } else {
-	  HAL_Delay(100);
+	  osDelay(100);
   }
 
 //  B_tcpSend(btcp, bufh, 2);
 
-  taskEXIT_CRITICAL(); // exit critical section
+//  taskEXIT_CRITICAL(); // exit critical section
 }
 }
 
@@ -2449,48 +2445,45 @@ void serialParse(B_tcpPacket_t *pkt){
 void displayTask(TimerHandle_t xTimer){
 	//Peridically runs and checks if/what it needs to refresh on the display
 
-	if (refresh_display){
-		drawP1(0);
-		drawP2(0);
+	glcd_init();
+	pToggle = 0; //Left display to start
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	drawP1(0);
+	drawP2(0);
 
-		int defaultTest[4] = {420, 874, -454, 69};
-		int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	uint8_t sel = 0;
+	while(1){
+		drawP1(sel);
+		drawP2(sel);
 
-		uint8_t sel = 0;
-		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-		while(1){
-			drawP1(sel);
-			drawP2(sel);
+		sel = sel + 1;
+		sel = sel % 6;
 
-			sel = sel + 1;
-			sel = sel % 6;
-
-			HAL_Delay(500);
-		}
-
-		taskENTER_CRITICAL(); // data into global variable -> enter critical section
-		refresh_display = 0;
-		taskEXIT_CRITICAL(); // data into global variable -> enter critical section
-	} else {
-		taskYIELD();
+		osDelay(1000);
 	}
 
-//	uint32_t id = pvTimerGetTimerID(xTimer);
-//	if(id == 0){
-//		vTimerSetTimerID(xTimer, 1);
-//	}else if(id == 1){
-//		//Draw to displays
-//		drawP1();
-//		drawP2();
-//	}else if(id == 2){
-//		xTimerChangePeriod(xTimer, 25, portMAX_DELAY);
-//		vTimerSetTimerID(xTimer, 3);
-//	}else{
-////		if(xSemaphoreTake(dispMtx, 0) == pdPASS){
-////			lv_task_handler();
-////			xSemaphoreGive(dispMtx);
-////		}
+//	if (refresh_display){
+//		drawP1(0);
+//		drawP2(0);
+//
+//		uint8_t sel = 0;
+//		while(1){
+//			drawP1(sel);
+//			drawP2(sel);
+//
+//			sel = sel + 1;
+//			sel = sel % 6;
+//
+//			HAL_Delay(1000);
+//		}
+//
+//		taskENTER_CRITICAL(); // data into global variable -> enter critical section
+//		refresh_display = 0;
+//		taskEXIT_CRITICAL(); // data into global variable -> enter critical section
+//	} else {
+//		taskYIELD();
 //	}
+
 }
 /* USER CODE END 4 */
 
