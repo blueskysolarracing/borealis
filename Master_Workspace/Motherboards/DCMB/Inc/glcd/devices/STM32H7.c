@@ -52,30 +52,6 @@ void delay_ms(uint32_t ms);
 
 //#define BACKLIGHT_INVERT	// Uncomment if LED backlight turn on with low value
 
-void change_to_P2(){
-	#undef CONTROLLER_SPI_SS_PORT
-	#undef CONTROLLER_SPI_RST_PORT
-	#undef CONTROLLER_SPI_SS_PIN
-	#undef CONTROLLER_SPI_RST_PIN
-
-	#define CONTROLLER_SPI_SS_PORT DISP_CS_1_GPIO_Port
-	#define CONTROLLER_SPI_RST_PORT DISP_RST_2_GPIO_Port
-	#define CONTROLLER_SPI_SS_PIN DISP_CS_1_Pin
-	#define CONTROLLER_SPI_RST_PIN DISP_RST_2_Pin
-}
-
-void change_to_P1(){
-	#undef CONTROLLER_SPI_SS_PORT
-	#undef CONTROLLER_SPI_RST_PORT
-	#undef CONTROLLER_SPI_SS_PIN
-	#undef CONTROLLER_SPI_RST_PIN
-
-	#define CONTROLLER_SPI_SS_PORT DISP_CS_0_GPIO_Port
-	#define CONTROLLER_SPI_RST_PORT DISP_RST_1_GPIO_Port
-	#define CONTROLLER_SPI_SS_PIN DISP_CS_0_Pin
-	#define CONTROLLER_SPI_RST_PIN DISP_RST_1_Pin
-}
-
 void glcd_init(void)
 {
 
@@ -294,19 +270,15 @@ void glcd_spi_write(uint8_t c)
 			GLCD_SELECT_P1();
 			break;
 	}
-//	if(pToggle){
-//		GLCD_SELECT_P1();
-//	}
-//	else{
-//		GLCD_SELECT_P2();
-//	}
 
 	/*!< Loop while DR register in not emplty */
 	//OLD while (SPI_I2S_GetFlagStatus(SPIx, SPI_I2S_FLAG_TXE) == RESET);
 
 	//OLD SPI_I2S_SendData(SPIx, (uint16_t) c);
 	HAL_SPI_Transmit(&hspi2, &c, 1, MAX_SPI_TRANSMIT_TIMEOUT);
+//	HAL_SPI_Transmit_IT(&hspi2, &c, 1);
 	
+
 	/* Wait until entire byte has been read (which we discard anyway) */
 	//OLD while(SPI_I2S_GetFlagStatus(SPIx, SPI_I2S_FLAG_BSY) != RESET);
 
@@ -330,7 +302,7 @@ void glcd_reset(void)
 	GLCD_RESET_LOW_P1();
 	GLCD_RESET_LOW_P2();
 
-	HAL_Delay(1000);
+	osDelay(1000);
 	//DelayTask(GLCD_RESET_TIME);
 	GLCD_RESET_HIGH_P1();
 	GLCD_RESET_HIGH_P2();

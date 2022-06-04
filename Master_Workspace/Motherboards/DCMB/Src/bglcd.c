@@ -22,10 +22,11 @@
 #include "fonts/Bebas_Neue20x36_Bold_Numbers.h"
 //#include "fonts/Earthbound_12x19_48to57.h"
 #include "fonts/font5x7.h"
-int correct_Y(uint8_t y){
+
+uint8_t correct_Y(uint8_t y){
 	if(pToggle)
-		return ((y+48)%64);
-	return y;
+		return y;
+	return (y+16)%64;
 }
 
 // p1 stuff start
@@ -109,8 +110,8 @@ void drawP1Default(int value[4]){
 
 	// now write the big speed
 	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-	glcd_draw_char_xy(85, 16, valueS[3][2]);
-	glcd_draw_char_xy(105, 16, valueS[3][3]);
+	glcd_draw_char_xy(85, correct_Y(16), valueS[3][2]);
+	glcd_draw_char_xy(105, correct_Y(16), valueS[3][3]);
 
 	pToggle = 0;
 	glcd_write();
@@ -136,7 +137,7 @@ void drawP1Detailed(int value[9]){
 			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
 			j++;
 		}
-		glcd_tiny_draw_char_xy(72, correct_Y(y), 'w');
+		glcd_tiny_draw_char_xy(68, correct_Y(y), 'w');
 		// go next rows, these value are just what I think will look good
 		y+=23;
 	}
@@ -179,7 +180,7 @@ void drawP1Detailed(int value[9]){
 	y = 5;
 	for(int i = 0; i < 3; i++){
 		for(int j = 0; j < 4; j++){
-			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+			glcd_tiny_draw_char_xy(48+(j*5), correct_Y(y), valueS[i][j]);
 		}
 		y+=23;
 	}
@@ -187,15 +188,17 @@ void drawP1Detailed(int value[9]){
 	// write the 6 small values
 	y = 5;
 	for(int i = 3; i < 9; i+=2){
-        glcd_tiny_draw_char_xy(78, correct_Y(y), '(');
-        glcd_tiny_draw_char_xy(82, correct_Y(y), valueS[i][2]);
-        glcd_tiny_draw_char_xy(87, correct_Y(y), valueS[i][3]);
-        glcd_tiny_draw_char_xy(92, correct_Y(y), 'V');
-        glcd_tiny_draw_char_xy(97, correct_Y(y), ',');
-        glcd_tiny_draw_char_xy(102, correct_Y(y), valueS[i+1][2]);
-        glcd_tiny_draw_char_xy(107, correct_Y(y), valueS[i+1][3]);
-        glcd_tiny_draw_char_xy(112, correct_Y(y), 'A');
-        glcd_tiny_draw_char_xy(117, correct_Y(y), ')');
+		uint8_t x = 73;
+        glcd_tiny_draw_char_xy(x, correct_Y(y), '(');
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i][1]);
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i][2]);
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i][3]);
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'V');
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ',');
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i+1][2]);
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i+1][3]);
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'A');
+        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ')');
 		y+=23;
 	}
 
@@ -210,8 +213,7 @@ void drawP1Activate(){
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	// start drawing at y = 5
-	uint8_t y = 12;
+	uint8_t y = 17;
     uint8_t x = 22;
 
     char* ptr = labels[0];
@@ -221,12 +223,14 @@ void drawP1Activate(){
         ptr++;
     }
 
-    y = 36;
+    y = 40;
     x = 37;
+    // play with this
+    glcd_fill_rect(30, correct_Y(y-1), 68, 9, 1);
 
     ptr = labels[1];
     while(*ptr){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+    	glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
         x+=6;
         ptr++;
     }
@@ -243,7 +247,7 @@ void drawP1Deactivate(){
 	glcd_clear_buffer();
 
 	// start drawing at y = 5
-	uint8_t y = 12;
+	uint8_t y = 17;
     uint8_t x = 22;
 
     char* ptr = labels[0];
@@ -254,13 +258,15 @@ void drawP1Deactivate(){
         ptr++;
     }
 
-    y = 36;
+    y = 40;
     x = 31;
+    // play with this
+    glcd_fill_rect(30, correct_Y(y-1), 68, 9, 1);
 
     ptr = labels[1];
 
     while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+    	glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
         x+=6;
         ptr++;
     }
@@ -305,7 +311,7 @@ void drawP1IgnitionOff(){
 
 void drawP1BMSFault(){
 	pToggle = 0;
-    char* labels[] = {"BMS FAULT DETECTED", "CAR OFF"};
+    char* labels[] = {"BMS FAULT DETECTED", "CAR", "OFF"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -332,6 +338,17 @@ void drawP1BMSFault(){
         x+=6;
         ptr++;
     }
+
+    x = 67;
+    glcd_fill_rect(x-1, correct_Y(y-1), 20, 9, 1);
+
+    ptr = labels[2];
+
+	while(*ptr != '\0'){
+		glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
+		x+=6;
+		ptr++;
+	}
 
 	pToggle = 0;
 	glcd_write();
@@ -371,7 +388,7 @@ void drawP1(uint8_t sel){
 // p2 stuff start
 void drawP2Default(int value[4]){
 	pToggle = 1;
-	char* labelsP2[] = {"Cruise:", "Light:"};
+	char* labelsP2[] = {"Cruise:", "DRL:"};
 	int labelsP2L = 2;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -409,22 +426,22 @@ void drawP2Default(int value[4]){
 
 	glcd_set_font(Liberation_Sans17x17_Alpha, 17, 17, 'A', 'Z');
 	for(int i = 0; i < 5; i++){
-		glcd_draw_char_xy(49+i*15, 30, regen[i]);
+		glcd_draw_char_xy(49+i*15, 45, regen[i]);
 	}
 
 	// now write the big battery
 	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-	glcd_draw_char_xy(0, 0, '0' + value[3]/10);
-	glcd_draw_char_xy(21, 0, '0' + value[3]%10);
+	glcd_draw_char_xy(0, 16, '0' + value[3]/10);
+	glcd_draw_char_xy(21, 16, '0' + value[3]%10);
 
 	pToggle = 1;
 	glcd_write();
 }
 
-void drawP2Detailed(int value[4]){
+void drawP2Detailed(int value[5]){
 	pToggle = 1;
-	char* labelsP2[] = {"Low voltage:", "Max pack temp:"};
-	int labelsP2L = 2;
+	char* labelsP2[] = {"Lo Voltage:", "Max pack temp:", "VFM:"};
+	int labelsP2L = 3;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -441,10 +458,10 @@ void drawP2Detailed(int value[4]){
 	}
 
     // draw the numbers
-	char valueS[4][4];
+	char valueS[5][4];
 
 	// get it in strings
-	for(int i = 0; i < 4; i++){
+	for(int i = 0; i < 5; i++){
 		// sign
 		int v = value[i];
 		if(v<0){
@@ -472,28 +489,39 @@ void drawP2Detailed(int value[4]){
 		valueS[i][3] = '0' + v%10;
 	}
 
-    // write the 4 small values
+    // write the 5 small values
 	y = 5;
     // the watt and V and A
-    glcd_tiny_draw_char_xy(60, correct_Y(y), valueS[0][2]);
-    glcd_tiny_draw_char_xy(65, correct_Y(y), valueS[0][3]);
-    glcd_tiny_draw_char_xy(70, correct_Y(y), 'W');
-    glcd_tiny_draw_char_xy(75, correct_Y(y), '(');
-    glcd_tiny_draw_char_xy(80, correct_Y(y), valueS[1][2]);
-    glcd_tiny_draw_char_xy(85, correct_Y(y), valueS[1][3]);
-    glcd_tiny_draw_char_xy(90, correct_Y(y), 'V');
-    glcd_tiny_draw_char_xy(95, correct_Y(y), ',');
-    glcd_tiny_draw_char_xy(100, correct_Y(y), valueS[2][2]);
-    glcd_tiny_draw_char_xy(105, correct_Y(y), valueS[2][3]);
-    glcd_tiny_draw_char_xy(110, correct_Y(y), 'A');
-    glcd_tiny_draw_char_xy(115, correct_Y(y), ')');
+	uint8_t x = 55;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
+	glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][1]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][3]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'W');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '(');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][1]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][3]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'V');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ',');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][3]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'A');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ')');
     // the temp
     y+=23;
-    glcd_tiny_draw_char_xy(70, correct_Y(y), valueS[3][0]);
-    glcd_tiny_draw_char_xy(75, correct_Y(y), valueS[3][1]);
-    glcd_tiny_draw_char_xy(80, correct_Y(y), valueS[3][2]);
-    glcd_tiny_draw_char_xy(85, correct_Y(y), valueS[3][3]);
-    glcd_tiny_draw_char_xy(90, correct_Y(y), 'C');
+    x = 70;
+    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[3][0]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][1]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][3]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'C');
+    // VFM
+    y+=23;
+    x = 20;
+    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[4][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[4][3]);
 
     pToggle = 1;
 	glcd_write();
@@ -506,30 +534,29 @@ void drawP2Activate(){
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
-	// start drawing at y = 5
-	uint8_t y = 12;
-    uint8_t x = 22;
+	uint8_t y = 17;
+	uint8_t x = 22;
 
-    char* ptr = labels[0];
+	char* ptr = labels[0];
+	while(*ptr){
+		glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+		x+=6;
+		ptr++;
+	}
 
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
-        x+=6;
-        ptr++;
-    }
+	y = 40;
+	x = 37;
+	// play with this
+	glcd_fill_rect(30, correct_Y(y-1), 68, 9, 1);
 
-    y = 36;
-    x = 37;
+	ptr = labels[1];
+	while(*ptr){
+		glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
+		x+=6;
+		ptr++;
+	}
 
-    ptr = labels[1];
-
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
-        x+=6;
-        ptr++;
-    }
-
-    pToggle = 1;
+	pToggle = 1;
 	glcd_write();
 }
 
@@ -541,29 +568,31 @@ void drawP2Deactivate(){
 	glcd_clear_buffer();
 
 	// start drawing at y = 5
-	uint8_t y = 12;
-    uint8_t x = 22;
+	uint8_t y = 17;
+	uint8_t x = 22;
 
-    char* ptr = labels[0];
+	char* ptr = labels[0];
 
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
-        x+=6;
-        ptr++;
-    }
+	while(*ptr){
+		glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
+		x+=6;
+		ptr++;
+	}
 
-    y = 36;
-    x = 31;
+	y = 40;
+	x = 31;
+	// play with this
+	glcd_fill_rect(30, correct_Y(y-1), 68, 9, 1);
 
-    ptr = labels[1];
+	ptr = labels[1];
 
-    while(*ptr != '\0'){
-        glcd_tiny_draw_char_xy(x, correct_Y(y), *ptr);
-        x+=6;
-        ptr++;
-    }
+	while(*ptr != '\0'){
+		glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
+		x+=6;
+		ptr++;
+	}
 
-    pToggle = 1;
+	pToggle = 1;
 	glcd_write();
 }
 
@@ -621,33 +650,37 @@ void drawP2IgnitionOff(int value[4]){
 	// write the 4 small values
 	y = 5;
 	for(int i = 0; i < 3; i++){
+		uint8_t x = 48;
         switch(i){
             case 0:
-                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[0][2]);
-                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[0][3]);
-                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
+                glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][1]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][2]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][3]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
                 break;
             case 1:
-                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[1][2]);
-                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[1][3]);
-                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
-                glcd_tiny_draw_char_xy(66, correct_Y(y), '(');
-                glcd_tiny_draw_char_xy(72, correct_Y(y), valueS[2][2]);
-                glcd_tiny_draw_char_xy(78, correct_Y(y), valueS[2][3]);
-                glcd_tiny_draw_char_xy(84, correct_Y(y), 'W');
-                glcd_tiny_draw_char_xy(90, correct_Y(y), ')');
+                glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[1][0]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][1]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][2]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '.');
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][3]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '(');
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][2]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][3]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'W');
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), ')');
                 break;
             case 2:
-                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[3][2]);
-                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[3][3]);
-                glcd_tiny_draw_char_xy(60, correct_Y(y), '%');
+            	glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[3][1]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[3][2]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[3][3]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '%');
                 break;
             default:
                 break;
         }
-		for(int j = 0; j < 4; j++){
-			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
-		}
 		y+=23;
 	}
 
@@ -674,7 +707,7 @@ void drawP2BMSFault(int value[4]){
 		y+=23;
 	}
 
-    // draw the numbers
+	// draw the numbers
 	char valueS[4][4];
 
 	// get it in strings
@@ -709,32 +742,36 @@ void drawP2BMSFault(int value[4]){
 	// write the 4 small values
 	y = 5;
 	for(int i = 0; i < 3; i++){
-        switch(i){
-            case 0:
-                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[0][2]);
-                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[0][3]);
-                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
-                break;
-            case 1:
-                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[1][2]);
-                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[1][3]);
-                glcd_tiny_draw_char_xy(60, correct_Y(y), 'V');
-                glcd_tiny_draw_char_xy(66, correct_Y(y), '(');
-                glcd_tiny_draw_char_xy(72, correct_Y(y), valueS[2][2]);
-                glcd_tiny_draw_char_xy(78, correct_Y(y), valueS[2][3]);
-                glcd_tiny_draw_char_xy(84, correct_Y(y), 'W');
-                glcd_tiny_draw_char_xy(90, correct_Y(y), ')');
-                break;
-            case 2:
-                glcd_tiny_draw_char_xy(48, correct_Y(y), valueS[3][2]);
-                glcd_tiny_draw_char_xy(54, correct_Y(y), valueS[3][3]);
-                glcd_tiny_draw_char_xy(60, correct_Y(y), '%');
-                break;
-            default:
-                break;
-        }
-		for(int j = 0; j < 4; j++){
-			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
+		uint8_t x = 48;
+		switch(i){
+			case 0:
+				glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][1]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][2]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][3]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
+				break;
+			case 1:
+				glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[1][0]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][1]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][2]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '.');
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][3]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '(');
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][2]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][3]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'W');
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), ')');
+				break;
+			case 2:
+				glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[3][1]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[3][2]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[3][3]);
+				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '%');
+				break;
+			default:
+				break;
 		}
 		y+=23;
 	}
@@ -746,8 +783,8 @@ void drawP2BMSFault(int value[4]){
 void drawP2(uint8_t sel){
 	pToggle = 1;
 	int defaultTest[4] = {1, 0, 1, 87};
-	int defaultDetailed[4] = {1, 2, 3, 4};
-	int defaultBMSFault[4] = {89, 13, 13, 49};
+	int defaultDetailed[5] = {1, 2, 3, 4, 5};
+	int defaultBMSFault[4] = {89, 132, 13, 49};
 
 	switch(sel){
 	case 0:

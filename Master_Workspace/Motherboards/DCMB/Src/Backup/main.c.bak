@@ -40,36 +40,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-// SPB
-// GPIO PORT B: CAMERA, AUX2, FWD_REV, AUX1
-// GPIO PORT C: AUX0, IGNITION, FAN
-// GPIO PORT D: ARRAY
-// (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
-#define AUX1 1
-#define FWD_REV 2
-#define AUX2 4
-#define CAMERA 8
-#define FAN 16
-#define IGNITION 32
-#define AUX0 64
-#define ARRAY 128
-#define BSSR_SPB_RX_BUFFER_SIZE 256
-
-
-// SWB
-// GPIO PORT B: SELECT, RIGHT, DOWN, LEFT, UP, <blank>, CRUISE_SIGNAL
-// GPIO PORT C1: HORN_SIGNAL, RAD_SIGNAL, L_SIGNAL, R_SIGNAL
-// GPIO PORT C2: ACC8 -> ACC1
-#define SELECT 64
-#define RIGHT 32
-#define DOWN 16
-#define LEFT 8
-#define UP 4
-#define CRUISE 1
-#define HORN 8
-#define RAD_SIG 4
-#define L_SIG 2
-#define R_SIG 1
 
 //#define RIGHT_SIG 16
 //#define HORN 128
@@ -95,7 +65,7 @@ uint8_t steeringData[3];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
- ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc1;
 
 CRC_HandleTypeDef hcrc;
 
@@ -200,7 +170,7 @@ static void accResetCallback();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint8_t pToggle = 0;
 /* USER CODE END 0 */
 
 /**
@@ -249,12 +219,27 @@ int main(void)
 
   //--- DRIVER DISPLAYS ---//
   glcd_init();
-  change_to_P2();
-  glcd_test_circles();
+
+  //Testing testing
+  pToggle = 0;
+//  glcd_test_circles();
+
 	int defaultTest[4] = {420, 874, -454, 69};
 	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-	change_to_P1();
+	uint8_t sel = 0;
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	while(1){
+		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_RESET);
+		drawP1(sel);
+		drawP2(sel);
+		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+
+		sel = sel + 1;
+		sel = sel % 6;
+
+		HAL_Delay(1000);
+	}
 	drawP1Default(defaultTest);
 	drawP1Detailed(defaultDetailed);
 	drawP1Activate();
@@ -262,7 +247,6 @@ int main(void)
 	drawP1IgnitionOff();
 	drawP1BMSFault();
 
-	change_to_P2();
 	int defaultTest2[4] = {1, 0, 1, 87};
 	int defaultDetailed2[4] = {1, 2, 3, 4};
 	int defaultBMSFault[4] = {89, 13, 13, 49};
@@ -273,11 +257,9 @@ int main(void)
 	drawP2IgnitionOff(defaultBMSFault);
 	drawP2BMSFault(defaultBMSFault);
 //  displayInit(); //Legacy from GEN10
-  glcd_clear();
+//  glcd_clear();
 
-//  xTimerStart(xTimerCreate("lightsTimer", 666, pdTRUE, NULL, lightsTmr), 0);
   xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-//  xTimerStart(xTimerCreate("display", 200, pdTRUE, 0, displayTmr), 0);
   buart = B_uartStart(&huart4);
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
@@ -345,17 +327,14 @@ void SystemClock_Config(void)
   /** Supply configuration update enable
   */
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
-
   /** Configure the main internal regulator output voltage
   */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
-
   /** Macro to configure the PLL clock source
   */
   __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSE);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -379,7 +358,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -418,10 +396,10 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 1 */
 
   /* USER CODE END ADC1_Init 1 */
-
   /** Common config
   */
   hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc1.Init.Resolution = ADC_RESOLUTION_16B;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
@@ -439,7 +417,6 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-
   /** Configure the ADC multi-mode
   */
   multimode.Mode = ADC_MODE_INDEPENDENT;
@@ -447,7 +424,6 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-
   /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_2;
@@ -461,7 +437,6 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-
   /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_4;
@@ -659,7 +634,6 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
-
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
@@ -782,7 +756,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1863,41 +1837,6 @@ static void mc2StateTmr(TimerHandle_t xTimer){
     pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
     HAL_ADC_Stop(&hadc1);
 
-	//TR: I'm not quite sure what this does...
-//	int accValTemp = accValue == 255 ? currentValue : accValue;
-//	if(!started){
-//		started++;
-//		currentValue = accValTemp;
-//	} else{
-//		positiveTurn = (currentValue + 63) % 128;
-//		negativeTurn = (currentValue - 64) % 128;
-//		if(positiveTurn > currentValue){
-//			if(accValTemp <= positiveTurn && accValTemp >= currentValue){
-//				difference = accValTemp - currentValue;
-//			} else {
-//				if(accValTemp < currentValue){
-//					difference = accValTemp - currentValue;
-//				} else {
-//					difference = -(128 -(accValTemp - currentValue));
-//				}
-//			}
-//		} else {
-//			if(accValTemp <= currentValue && accValTemp >= negativeTurn){
-//				difference = -(currentValue - accValTemp);
-//			} else {
-//				if(currentValue < accValTemp){
-//					difference = accValTemp - currentValue;
-//				} else {
-//					difference = 128 - (currentValue - accValTemp);
-//				}
-//			}
-//		}
-//		difference = difference < 0 ? -difference * difference : difference * difference;
-//		outputVal += difference;
-////		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
-//
-//		currentValue = accValTemp;
-
 // -------- FORWARD/REVERSE -------- //
 		taskENTER_CRITICAL();
 		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
@@ -1965,7 +1904,7 @@ static void mc2StateTmr(TimerHandle_t xTimer){
 //		disp_setDCMBAccPotPosition(outputVal);
 //		B_tcpSend(btcp, buf, 8);
 }
-
+/*
 void ignition_check(uint8_t data){
 	static long ignition_press_time =  0;
 	//static uint8_t ignition_state_inner = 0;
@@ -1993,7 +1932,8 @@ void ignition_check(uint8_t data){
 	}
 	taskEXIT_CRITICAL();
 }
-
+*/
+/*
 void array_check(uint8_t data){
 	static long array_press_time = 0;
 	static uint8_t button_pressed = 0;
@@ -2037,7 +1977,8 @@ void array_check(uint8_t data){
 	}
 	taskEXIT_CRITICAL();
 }
-
+*/
+/*
 static void buttonCheck(uint8_t state){
 // side panel
 // (ARRAY, AUX0, IGNITION, FAN, CAMERA, AUX2, FWD_REV, AUX1)
@@ -2091,7 +2032,8 @@ static void buttonCheck(uint8_t state){
   prev_data = data;
   taskEXIT_CRITICAL();
 }
-
+*/
+/*
 static void steeringButtonCheck(uint8_t *state){
 	static long motor_press_time = 0;
 	static uint8_t motor_pressed = 0;
@@ -2112,11 +2054,27 @@ static void steeringButtonCheck(uint8_t *state){
 ////				motor_press_time = 0;
 ////				return;
 ////			}
-//			motor_pressed = 0;
-//			motor_press_time = 0;
-//			motor_state ^= 1;
-//			motorState = motor_state;
-//		}
+////		}
+////	} else {
+////		vfm_up_press_time = 0;
+////		vfm_up_pressed = 0;
+////	}
+////
+////	if(!(state[0]&DPAD_RIGHT)){
+////		if(vfm_down_press_time == 0){
+////			vfm_down_press_time = xTaskGetTickCount();
+////		} else if ((vfm_down_press_time + 1000 < xTaskGetTickCount()) && vfm_down_pressed == 0){
+////			vfm_down_press_time = 0;
+////			if(last_vfm_change_time + 500 < xTaskGetTickCount()){
+////				vfmDownState ^= 1;
+////				last_vfm_change_time = xTaskGetTickCount();
+////			}
+////		}
+////	} else {
+////		vfm_down_press_time = 0;
+////		vfm_down_pressed = 0;
+////	}
+//	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 //
 //	} else {
 //		motor_press_time = 0;
@@ -2166,6 +2124,7 @@ static void steeringButtonCheck(uint8_t *state){
 	disp_updateNavState(!(state[0]&UP), !(state[0]&DOWN), !(state[0]&RIGHT), !(state[0]&LEFT), !(state[1]), state[2]);
 
 }
+*/
 
 static void steeringWheelTask(const void *pv){
 // {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
@@ -2449,8 +2408,8 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void displayTask(TimerHandle_t xTimer){
-//	drawP1();
-	drawP2();
+	drawP1(0);
+	drawP2(0);
 
 	vTaskDelay(pdMS_TO_TICKS(100)); //Every 100ms
 
@@ -2476,7 +2435,7 @@ void displayTask(TimerHandle_t xTimer){
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
+  * @param  argument: Not used
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */

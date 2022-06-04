@@ -121,6 +121,7 @@ void glcd_tiny_invert_line(uint8_t line);
  *        font tables.
  */
 void glcd_tiny_draw_char_xy(uint8_t x, uint8_t y, char c);
+void glcd_tiny_draw_char_xy_white(uint8_t x, uint8_t y, char c);
 
 /** Initialise 5x7 text */
 #define GLCD_TEXT_INIT()  glcd_tiny_set_font(Font5x7,5,7,32,127);
