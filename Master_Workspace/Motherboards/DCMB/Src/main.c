@@ -246,12 +246,12 @@ int main(void)
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
 
   //--- FREERTOS ---//
-//  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
+  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
   xTaskCreate(motorDataTask, "motorDataTask", 1024, 1, 5, NULL);
-//  xTaskCreate(displayTask, "displayTask", 102400, 1, 5, NULL);
-  xTaskCreate(dummy, "dummyTask", 1024, 1, 5, NULL);
-//  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
-//  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 102400, 1, 5, NULL);
+//  xTaskCreate(dummy, "dummyTask", 1024, 1, 5, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
 
   //--- DRIVER DISPLAYS ---//
 //  glcd_init();
@@ -1844,12 +1844,13 @@ static void lightsTmr(TimerHandle_t xTimer){
 }
 
 static void displayTimer(TimerHandle_t xTimer){
-//	taskENTER_CRITICAL();
+	taskENTER_CRITICAL();
 	refresh_display = 1;
-//	taskEXIT_CRITICAL();
+	taskEXIT_CRITICAL();
 }
 
 static void motorDataTask(TimerHandle_t xTimer){
+//	while(1);
 	static uint8_t started = 0;
 	static char buf[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	static int currentValue = 0;
@@ -1872,9 +1873,9 @@ static void motorDataTask(TimerHandle_t xTimer){
     HAL_ADC_Stop(&hadc1);
 
 // -------- FORWARD/REVERSE -------- //
-//		taskENTER_CRITICAL();
+		taskENTER_CRITICAL();
 		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
-//		taskEXIT_CRITICAL();
+		taskEXIT_CRITICAL();
 
 // -------- ACCELERATION -------- //
 		//Get pedals reading, need to do it polling to ensure we have the latest measurements
@@ -1939,6 +1940,9 @@ static void motorDataTask(TimerHandle_t xTimer){
 //		disp_setDCMBAccPotPosition(outputVal);
 //		B_tcpSend(btcp, buf, 8);
 }
+
+
+
 /*
 void ignition_check(uint8_t data){
 	static long ignition_press_time =  0;
@@ -2178,7 +2182,7 @@ static void steeringWheelTask(const void *pv){
   uint8_t oldSteeringData[3] = {0, 0, 0};
 
   for(;;){
-//	e = B_uartRead(swBuart);
+	e = B_uartRead(swBuart);
 
 //	taskENTER_CRITICAL();
 	//Save old data
@@ -2190,7 +2194,7 @@ static void steeringWheelTask(const void *pv){
 			if (steeringData[i] != e->buf[2 + i]){ steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
 		}
 	}
-	}
+  }
 
 	//---------- Process data ----------//
 	// Navigation <- Not implemented
@@ -2291,7 +2295,7 @@ static void steeringWheelTask(const void *pv){
 
 	B_uartDoneRead(e);
 
-//	taskEXIT_CRITICAL(); // exit critical section
+	taskEXIT_CRITICAL(); // exit critical section
 
 	// print statement -> connect to serial monitor
     char buffer[100];
@@ -2327,9 +2331,9 @@ static void sidePanelTask(const void *pv){
   uint32_t crcExpected;
 
   for(;;){
-//    e = B_uartRead(spbBuart);
+    e = B_uartRead(spbBuart);
 
-//	taskENTER_CRITICAL(); // data into global variable -> enter critical section
+	taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
 	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
 		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
@@ -2339,7 +2343,7 @@ static void sidePanelTask(const void *pv){
 
 	//Check CRC, optional
 
-//    B_uartDoneRead(e);
+    B_uartDoneRead(e);
 
   //---------- Process data ----------//
   //REAR CAMERA AND SCREEN
@@ -2414,7 +2418,7 @@ static void sidePanelTask(const void *pv){
 
 //  B_tcpSend(btcp, bufh, 2);
 
-//  taskEXIT_CRITICAL(); // exit critical section
+  taskEXIT_CRITICAL(); // exit critical section
 }
 }
 

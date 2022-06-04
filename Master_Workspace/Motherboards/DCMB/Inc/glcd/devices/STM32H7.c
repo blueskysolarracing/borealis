@@ -277,8 +277,8 @@ void glcd_spi_write(uint8_t c)
 	//OLD SPI_I2S_SendData(SPIx, (uint16_t) c);
 	HAL_SPI_Transmit(&hspi2, &c, 1, MAX_SPI_TRANSMIT_TIMEOUT);
 //	HAL_SPI_Transmit_IT(&hspi2, &c, 1);
-	osDelay(1);
 	
+
 	/* Wait until entire byte has been read (which we discard anyway) */
 	//OLD while(SPI_I2S_GetFlagStatus(SPIx, SPI_I2S_FLAG_BSY) != RESET);
 
