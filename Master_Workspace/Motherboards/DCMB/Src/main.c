@@ -248,7 +248,7 @@ int main(void)
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
   xTimerStart(xTimerCreate("motorDataTask", pdMS_TO_TICKS(20), pdTRUE, NULL, motorDataTask), 0);
-  xTaskCreate(displayTask, "displayTask", 102400, 1, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 10240, 1, 5, NULL);
 //  xTaskCreate(dummy, "dummyTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
@@ -2319,107 +2319,108 @@ static void steeringWheelTask(const void *pv){
 
 
 static void sidePanelTask(const void *pv){
+//	while(1){};
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
-  B_bufQEntry_t *e;
-  uint8_t input_buffer[MAX_PACKET_SIZE + 4];
-  uint8_t started = 0;
-  uint8_t pos = 0;
-  uint8_t crcAcc = 0;
-  uint32_t crc;
-  uint32_t crcExpected;
+	B_bufQEntry_t *e;
+	uint8_t input_buffer[MAX_PACKET_SIZE + 4];
+	uint8_t started = 0;
+	uint8_t pos = 0;
+	uint8_t crcAcc = 0;
+	uint32_t crc;
+	uint32_t crcExpected;
 
-  for(;;){
-    e = B_uartRead(spbBuart);
+	for(;;){
+		e = B_uartRead(spbBuart);
 
-	taskENTER_CRITICAL(); // data into global variable -> enter critical section
+		taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
-	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
-		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
-	} else {
-		return; //Data received was not from side panel
+		if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
+			if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
+		} else {
+			return; //Data received was not from side panel
+		}
+
+		//Check CRC, optional
+
+		B_uartDoneRead(e);
+
+		//---------- Process data ----------//
+		//REAR CAMERA AND SCREEN
+		if (sidePanelData & (1 << 6)){
+		  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
+		  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
+		} else {
+		  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
+		  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
+
+		}
+
+		//FAN
+		if (sidePanelData & (1 << 4)){
+		  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_SET); //Enable fan
+		} else {
+		  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_RESET); //Disable fan
+		}
+
+		//AUX0 (DRL in GEN11)
+		uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+
+		if (sidePanelData & (1 << 1)){
+		bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
+		} else { //Turn off horn
+		bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
+		}
+
+		//AUX1 (not implemented in GEN11)
+		if (sidePanelData & (1 << 2)){
+		  osDelay(100);
+		} else { //Turn off horn
+		  osDelay(100);
+		}
+
+		//AUX2 (not implemented in GEN11)
+		if (sidePanelData & (1 << 3)){
+		  osDelay(100);
+		} else { //Turn off horn
+		  osDelay(100);
+		}
+
+		//ARRAY (close solar array power relays (if allowed))
+		//To be implemented
+		if (sidePanelData & (1 << 0)){
+		  osDelay(100);
+		} else { //Turn off horn
+		  osDelay(100);
+		}
+
+		//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
+		//To be implemented
+		if (sidePanelData & (1 << 5)){
+		  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
+		  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
+
+		  //Send new motor state (if allowed)
+		} else {
+		  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
+		  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
+
+		  //Send new motor state (if allowed)
+		}
+
+		//IGNITION (put car into drive mode (if allowed)
+		//To be implemented
+		if (sidePanelData & (1 << 7)){
+		  osDelay(100);
+		} else {
+		  osDelay(100);
+		}
+
+		//  B_tcpSend(btcp, bufh, 2);
+
+		taskEXIT_CRITICAL(); // exit critical section
 	}
-
-	//Check CRC, optional
-
-    B_uartDoneRead(e);
-
-  //---------- Process data ----------//
-  //REAR CAMERA AND SCREEN
-  if (sidePanelData & (1 << 6)){
-	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
-	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
-  } else {
-	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
-	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
-
-  }
-
-  //FAN
-  if (sidePanelData & (1 << 4)){
-	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_SET); //Enable fan
-  } else {
-	  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin, GPIO_PIN_RESET); //Disable fan
-  }
-
-  //AUX0 (DRL in GEN11)
-  uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
-
-  if (sidePanelData & (1 << 1)){
-	bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
-  } else { //Turn off horn
-	bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
-  }
-
-  //AUX1 (not implemented in GEN11)
-  if (sidePanelData & (1 << 2)){
-	  osDelay(100);
-  } else { //Turn off horn
-	  osDelay(100);
-  }
-
-  //AUX2 (not implemented in GEN11)
-  if (sidePanelData & (1 << 3)){
-	  osDelay(100);
-  } else { //Turn off horn
-	  osDelay(100);
-  }
-
-  //ARRAY (close solar array power relays (if allowed))
-  //To be implemented
-  if (sidePanelData & (1 << 0)){
-	  osDelay(100);
-  } else { //Turn off horn
-	  osDelay(100);
-  }
-
-  //FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
-  //To be implemented
-  if (sidePanelData & (1 << 5)){
-	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
-	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
-
-	  //Send new motor state (if allowed)
-  } else {
-	  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
-	  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
-
-	  //Send new motor state (if allowed)
-  }
-
-  //IGNITION (put car into drive mode (if allowed)
-  //To be implemented
-  if (sidePanelData & (1 << 7)){
-	  osDelay(100);
-  } else {
-	  osDelay(100);
-  }
-
-//  B_tcpSend(btcp, bufh, 2);
-
-  taskEXIT_CRITICAL(); // exit critical section
-}
 }
 
 void serialParse(B_tcpPacket_t *pkt){
