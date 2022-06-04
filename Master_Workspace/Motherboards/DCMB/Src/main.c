@@ -166,7 +166,7 @@ void StartDefaultTask(void const * argument);
 static void sidePanelTask(const void *pv);
 static void steeringWheelTask(const void *pv);
 static void displayTask();
-static void motorDataTask();
+static void motorDataTask(TimerHandle_t xTimer);
 //static void lightsTmr(TimerHandle_t xTimer);
 static void displayTimer(TimerHandle_t xTimer);
 static void dummy(){
@@ -247,7 +247,7 @@ int main(void)
 
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
-  xTaskCreate(motorDataTask, "motorDataTask", 1024, 1, 5, NULL);
+  xTimerStart(xTimerCreate("motorDataTask", pdMS_TO_TICKS(20), pdTRUE, NULL, motorDataTask), 0);
   xTaskCreate(displayTask, "displayTask", 102400, 1, 5, NULL);
 //  xTaskCreate(dummy, "dummyTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
