@@ -1,8 +1,12 @@
+#ifndef PSM_H__
+#define PSM_H__
+
+#include "main.h"
+#include "cmsis_os.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-#include "main.h"
 
 #define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
 #define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
@@ -81,6 +85,9 @@ struct PSM_Peripheral{
 	float CDCOS_CH4;
 	float VM_CH4;
 	float CM_CH4;
+
+	//Semaphore for SPI interrupt flow control
+	SemaphoreHandle_t* SPI_Semaphore;
 };
 
 //------ FUNCTION PROTOTYPES ------//
@@ -94,3 +101,5 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
 void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM);
 void PSMCalib(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
 double shuntResistance, uint8_t masterPSM, uint8_t channelNumber);
+
+#endif

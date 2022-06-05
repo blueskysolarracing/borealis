@@ -1,28 +1,5 @@
 #include "psm.h"
-
-// Helper functions that programmer could use
-// converts elements in an array back to double
-double arrayToDouble(uint8_t* aryPtr, uint8_t size) {
-	double val = 0;
-	uint8_t* valPtr = (uint8_t*)&val + sizeof(val)-1;
-
-	for (int i = size-1; i >= 0 && valPtr >= (uint8_t*)&val; i--) {
-		*valPtr = aryPtr[i];
-		valPtr--;
-	}
-	return val;
-}
-// writes elements in double into individual elements in an array
-void doubleToArray(double val, uint8_t* aryPtr) {
-    uint8_t aryIdx = 0;
-    uint8_t* ptr = (uint8_t*)&val;
-    for(; aryIdx<sizeof(val); aryIdx++){
-    	aryPtr[aryIdx] = *ptr;
-    	ptr++;
-    }
-}
-
-
+#include "main.h"
 
 //PSM_Init()\
 void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber);
@@ -45,9 +22,10 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 	//Load in calibrated parameters
 	switch (PSM_ID){
 		case 1: //PSM in battery box
-			PSM->VDCOS_CH1 = 1.026454;
+			PSM->VDCOS_CH1 = 1.5;
 			PSM->CDCOS_CH1 = 0.597499;
-			PSM->VM_CH1 = 19.195782 * (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //24kR;
+//			PSM->VM_CH1 = 19.195782 * (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //24kR;
+			PSM->VM_CH1 = 0.6369426752 * (1.2) / 8388607 * (1 + 44*(1/1 + 1/480)); //24kR;
 			PSM->CM_CH1 =  40.576234 * (1.2) / 8388607 / 4;
 
 			// PSM->VDCOS_CH2 = 354159;
@@ -100,9 +78,6 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 //data = 1 byte of data that you wish to write to the register at the specified address
 //channelNumber = specifies which PSM channel you wish to write to
 
-
-
-
 void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber){
 	//variables for error messages
 	char errorMessage[64];
@@ -132,13 +107,21 @@ void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 			break;
 	}
 
-	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
-		//successful transmission
-	} else{
-		//data could not be written! transmit some error message to the computer
-		errorMessageLength = (uint8_t)sprintf(errorMessage, "(writeOnePSM) ERROR SENDING TO ADDRESS 0x%X WITH DATA 0x%X\r\n", address, data);
-		HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
-	}
+	//Wait for SPI interrupt
+    if( xSemaphoreTake(*(PSM->SPI_Semaphore), 1)){
+    	//	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+
+		if (HAL_SPI_Transmit_IT(spiInterface, instruction, 2) == HAL_OK){
+			//successful transmission
+		} else{
+			//data could not be written! transmit some error message to the computer
+			errorMessageLength = (uint8_t)sprintf(errorMessage, "(writeOnePSM) ERROR SENDING TO ADDRESS 0x%X WITH DATA 0x%X\r\n", address, data);
+			HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+			xSemaphoreGive(*(PSM->SPI_Semaphore));
+		}
+    }
+
+
 
 	//set all chip select pins to 1 to disable further SPI transmission
 	HAL_GPIO_WritePin(PSM->CSPort0, PSM->CSPin0, GPIO_PIN_SET);
@@ -177,14 +160,20 @@ void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterfac
 		HAL_GPIO_WritePin(PSM->CSPort3, PSM->CSPin3, GPIO_PIN_RESET);
 	}
 
-	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
-		//successful transmission
-	} else{
-		//data could not be written! transmit some error message to the computer
-		char errorMessage[64];
-		uint8_t errorMessageLength = (uint8_t)sprintf(errorMessage, "(writeMultPSM) ERROR SENDING TO ADDRESS 0x%X WITH DATA 0x%X\r\n", address, data);
-		HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
-	}
+	//Wait for SPI interrupt
+    if( xSemaphoreTake(*(PSM->SPI_Semaphore), 1)){
+    	//	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+
+		if (HAL_SPI_Transmit_IT(spiInterface, instruction, 2) == HAL_OK){
+			//successful transmission
+		} else{
+			//data could not be written! transmit some error message to the computer
+			char errorMessage[64];
+			uint8_t errorMessageLength = (uint8_t)sprintf(errorMessage, "(writeMultPSM) ERROR SENDING TO ADDRESS 0x%X WITH DATA 0x%X\r\n", address, data);
+			HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+			xSemaphoreGive(*(PSM->SPI_Semaphore));
+		}
+    }
 
 	//set all chip select pins to 1 to disable further SPI transmission
 	HAL_GPIO_WritePin(PSM->CSPort0, PSM->CSPin0, GPIO_PIN_SET);
@@ -238,18 +227,33 @@ void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 			break;
 	}
 
-	//send read instruction to ade7912 in specified PSM channel
-	if(HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
-		//successful transmission
-		//store received data into buffer
-		HAL_SPI_Receive(spiInterface, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
+	//Wait for SPI interrupt
+    if( xSemaphoreTake(*(PSM->SPI_Semaphore), 1)){
+    	//	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 
-	} else{
-		//instruction not sent!
-		//transmit some error message to the computer
-		errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING READ COMMAND TO ADDRESS 0x%X OF CHANNEL %u\r\n", address, channelNumber);
-		HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
-	}
+		if (HAL_SPI_TransmitReceive_IT(spiInterface, &instruction, buffer, numBytes) == HAL_OK){
+			//successful transmission
+		} else{
+			//data could not be written! transmit some error message to the computer
+			char errorMessage[64];
+			errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING READ COMMAND TO ADDRESS 0x%X OF CHANNEL %u\r\n", address, channelNumber);
+			HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+			xSemaphoreGive(*(PSM->SPI_Semaphore));
+		}
+    }
+
+//	//send read instruction to ade7912 in specified PSM channel
+//	if(HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+//		//successful transmission
+//		//store received data into buffer
+//		HAL_SPI_Receive(spiInterface, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
+//
+//	} else{
+//		//instruction not sent!
+//		//transmit some error message to the computer
+//		errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING READ COMMAND TO ADDRESS 0x%X OF CHANNEL %u\r\n", address, channelNumber);
+//		HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+//	}
 
 	//set all chip select pins to 1 to disable further SPI transmission
 	HAL_GPIO_WritePin(PSM->CSPort0, PSM->CSPin0, GPIO_PIN_SET);
@@ -524,31 +528,12 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     uint8_t buffer[64] = {0};
     uint8_t bufferLen = (uint8_t)sprintf((char*)buffer, "(Channel %d) VOLTAGE: %lf, CURRENT: %lf\r\n", channelNumber, voltage, current);
 
-    /* ========== not doing this here ======================= */
-    //convert voltage and current from doubles to uint8_t array that can be sent through uart
-    //voltage will make up 8 most significant bytes, current will make up 8 least significant bytes of array
-    //TODO CHECK ENDIANNESS !!!
-
-//    uint8_t dataOutIndex = 0;
-//    uint8_t* ptr = (uint8_t*)&voltage;
-//
-//    for(; dataOutIndex < sizeof(voltage); dataOutIndex++){
-//    	dataOut[dataOutIndex] = *ptr;
-//    	ptr++;
-//    }
-//    ptr = (uint8_t*)&current;
-//    dataOutIndex = 0;
-//    for(; dataOutIndex < dataOutLen; dataOutIndex++){
-//    	dataOut[dataOutIndex] = *ptr;
-//    	ptr++;
-//    }
-//
     if (dataOutLen == 2) {
     	dataOut[0] = voltage;
     	dataOut[1] = current;
     }
 
-    HAL_UART_Transmit(uartInterface, dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
+    HAL_UART_Transmit(uartInterface, (uint8_t *) dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
     //B_tcpSend(btcp, dataOut, dataOutLen);
 
     //power down ade7912
@@ -687,7 +672,6 @@ void PSMCalib(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_
 	uint8_t dataIn[6] = {0};//data received from ade7912
 	uint8_t dataOut[256] = {0}; //data to be sent through UART
 	uint16_t dataOutLen = 256; //length of dataOut, in bytes
-	uint32_t IWV_val = 0, V1WV_val = 0; //for storing data from IWV, V1WV registers of ade7912 respectively
 	double voltageOffset_TH = 0, currentOffset_TH = 0; //THEORETICAL offsets
 	double voltageMultiplier_TH = 1, currentMultiplier_TH = 1; //THEORETICAL multipliers
 
