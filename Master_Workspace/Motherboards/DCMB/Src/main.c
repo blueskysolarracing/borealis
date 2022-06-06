@@ -249,12 +249,12 @@ int main(void)
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
 
   //--- FREERTOS ---//
-//  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
-//  xTimerStart(xTimerCreate("motorDataTask", pdMS_TO_TICKS(20), pdTRUE, NULL, motorDataTask), 0);
+  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
+  xTimerStart(xTimerCreate("motorDataTask", pdMS_TO_TICKS(20), pdTRUE, NULL, motorDataTask), 0);
   xTaskCreate(displayTask, "displayTask", 10240, 1, 5, NULL);
 //  xTaskCreate(dummy, "dummyTask", 1024, 1, 5, NULL);
-//  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
-//  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
 
   //--- DRIVER DISPLAYS ---//
 //  glcd_init();
@@ -2519,7 +2519,7 @@ void displayTask(TimerHandle_t xTimer){
 	uint8_t sel = 0;
 	while(1){
 		drawP1(sel);
-		drawP2(sel);
+//		drawP2(sel);
 
 		sel = sel + 1;
 		sel = sel % 6;
