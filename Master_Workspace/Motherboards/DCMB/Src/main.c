@@ -123,10 +123,13 @@ SemaphoreHandle_t accMutex;
 SemaphoreHandle_t motorButtonMutex;
 uint8_t accValue = 0;
 uint8_t brakeStatus = 0;
+uint8_t carState = 0; // added by Nat, set by ignition in sidePanelTask
 uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
+uint8_t targetSpeed = 0; // added by Nat, set by encoder
+int regen_value = 0; // made global by Nat, so that can be checked outside motorDataTask
 
 //--- DISPLAY ---//
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
@@ -1858,7 +1861,6 @@ static void motorDataTask(TimerHandle_t xTimer){
 	int negativeTurn = 0;
 	int difference = 0;
 	static int accel_value = 0;
-	static int regen_value = 0;
 	uint16_t accel_reading_upper_bound = 40000; //ADC reading corresponding to 100% power request
 	uint16_t accel_reading_lower_bound = 5000; //ADC reading corresponding to 0% power request
 	uint16_t regen_reading_upper_bound = 40000; //ADC reading corresponding to 100% regen request
@@ -1877,6 +1879,17 @@ static void motorDataTask(TimerHandle_t xTimer){
 		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
 		taskEXIT_CRITICAL();
 
+// -------- BUTTONS -------- //
+		buf[1] = motorState << 4;
+		buf[1] |= fwdRevState << 3;
+		buf[1] |= vfmUpState << 2;
+		buf[1] |= vfmDownState << 1;
+		if(vfmUpState == 1){
+			vfmUpState = 0;
+		}
+		if(vfmDownState == 1){
+			vfmDownState = 0;
+		}
 // -------- ACCELERATION -------- //
 		//Get pedals reading, need to do it polling to ensure we have the latest measurements
 		accel_value = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
@@ -1895,17 +1908,7 @@ static void motorDataTask(TimerHandle_t xTimer){
 		}
 		buf[2] = accel_value; //This is the value sent to the MCMB to control the power to the motor (0-255)
 
-// -------- BUTTONS -------- //
-		buf[1] = motorState << 4;
-		buf[1] |= fwdRevState << 3;
-		buf[1] |= vfmUpState << 2;
-		buf[1] |= vfmDownState << 1;
-		if(vfmUpState == 1){
-			vfmUpState = 0;
-		}
-		if(vfmDownState == 1){
-			vfmDownState = 0;
-		}
+
 
 // -------- REGEN -------- //
 		regen_value = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
@@ -1925,10 +1928,23 @@ static void motorDataTask(TimerHandle_t xTimer){
 
 		buf[3] = regen_value;
 
+		// check if regen pedal is pressed (some constant threshold), then set motor state to REGEN
+		// REGEN is checked first as it takes priority
+		if (regen_value >= 4 / 1.4 * 3.3){
+			uint8_t bufh[3] = {0x05, 0x03, buf[1]}; // motor state, 5 digital buttons
+			B_tcpSend(btcp, bufh, 3);
+			motorState = 3; // global within DCMB
+		} // check if regen pedal is pressed (some constant threshold), then set motor state to PEDAL
+		else if (accel_value >= 4 / 1.4 * 3.3){
+			uint8_t bufh[3] = {0x05, 0x01, buf[1]}; // motor state, 5 digital buttons
+			B_tcpSend(btcp, bufh, 3);
+			motorState = 1; // global within DCMB
+		}
+
 		//Check if we need to turn on braking lights
-		if (regen_value >= 10){ //If braking power is >= 10/255%, turn on break lights
-	        uint8_t bufh[2] = {0x03, 0b00001000}; //[DATA ID, LIGHT INSTRUCTION]
-//	        B_tcpSend(btcp, bufh, 2);
+		if (regen_value >= 10){ //If braking power is >= 10/255%, turn on break lights (higher threshold)
+	        uint8_t bufh[2] = {0x03, 0b01001000}; //[DATA ID, LIGHT INSTRUCTION]
+	        B_tcpSend(btcp, bufh, 2);
 		}
 
 
@@ -2194,7 +2210,19 @@ static void steeringWheelTask(const void *pv){
 			if (steeringData[i] != e->buf[2 + i]){ steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
 		}
 	}
-  }
+
+	  //---------- Button data ----------//
+	  uint8_t buf[1] = {0x00};
+	  buf[0] = motorState << 4;
+	  buf[0] |= fwdRevState << 3;
+	  buf[0] |= vfmUpState << 2;
+	  buf[0] |= vfmDownState << 1;
+	  if(vfmUpState == 1){
+		vfmUpState = 0;
+	  }
+	  if(vfmDownState == 1){
+		vfmDownState = 0;
+	  }
 
 	//---------- Process data ----------//
 	// Navigation <- Not implemented
@@ -2243,21 +2271,29 @@ static void steeringWheelTask(const void *pv){
 
     //Encoder - SEND TO MCMB
     else if ((steeringData[0] & 0b11111111) != (oldSteeringData[0] & 0b11111111)){
-    	uint8_t old_ang = encoderMap8[oldSteeringData[0]];
-    	uint8_t new_ang = encoderMap8[steeringData[0]];
+    	if (motorState == 2 && fwdRevState == 0){ // check if in cruise state and forward state
+    		uint8_t old_ang = encoderMap8[oldSteeringData[0]];
+    		uint8_t new_ang = encoderMap8[steeringData[0]];
 
-    	uint8_t target = CRUISE_MULT * (new_ang - old_ang);
+    		targetSpeed = targetSpeed + CRUISE_MULT * (new_ang - old_ang); // update global variable
 
-        uint8_t bufh[2] = {0x04, target}; //[DATA ID, angle]
-        B_tcpSend(btcp, bufh, 2);
+    		uint8_t bufh[2] = {0x05, targetSpeed}; //[DATA ID, angle]
+    		// this bufh is not correct: data ID should be 0x05 + 0x08? and data is two bytes?
+    		B_tcpSend(btcp, bufh, 2);
+
+    	}
+
     }
 
     //Cruise - (Try to change) Motor state and send to MCMB
     else if ((steeringData[1] & 0b00010000) != (oldSteeringData[1] & 0b00010000)){
 
     	//To be implemented
-
-
+    	if (regen_value <= 4 / 1.4 * 3.3){ // regen pedal takes priority, only change state of not pressed
+    		motorState = 2; // change global motorState
+    		uint8_t bufh[3] = {0x05, 0x02, buf[0]}; // set motor state to cruise, 5 digital buttons
+    		B_tcpSend(btcp, bufh, 3);
+    	}
 
 
     //Radio - Enable driver voice radio
@@ -2315,6 +2351,7 @@ static void steeringWheelTask(const void *pv){
     		}
     	}
     }
+  }
 }
 
 
@@ -2337,9 +2374,14 @@ static void sidePanelTask(const void *pv){
 		taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
 		if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
-			if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
-		} else {
-			return; //Data received was not from side panel
+			if (sidePanelData != e->buf[2]){
+				sidePanelData = e->buf[2];
+			} //Only update if different (it should be different)
+		}
+		else {
+			taskEXIT_CRITICAL(); // exit critical section
+			taskYIELD();
+//			return; //Data received was not from side panel
 		}
 
 		//Check CRC, optional
@@ -2368,10 +2410,11 @@ static void sidePanelTask(const void *pv){
 		uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
 		if (sidePanelData & (1 << 1)){
-		bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
+			bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
 		} else { //Turn off horn
-		bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
+			bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
 		}
+		B_tcpSend(btcp, bufh, 2);
 
 		//AUX1 (not implemented in GEN11)
 		if (sidePanelData & (1 << 2)){
@@ -2387,37 +2430,54 @@ static void sidePanelTask(const void *pv){
 		  osDelay(100);
 		}
 
+	// ------Setting car state------ (Array, Ignition)//
+		uint8_t bufh3[3] = {0x06, 0x00, 0x00};
 		//ARRAY (close solar array power relays (if allowed))
 		//To be implemented
-		if (sidePanelData & (1 << 0)){
+		if (sidePanelData & (1 << 0)){ // if array switch ON
 		  osDelay(100);
-		} else { //Turn off horn
+		  bufh3[1] = 0x03; //set car state to DRIVE
+		  bufh3[2] = 0x08; // reason: driver switched array ON
+		  carState = 3;
+		} else {
 		  osDelay(100);
+		  // if switched off, no change
 		}
+		B_tcpSend(btcp, bufh3, 3);
 
 		//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
 		//To be implemented
-		if (sidePanelData & (1 << 5)){
+		if (sidePanelData & (1 << 5)){ // reverse state?
 		  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
 		  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
+		  fwdRevState = 1;
 
 		  //Send new motor state (if allowed)
-		} else {
+		} else { // foward state?
 		  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
 		  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
-
+		  fwdRevState = 0;
 		  //Send new motor state (if allowed)
 		}
 
 		//IGNITION (put car into drive mode (if allowed)
 		//To be implemented
+
 		if (sidePanelData & (1 << 7)){
 		  osDelay(100);
+		  carState = 3;
+		  bufh3[1] = 0x03; //set car state to DRIVE
+		  bufh3[2] = 0x06; // reason: ignition ON
+
 		} else {
 		  osDelay(100);
+		  carState = 2;
+		  bufh3[1] = 0x02; //set car state to CHARGING
+		  bufh3[2] = 0x07; // reason: ignition OFF
 		}
+		B_tcpSend(btcp, bufh3, 3);
 
-		//  B_tcpSend(btcp, bufh, 2);
+
 
 		taskEXIT_CRITICAL(); // exit critical section
 	}

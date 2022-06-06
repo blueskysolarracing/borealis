@@ -75,17 +75,16 @@ void Error_Handler(void);
 #define PSM_DReady_GPIO_Port GPIOK
 #define PSM_CS_1_Pin GPIO_PIN_2
 #define PSM_CS_1_GPIO_Port GPIOG
-#define PSM_CS_2_Pin GPIO_PIN_3
-#define PSM_CS_2_GPIO_Port GPIOG
-#define PSM_CS_3_Pin GPIO_PIN_4
+#define PSM_CS_3_Pin GPIO_PIN_3
 #define PSM_CS_3_GPIO_Port GPIOG
+#define PSM_CS_2_Pin GPIO_PIN_4
+#define PSM_CS_2_GPIO_Port GPIOG
 #define PSM_CS_0_Pin GPIO_PIN_0
 #define PSM_CS_0_GPIO_Port GPIOI
 #define TMC5160_CS1_Pin GPIO_PIN_4
 #define TMC5160_CS1_GPIO_Port GPIOK
 #define Light_ctrl_PWR_EN_Pin GPIO_PIN_5
 #define Light_ctrl_PWR_EN_GPIO_Port GPIOK
-
 /* USER CODE BEGIN Private defines */
 #define TCP_ID BBMB_ID
 
