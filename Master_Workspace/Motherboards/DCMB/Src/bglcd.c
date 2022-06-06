@@ -371,11 +371,11 @@ void drawP1(uint8_t sel){
 		drawP1Default(defaultTest);
 		break;
 	}
-
-	glcd_bbox_refresh();
-	pToggle = 1;
-	glcd_write();
-	pToggle = 0;
+//
+//	glcd_bbox_refresh();
+//	pToggle = 1;
+//	glcd_write();
+//	pToggle = 0;
 }
 
 // p2 stuff start
