@@ -2374,9 +2374,14 @@ static void sidePanelTask(const void *pv){
 		taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
 		if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
-			if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
-		} else {
-			return; //Data received was not from side panel
+			if (sidePanelData != e->buf[2]){
+				sidePanelData = e->buf[2];
+			} //Only update if different (it should be different)
+		}
+		else {
+			taskEXIT_CRITICAL(); // exit critical section
+			taskYIELD();
+//			return; //Data received was not from side panel
 		}
 
 		//Check CRC, optional
