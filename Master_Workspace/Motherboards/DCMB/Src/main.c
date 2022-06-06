@@ -2319,7 +2319,7 @@ static void steeringWheelTask(const void *pv){
 
 
 static void sidePanelTask(const void *pv){
-//	while(1){};
+	while(1){};
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
@@ -2459,7 +2459,7 @@ void displayTask(TimerHandle_t xTimer){
 	uint8_t sel = 0;
 	while(1){
 		drawP1(sel);
-		drawP2(sel);
+//		drawP2(sel);
 
 		sel = sel + 1;
 		sel = sel % 6;
