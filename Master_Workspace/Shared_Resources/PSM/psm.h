@@ -1,12 +1,11 @@
 #ifndef PSM_H__
 #define PSM_H__
 
-#include "main.h"
-#include "cmsis_os.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include "main.h"
 
 #define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
 #define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
@@ -35,12 +34,15 @@
 
 #define PWR_DWN_ENABLE 0 //Set to 1 to shutdown ADE7912s between measurements (WILL ADD ~100ms DELAY AS THE ISOLATED CONVERTERS NEED TO TURN ON). Saves ~10mA @ 3.3V
 
+#define PSM_INTERVAL 200 //200ms between measurements
+
 /*constants for calibrating voltage and current measurements
 These belong to the PSM in different boxes. IDs are written on the PSM.
 CDCOS_CHx = "Current DC OffSet" of PSM channel x
 VDCOS_CHx = "Voltage DC OffSet" of PSM channel x
 CM_CHx = "Current Multiplier" of PSM channel x
 VM_CHx = "Voltage Multiplier" of PSM channel x
+
 Nominally, the voltage multipler is (1.2) * (1 / (2^23 - 1)) * (1 + 664*(1/R5 + 1/480)) [output in V; R5 in kR]
 Nominally, the currrent multiplier is (1.2) * (1 / (2^23 - 1)) / R8 [output in A; R8 in mR]
 */
@@ -85,21 +87,20 @@ struct PSM_Peripheral{
 	float CDCOS_CH4;
 	float VM_CH4;
 	float CM_CH4;
-
-	//Semaphore for SPI interrupt flow control
-	SemaphoreHandle_t* SPI_Semaphore;
 };
 
 //------ FUNCTION PROTOTYPES ------//
+double arrayToDouble(uint8_t* aryPtr, uint8_t size);
 void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID);
 void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data, uint8_t channelNumber);
 void writeMultiplePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t data,
 				uint8_t EN_c1, uint8_t EN_c2, uint8_t EN_c3, uint8_t EN_c4);
 void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer, uint16_t numBytes, uint8_t channelNumber);
-void configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels);
+int configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels, uint32_t timeout);
 void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen);
 void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM);
 void PSMCalib(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
 double shuntResistance, uint8_t masterPSM, uint8_t channelNumber);
+
 
 #endif

@@ -1,4 +1,6 @@
 #include "bmisc.h"
+#include "main.h"
+#include "cmsis_os.h"
 
 /*
  * Need to initialize relayPeriph in main.c like so:
@@ -21,7 +23,7 @@
  * Note that this will block the current task since it's a delay (but not other tasks)
  */
 
-void open_relays(relayPeriph* relay){
+void open_relays(struct relay_periph* relay){
 	//Open the power relays around the battery to disconnect the battery from the HV system
 	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Make sure the precharge relay is open (should be at this point)
 	osDelay(ACTUATION_DELAY);
@@ -36,7 +38,7 @@ void open_relays(relayPeriph* relay){
 	osDelay(ACTUATION_DELAY);
 }
 
-void close_relays(){
+void close_relays(struct relay_periph* relay){
 	//Close the power relays (sequentially) around the battery to connect the battery to the HV system
 	HAL_GPIO_WritePin(relay->DISCHARGE_GPIO_Port, relay->DISCHARGE_Pin, GPIO_PIN_SET); //Make sure battery discharge circuit is disabled
 	osDelay(ACTUATION_DELAY);

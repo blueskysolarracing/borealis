@@ -15,6 +15,7 @@
 #define BSSR_SERIAL_START 0xa5
 #define BSSR_SERIAL_ESCAPE 0x5a
 
+#define HEARTBEAT_INTERVAL 1000 //Delay between sending heartbeats
 
 typedef struct {
 	uint8_t sender;

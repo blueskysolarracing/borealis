@@ -260,7 +260,7 @@ static void tcpRxTask(void *pv){
     }
 }
 
-__weak void serialParse(B_tcpPacket_t *pkt){
+//__weak void serialParse(B_tcpPacket_t *pkt){
 //	switch(pkt->sender){
 //	case 0x04:
 //		  if(pkt->payload[4] == 0x01){
@@ -273,4 +273,4 @@ __weak void serialParse(B_tcpPacket_t *pkt){
 //			  }
 //		  }
 //	}
-}
+//}

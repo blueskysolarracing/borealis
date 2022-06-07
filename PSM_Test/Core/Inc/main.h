@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ACCEL_PEDAL_Pin GPIO_PIN_11
+#define ACCEL_PEDAL_GPIO_Port GPIOF
 #define LVDS_EN_Pin GPIO_PIN_13
 #define LVDS_EN_GPIO_Port GPIOB
 #define DReady_Pin GPIO_PIN_2

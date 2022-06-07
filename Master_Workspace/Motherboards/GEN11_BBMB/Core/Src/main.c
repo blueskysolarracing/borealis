@@ -39,6 +39,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define HV_BATT_OVERCURRENT_DISCHARGE 40.0 //Overcurrent threshold on HV battery (discharge; A)
+#define NUM_BATT_CELLS 29 //Number of series parallel groups in battery pack
+#define NUM_BATT_TEMP_SENSORS 3 * 6 //Number of temperature sensors in battery pack
+#define BMS_READ_INTERVAL 1000//(Other intervals defined in psm.h and btcp.h)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,24 +63,42 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart8;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_uart4_rx;
 DMA_HandleTypeDef hdma_uart4_tx;
+DMA_HandleTypeDef hdma_uart8_rx;
+DMA_HandleTypeDef hdma_uart8_tx;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+
+//--- COMMS ---//
 B_uartHandle_t* buart_main;
 B_uartHandle_t* buart_bms;
 B_tcpHandle_t* btcp_main;
 B_tcpHandle_t* btcp_bms;
-QueueHandle_t lightsCtrl = NULL;
-TimerHandle_t blink_timer = NULL;
+uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 
 //--- LIGHTS ---//
 struct lights_stepper_ctrl lightsPeriph;
 uint8_t lightInstruction = 0;
+QueueHandle_t lightsCtrl = NULL;
+
+//--- PSM ---//
+struct PSM_Peripheral psmPeriph;
+float battery_current;
+
+//--- RELAYS ---//
+struct relay_periph relay;
+QueueHandle_t relayCtrl = NULL;
+
+//--- BMS ---//
+uint8_t BMS_requesting_from = 7; //Holds which BMS we are requesting data from (needs initial value > 6)
+uint8_t BMS_data_received[3] = {1, 1, 1}; //Holds whether we received voltage, temperature and SoC
 
 /* USER CODE END PV */
 
@@ -93,14 +115,18 @@ static void MX_SPI5_Init(void);
 static void MX_CRC_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM7_Init(void);
+static void MX_UART8_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 static void lightsTask(void * argument);
-static void senderTaskHandle(void * argument);
+static void relayTask(void * argument);
+void PSMTaskHandler(TimerHandle_t xTimer);
+void HeartbeatHandler(TimerHandle_t xTimer);
+void BMSPeriodicReadHandler(TimerHandle_t xTimer);
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
-void blinkCallback(TimerHandle_t xTimer);
 
 /* USER CODE END PFP */
 
@@ -146,37 +172,45 @@ int main(void)
   MX_CRC_Init();
   MX_TIM3_Init();
   MX_USART2_UART_Init();
+  MX_TIM7_Init();
+  MX_UART8_Init();
   /* USER CODE BEGIN 2 */
-  struct PSM_Peripheral psmPeriph;
+  //--- MCU OK LED ---//
+  NVIC_EnableIRQ(TIM7_IRQn);
+  HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
-  	psmPeriph.CSPin0 = PSM_CS_0_Pin;
-  	psmPeriph.CSPin1 = PSM_CS_1_Pin;
-  	psmPeriph.CSPin2 = PSM_CS_2_Pin;
-  	psmPeriph.CSPin3 = PSM_CS_3_Pin;
+  //--- PSM ---//
+  psmPeriph.CSPin0 = PSM_CS_0_Pin;
+  psmPeriph.CSPin1 = PSM_CS_1_Pin;
+  psmPeriph.CSPin2 = PSM_CS_2_Pin;
+  psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  	psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-  	psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-  	psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-  	psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
+  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
+  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
+  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
+  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
 
-  	psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
-  	psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+  psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+  psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
 
-  	psmPeriph.DreadyPin = PSM_DReady_Pin;
-  	psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+  psmPeriph.DreadyPin = PSM_DReady_Pin;
+  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
-  configPSM(&psmPeriph, &hspi2, &huart2, "12");
-
-  char printString[50];
-  while(1){
-
-	  double PSMBuffer[30] = {-1, -1, -1};
-	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer, 2);
-	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
-	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
-	  HAL_Delay(2000);
+  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
+	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
+
+  //--- RDB ---//
+  relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
+  relay.DISCHARGE_Pin = RELAY_DISCHARGE_Pin;
+  relay.GND_SIG_GPIO_Port = RELAY_LS_GPIO_Port;
+  relay.GND_SIG_Pin = RELAY_LS_Pin;
+  relay.ON_SIG_GPIO_Port = RELAY_HS_GPIO_Port;
+  relay.ON_SIG_Pin = RELAY_HS_Pin;
+  relay.PRE_SIG_GPIO_Port = RELAY_PRECHARGE_GPIO_Port;
+  relay.PRE_SIG_Pin = RELAY_PRECHARGE_Pin;
+
   //--- LIGHTS ---//
   lightsPeriph.CSPin0 = TMC5160_CS0_Pin;
   lightsPeriph.CSPort0 = TMC5160_CS0_GPIO_Port;
@@ -201,71 +235,31 @@ int main(void)
   lightsPeriph.FLT_TIM = &htim3;
   lightsPeriph.FLT_CH = TIM_CHANNEL_1;
 
-  turn_on_indicators(&lightsPeriph, 0, 0.5, 120, 500);
-  turn_on_DRL(&lightsPeriph, 0.5);
+  //Initial state of lights: all off
   turn_off_indicators(&lightsPeriph, 0);
-  turn_off_DRL(&lightsPeriph);
-  turn_on_indicators(&lightsPeriph, 0, 0.5, 120, 500);
-  turn_on_DRL(&lightsPeriph, 0.5);
-  turn_off_indicators(&lightsPeriph, 0);
-  turn_off_DRL(&lightsPeriph);
-
-  turn_on_indicators(&lightsPeriph, 1, 0.5, 120, 500);
-  turn_on_DRL(&lightsPeriph, 0.5);
   turn_off_indicators(&lightsPeriph, 1);
   turn_off_DRL(&lightsPeriph);
-  turn_on_indicators(&lightsPeriph, 1, 0.5, 120, 500);
-  turn_on_DRL(&lightsPeriph, 0.5);
-  turn_off_indicators(&lightsPeriph, 1);
-  turn_off_DRL(&lightsPeriph);
-
-  turn_on_indicators(&lightsPeriph, 0, 0.5, 120, 500);
-  turn_on_brake_lights(&lightsPeriph, 0.5);
-  turn_off_indicators(&lightsPeriph, 0);
   turn_off_brake_lights(&lightsPeriph);
-  turn_on_indicators(&lightsPeriph, 0, 0.5, 120, 500);
-  turn_on_brake_lights(&lightsPeriph, 0.5);
-  turn_off_indicators(&lightsPeriph, 0);
-  turn_off_brake_lights(&lightsPeriph);
-
-  turn_on_indicators(&lightsPeriph, 1, 0.5, 120, 500);
-  turn_on_brake_lights(&lightsPeriph, 0.5);
-  turn_off_indicators(&lightsPeriph, 1);
-  turn_off_brake_lights(&lightsPeriph);
-  turn_on_indicators(&lightsPeriph, 1, 0.5, 120, 500);
-  turn_on_brake_lights(&lightsPeriph, 0.5);
-  turn_off_indicators(&lightsPeriph, 1);
-  turn_off_brake_lights(&lightsPeriph);
-
-  turn_on_fault_indicator(&lightsPeriph);
-  turn_on_brake_lights(&lightsPeriph, 0.5);
   turn_off_fault_indicator(&lightsPeriph);
-  turn_off_brake_lights(&lightsPeriph);
-  turn_on_fault_indicator(&lightsPeriph);
-  turn_on_brake_lights(&lightsPeriph, 0.5);
-  turn_off_fault_indicator(&lightsPeriph);
-  turn_off_brake_lights(&lightsPeriph);
-
-
-  turn_on_hazard_lights(&lightsPeriph, 0.5, 120);
   turn_off_hazard_lights(&lightsPeriph);
-  turn_on_hazard_lights(&lightsPeriph, 0.5, 120);
-  turn_off_hazard_lights(&lightsPeriph);
+  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
 
-  //--- FREERTOS ---//
+  //--- COMMS ---//
   buart_main = B_uartStart(&huart4);
   btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
+  buart_bms = B_uartStart(&huart8);
+  btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
-////  blink_timer = xTimerCreate("blinkTimer",  pdMS_TO_TICKS(500), pdTRUE, (void *)0, blinkCallback); // blink on-board LED
-////  xTimerStart(blink_timer, 0);
+  //--- FREERTOS ---//
+  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
+  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
 
-  lightsCtrl = xQueueCreate(16, sizeof(uint8_t));
   xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
-  xTaskCreate(senderTaskHandle, "SenderTask", 1024, ( void * ) 1, 4, NULL);
+  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
 
-  //Initial state of lights; all off
-
-
+  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
+  xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0); //Read from BMS periodically
 
   /* USER CODE END 2 */
 
@@ -416,10 +410,10 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
-  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -730,6 +724,44 @@ static void MX_TIM5_Init(void)
 }
 
 /**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 40000;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 1000;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
   * @brief UART4 Initialization Function
   * @param None
   * @retval None
@@ -774,6 +806,54 @@ static void MX_UART4_Init(void)
   /* USER CODE BEGIN UART4_Init 2 */
 
   /* USER CODE END UART4_Init 2 */
+
+}
+
+/**
+  * @brief UART8 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART8_Init(void)
+{
+
+  /* USER CODE BEGIN UART8_Init 0 */
+
+  /* USER CODE END UART8_Init 0 */
+
+  /* USER CODE BEGIN UART8_Init 1 */
+
+  /* USER CODE END UART8_Init 1 */
+  huart8.Instance = UART8;
+  huart8.Init.BaudRate = 500000;
+  huart8.Init.WordLength = UART_WORDLENGTH_8B;
+  huart8.Init.StopBits = UART_STOPBITS_1;
+  huart8.Init.Parity = UART_PARITY_NONE;
+  huart8.Init.Mode = UART_MODE_TX_RX;
+  huart8.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart8.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart8.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart8.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart8.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart8, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart8, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART8_Init 2 */
+
+  /* USER CODE END UART8_Init 2 */
 
 }
 
@@ -841,6 +921,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+  /* DMA1_Stream2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
   /* DMA1_Stream6_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
@@ -873,114 +959,145 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOK_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, RELAY_HS_Pin|BMS_NO_FLT_Pin|LED2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOI, RELAY_LS_Pin|RELAY_DISCHARGE_Pin|PSM_CS_0_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(RELAY_PRECHARGE_GPIO_Port, RELAY_PRECHARGE_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(PSM_LVDS_EN_GPIO_Port, PSM_LVDS_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOK, TMC5160_CS0_Pin|PSM_DReady_Pin|TMC5160_CS1_Pin|Light_ctrl_PWR_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOK, TMC5160_CS0_Pin|PSM_DReady_Pin|HORN_EN_Pin|TMC5160_CS1_Pin
+                          |Light_ctrl_PWR_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, PSM_CS_1_Pin|PSM_CS_2_Pin|PSM_CS_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOG, PSM_CS_1_Pin|PSM_CS_3_Pin|PSM_CS_2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(PSM_CS_0_GPIO_Port, PSM_CS_0_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : PE2 PE3 PE4 PE5
-                           PE6 PE7 PE8 PE9
-                           PE10 PE11 PE12 PE13
-                           PE15 PE0 PE1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13
-                          |GPIO_PIN_15|GPIO_PIN_0|GPIO_PIN_1;
+  /*Configure GPIO pins : PE2 PE4 PE5 PE6
+                           PE7 PE8 PE9 PE10
+                           PE11 PE13 PE15 PE0
+                           PE1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_13|GPIO_PIN_15|GPIO_PIN_0
+                          |GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PI8 PI10 PI11 PI12
-                           PI13 PI14 PI15 PI1
-                           PI2 PI3 PI4 PI5
-                           PI6 PI7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
-                          |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_1
-                          |GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_6|GPIO_PIN_7;
+  /*Configure GPIO pins : RELAY_HS_Pin BMS_NO_FLT_Pin LED2_Pin */
+  GPIO_InitStruct.Pin = RELAY_HS_Pin|BMS_NO_FLT_Pin|LED2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PI8 PI10 PI11 PI14
+                           PI15 PI4 PI5 PI6
+                           PI7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_14
+                          |GPIO_PIN_15|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+                          |GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0
-                           PC3 PC4 PC5 PC6
-                           PC7 PC8 PC9 PC10
-                           PC11 PC12 */
+                           PC1 PC2 PC3 PC4
+                           PC5 PC6 PC7 PC8
+                           PC9 PC10 PC11 PC12 */
   GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12;
+                          |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PF0 PF1 PF2 PF3
-                           PF4 PF5 PF6 PF10
-                           PF11 PF12 PF13 PF14
-                           PF15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+  /*Configure GPIO pins : RELAY_LS_Pin RELAY_DISCHARGE_Pin PSM_CS_0_Pin */
+  GPIO_InitStruct.Pin = RELAY_LS_Pin|RELAY_DISCHARGE_Pin|PSM_CS_0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PF0 PF1 PF3 PF4
+                           PF5 PF6 PF7 PF8
+                           PF9 PF10 PF11 PF12
+                           PF13 PF14 PF15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
+                          |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : RELAY_PRECHARGE_Pin */
+  GPIO_InitStruct.Pin = RELAY_PRECHARGE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(RELAY_PRECHARGE_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ESD_DETECT_Pin */
+  GPIO_InitStruct.Pin = ESD_DETECT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(ESD_DETECT_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PH0 PH1 PH2 PH3
                            PH4 PH5 PH7 PH8
-                           PH9 PH12 PH13 PH14
-                           PH15 */
+                           PH12 PH13 PH14 PH15 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA4 PA5 PA8 PA9
-                           PA10 PA11 PA15 */
+                           PA10 PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_9
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_15;
+                          |GPIO_PIN_10|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 PB11
-                           PB12 PB14 PB15 PB3
-                           PB4 PB5 PB6 PB7
-                           PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : PB0 PB1 PB2 PB10
+                           PB11 PB12 PB14 PB15
+                           PB3 PB4 PB5 PB6
+                           PB7 PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PJ0 PJ1 PJ2 PJ3
-                           PJ4 PJ5 PJ8 PJ9
-                           PJ10 PJ11 PJ12 PJ13
-                           PJ14 PJ15 */
+                           PJ5 PJ12 PJ13 PJ14
+                           PJ15 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_9
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13
-                          |GPIO_PIN_14|GPIO_PIN_15;
+                          |GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
+                          |GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BMS_FLT_Pin */
+  GPIO_InitStruct.Pin = BMS_FLT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(BMS_FLT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PG0 PG1 PG5 PG6
                            PG7 PG8 PG9 PG10
@@ -994,19 +1111,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LED2_Pin */
-  GPIO_InitStruct.Pin = LED2_Pin;
+  /*Configure GPIO pins : LED0_Pin LED1_Pin */
+  GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED2_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LED0_Pin */
-  GPIO_InitStruct.Pin = LED0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED0_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PSM_LVDS_EN_Pin */
   GPIO_InitStruct.Pin = PSM_LVDS_EN_Pin;
@@ -1033,44 +1143,125 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PK0 PK3 PK6 PK7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_3|GPIO_PIN_6|GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : TMC5160_CS0_Pin PSM_DReady_Pin TMC5160_CS1_Pin Light_ctrl_PWR_EN_Pin */
-  GPIO_InitStruct.Pin = TMC5160_CS0_Pin|PSM_DReady_Pin|TMC5160_CS1_Pin|Light_ctrl_PWR_EN_Pin;
+  /*Configure GPIO pins : TMC5160_CS0_Pin PSM_DReady_Pin HORN_EN_Pin TMC5160_CS1_Pin
+                           Light_ctrl_PWR_EN_Pin */
+  GPIO_InitStruct.Pin = TMC5160_CS0_Pin|PSM_DReady_Pin|HORN_EN_Pin|TMC5160_CS1_Pin
+                          |Light_ctrl_PWR_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PSM_CS_1_Pin PSM_CS_2_Pin PSM_CS_3_Pin */
-  GPIO_InitStruct.Pin = PSM_CS_1_Pin|PSM_CS_2_Pin|PSM_CS_3_Pin;
+  /*Configure GPIO pins : PSM_CS_1_Pin PSM_CS_3_Pin PSM_CS_2_Pin */
+  GPIO_InitStruct.Pin = PSM_CS_1_Pin|PSM_CS_3_Pin|PSM_CS_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PSM_CS_0_Pin */
-  GPIO_InitStruct.Pin = PSM_CS_0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  /*Configure GPIO pins : PK6 PK7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(PSM_CS_0_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
 }
 
 /* USER CODE BEGIN 4 */
-// Blink on-board LED to check board is programmed
-void blinkCallback(TimerHandle_t xTimer){
-	HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_9);
-//	char buffer[100] = "PSM TEST\r\n";
-//	sprintf(buffer, "PSM TEST\r\n");
-//	HAL_UART_Transmit(&huart2, buffer, sizeof(buffer), 100);
+void serialParse(B_tcpPacket_t *pkt){
+	while(1){
+		switch(pkt->senderID){
+			case DCMB_ID: //Parse data from DCMB
+				if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
+					xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
+
+				} else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
+					uint8_t relay_open_cmd;
+					if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
+						relay_open_cmd = 1;
+						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
+						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+
+					} else if (pkt->payload[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
+						relay_open_cmd = 2;
+						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
+						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+
+					} else if (pkt->payload[1] == CAR_DRIVE){ //Need to close power relays
+						relay_open_cmd = 2;
+						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
+						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
+					}
+				}
+			break;
+
+			case BMS_ID: //Parse data from BMS (comes from btcp_bms)
+				if (pkt->payload[0] == BMS_ERROR_STATUS){ //Received error from BMS
+					uint8_t BMS_error[2 * 4] = {0};
+					BMS_error[0] = BBMB_CAR_STATE_ID;
+					BMS_error[1] = CAR_SAFE_STATE;
+					if (pkt->payload[1] == BMS_OV){	BMS_error[2] = 0x00;	}
+					else if (pkt->payload[1] == BMS_UV){	BMS_error[2] = 0x01;	}
+					else if (pkt->payload[1] == BMS_OT){	BMS_error[2] = 0x03;	}
+
+					B_tcpSend(btcp_main, BMS_error, sizeof(BMS_error));
+
+				} else { //Received SoCs, temps or voltage from BMS
+					//Simply re-send on main bus
+					B_tcpSend(btcp_main, pkt->payload, sizeof(pkt->payload));
+
+					taskENTER_CRITICAL();
+					if (BMS_requesting_from <= 6){
+						//Update flags to indicate what data we've received
+						if (pkt->payload[0] == BMS_CELL_VOLT){
+							BMS_data_received[0] = 1;
+						} else if (pkt->payload[1] == BMS_CELL_TEMP){
+							BMS_data_received[1] = 1;
+						} else if (pkt->payload[0] == BMS_CELL_SOC_ID){
+							BMS_data_received[2] = 1;
+						}
+
+						//If all data from a BMS has been received, we are ready to read the next
+						if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
+							BMS_requesting_from += 1;
+							BMS_data_received[0] = 0;
+							BMS_data_received[1] = 0;
+							BMS_data_received[2] = 0;
+
+							uint8_t BMS_Request[2 * 4] = {0};
+							BMS_Request[0] = BBMB_BMS_DATA_REQUEST_ID;
+							BMS_Request[1] = BMS_requesting_from;
+							floatToArray((float) battery_current, BMS_Request + 4);
+
+							B_tcpSend(btcp_bms, BMS_Request, sizeof(BMS_Request));
+						}
+					taskEXIT_CRITICAL();
+					}
+				}
+			break;
+		}
+	}
 }
 
+void relayTask(void * argument){
+	uint8_t buf_relay[10];
+
+	//When relays need to be opened, put a 1 in the queue. When they need to be closed, put a 2.
+
+	for(;;){
+		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
+			if (buf_relay[0] == 1){
+				open_relays(&relay);
+			} else if (buf_relay[0] == 2){
+				close_relays(&relay);
+			}
+		}
+	}
+}
 
 void lightsTask(void * argument)
 {
@@ -1155,39 +1346,88 @@ void lightsTask(void * argument)
   }
 }
 
-void senderTaskHandle(void * argument)
+void HeartbeatHandler(TimerHandle_t xTimer){
+	//Send periodic heartbeat so we know the board is still running
+	B_tcpSend(btcp_main, heartbeat, sizeof(heartbeat));
+	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
+	//Heartbeat only accessed here so no need for mutex
+}
+
+void PSMTaskHandler(TimerHandle_t xTimer){
+//Battery
+
+	double voltageCurrent_HV[2] = {0};
+	uint8_t busMetrics_HV[3 * 4] = {0};
+	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
+
+	//PSMRead will fill first element with voltage, second with current
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Array output on channel #2
+
+	//Update battery pack current global variable (used for BMS communication)
+	taskENTER_CRITICAL();
+	battery_current = voltageCurrent_HV[1];
+	taskEXIT_CRITICAL();
+
+	//Check overcurrent protection
+	if (voltageCurrent_HV[1] >= HV_BATT_OVERCURRENT_DISCHARGE){ //Overcurrent protection --> Put car into safe state
+		uint8_t car_state_error[1 * 4];
+		car_state_error[0] = BBMB_CAR_STATE_ID;
+		car_state_error[1] = CAR_SAFE_STATE;
+		car_state_error[2] = 0x02; //Overcurrent
+
+		B_tcpSend(btcp_main, car_state_error, sizeof(car_state_error));
+
+		open_relays(&relay);
+	}
+
+	floatToArray((float) voltageCurrent_HV[0], busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) voltageCurrent_HV[1], busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+
+	B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
+
+//LV
+	double voltageCurrent_LV[2] = {0};
+	uint8_t busMetrics_LV[3 * 4] = {0};
+	busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
+
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_LV, 2);
+	floatToArray((float) voltageCurrent_LV[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) voltageCurrent_LV[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
+
+	B_tcpSend(btcp_main, busMetrics_LV, sizeof(busMetrics_LV));
+}
+
+void BMSPeriodicReadHandler(TimerHandle_t xTimer){
+	/*Used to kickoff a new cycle of BMS data requests.
+	* Request data from first BMS, and upon reception, serialParse will request from others
+	*/
+	char junk[2] = {3, 1};
+	while(1){
+		B_tcpSend(btcp_bms, junk, sizeof(junk));
+		B_tcpSend(btcp_main, junk, sizeof(junk));
+	}
+	taskENTER_CRITICAL();
+	if (BMS_requesting_from > 6){ //We've received from all BMS, start requesting from the first one again
+
+		BMS_requesting_from = 1;
+
+		uint8_t BMS_Request[2 * 4] = {0};
+		BMS_Request[0] = BBMB_BMS_DATA_REQUEST_ID;
+		BMS_Request[1] = BMS_requesting_from;
+		floatToArray((float) battery_current, BMS_Request + 4); //Send current
+		B_tcpSend(btcp_bms, BMS_Request, sizeof(BMS_Request));
+
+	}
+	taskEXIT_CRITICAL();
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+//Triggered on falling edge of BMS_FLT signal (which means BMS FLT)
 {
-  /* USER CODE BEGIN senderTaskHandle */
-  /* Infinite loop */
-	B_bufQEntry_t *e;
-
-	for(;;){
-
-	e = B_uartRead(buart_main);
-	taskENTER_CRITICAL(); // data into global variable -> enter critical section
-
-	 //--- LIGHTS ---//
-	if (e->buf[0] == BSSR_SERIAL_START && e->buf[4] == 0x03){
-	  if (lightInstruction != e->buf[5]){
-		  lightInstruction = e->buf[5];
-		  xQueueSend(lightsCtrl, lightInstruction, 200);
-	  } //Only update if different (it should be different)
-
-	//--- HORN ---//
-//	} else if (e->buf[0] == BSSR_SERIAL_START && e->buf[4] == 0x04){
-//	  if (e->buf[5]){
-//		  HAL_GPIO_WritePin(GPIOK, HORN_Pin, GPIO_PIN_SET); //Turn on horn
-//	  } else {
-//		  HAL_GPIO_WritePin(GPIOK, HORN_Pin, GPIO_PIN_RESET); //Turn off horn
-//	  }
-	}
-
-	taskEXIT_CRITICAL(); // data into global variable -> enter critical section
-
-	//Check CRC, optional
-	B_uartDoneRead(e);
-  /* USER CODE END senderTaskHandle */
-	}
+    if(GPIO_Pin == BMS_FLT_Pin){ //We've received a FLT signal from one of the BMS
+    	uint8_t relay_open_cmd = 1;
+		xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
+    }
 }
 /* USER CODE END 4 */
 
@@ -1226,7 +1466,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+  else if (htim == &htim7){
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+  }
   /* USER CODE END Callback 1 */
 }
 

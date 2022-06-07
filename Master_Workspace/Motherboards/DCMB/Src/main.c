@@ -40,6 +40,18 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
+#define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
+#define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
+#define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
+
+//--- PEDALS ---//
+#define PEDAL_PULLUP 10 //Pullup resistance of pedal ADC input (kR)
+#define ACCEL_ZERO_RESISTANCE 2.3 //Resistance of acceleration pedal when not pressed
+#define REGEN_ZERO_RESISTANCE 2.3 //Resistance of regen pedal when not pressed
+#define ACCEL_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
+#define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
+#define MOTOR_DATA_PERIOD 10 //Send motor data every 10ms
 
 //#define RIGHT_SIG 16
 //#define HORN 128
@@ -47,15 +59,12 @@
 //#define DPAD_LEFT 2
 //#define DPAD_RIGHT 8
 //#define DPAD_UP 4
-uint8_t LEFT_ENABLED = 0;
-uint8_t RIGHT_ENABLED = 0;
-uint8_t CENTER_ENABLED = 0;
-uint8_t FRONT_ENABLED = 0;
-uint8_t CAMERA_ENABLED = 0;
-uint8_t CRUISE_MULT = 1;
-
-uint8_t sidePanelData;
-uint8_t steeringData[3];
+//uint8_t LEFT_ENABLED = 0;
+//uint8_t RIGHT_ENABLED = 0;
+//uint8_t CENTER_ENABLED = 0;
+//uint8_t FRONT_ENABLED = 0;
+//uint8_t CAMERA_ENABLED = 0;
+//uint8_t CRUISE_MULT = 1;
 
 /* USER CODE END PD */
 
@@ -75,14 +84,7 @@ LPTIM_HandleTypeDef hlptim1;
 
 RTC_HandleTypeDef hrtc;
 
-SD_HandleTypeDef hsd1;
-
-SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
-SPI_HandleTypeDef hspi3;
-SPI_HandleTypeDef hspi4;
-SPI_HandleTypeDef hspi5;
-SPI_HandleTypeDef hspi6;
 DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
 
@@ -116,11 +118,12 @@ B_uartHandle_t* buart;
 B_uartHandle_t* spbBuart;
 B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
+uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 
 uint8_t ignition_state = 0;
 uint8_t array_state = 0;
-SemaphoreHandle_t accMutex;
-SemaphoreHandle_t motorButtonMutex;
+//SemaphoreHandle_t accMutex;
+//SemaphoreHandle_t motorButtonMutex;
 uint8_t accValue = 0;
 uint8_t brakeStatus = 0;
 uint8_t motorState = 0;
@@ -130,6 +133,17 @@ uint8_t vfmDownState = 0;
 
 //--- DISPLAY ---//
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
+uint8_t pToggle = 0; //Needed to choose which display to write data to
+
+//--- PEDALS ---//
+uint32_t pedalsReading[2] = {0, 0};
+
+//--- SIDE PANEL BOARD ---//
+uint8_t sidePanelData;
+
+//--- STEERING WHEEL ---//
+uint8_t steeringData[3];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -137,17 +151,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_UART4_Init(void);
-static void MX_SPI4_Init(void);
-static void MX_SDMMC1_SD_Init(void);
-static void MX_SPI1_Init(void);
-static void MX_SPI5_Init(void);
-static void MX_SPI6_Init(void);
 static void MX_RTC_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_UART8_Init(void);
 static void MX_FMC_Init(void);
 static void MX_SPI2_Init(void);
-static void MX_SPI3_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
@@ -158,17 +166,21 @@ static void MX_TIM8_Init(void);
 static void MX_TIM12_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_CRC_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_TIM7_Init(void);
+static void MX_ADC1_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 static void sidePanelTask(const void *pv);
 static void steeringWheelTask(const void *pv);
-static void displayTask();
-static void motorDataTask();
-//static void lightsTmr(TimerHandle_t xTimer);
+//static void displayTask();
+static void motorDataTimer(TimerHandle_t xTimer);
 static void displayTimer(TimerHandle_t xTimer);
+static void pedalsTimer(TimerHandle_t xTimer);
+static void VFMSignalTimer(TimerHandle_t xTimer);
+
+void HeartbeatHandler(TimerHandle_t xTimer);
+float convertToAngle(uint16_t ADC_reading, uint8_t regen_or_accel); //Convert ADC code of regen and accelerator pedal to angle in degrees
 //static void motCallback(uint8_t motState);
 //static void vfmUpCallback();
 //static void vfmDownCallback();
@@ -177,7 +189,6 @@ static void displayTimer(TimerHandle_t xTimer);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t pToggle = 0;
 /* USER CODE END 0 */
 
 /**
@@ -213,18 +224,27 @@ int main(void)
   MX_RTC_Init();
   MX_USART3_UART_Init();
   MX_UART8_Init();
-  MX_SPI3_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   MX_TIM12_Init();
   MX_TIM1_Init();
   MX_CRC_Init();
-  MX_ADC1_Init();
   MX_TIM7_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  MX_SPI2_Init(); //I don't know why it's not being called above
-//  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED); //Calibrate ADC (used for acceleration pedal)
+//  MX_SPI2_Init(); //I don't know why it's not being called above
 
+  uint16_t ADC_Val[2];
+  HAL_StatusTypeDef sd;
+while(1){
+	sd = HAL_ADC_Start(&hadc1);
+
+	sd = HAL_ADC_PollForConversion(&hadc1, 100);
+	ADC_Val[0] = HAL_ADC_GetValue(&hadc1);
+	ADC_Val[1] = HAL_ADC_GetValue(&hadc1);
+
+	sd = HAL_ADC_Stop(&hadc1);
+}
   //--- NUKE LED ---//
   HAL_TIM_Base_Start_IT(&htim7);
 
@@ -235,40 +255,20 @@ int main(void)
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
 
   //--- FREERTOS ---//
-  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(200), pdTRUE, NULL, displayTimer), 0); //Refresh display every 200ms
-  xTaskCreate(motorDataTask, "motorDataTask", 1024, 1, 5, NULL);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
-  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+//  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(DISP_REFRESH_DELAY), pdTRUE, NULL, displayTimer), 0); //Refresh display every DISP_REFRESH_DELAY
+  xTimerStart(xTimerCreate("pedalsTimer", pdMS_TO_TICKS(PEDALS_REFRESH_PERIOD), pdTRUE, NULL, pedalsTimer), 0); //Measure pedals placement every PEDALS_REFRESH_PERIOD
+  xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
+//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  xTimerCreate("VFMSignalTimer", pdMS_TO_TICKS(10), pdFALSE, NULL, VFMSignalTimer); //One shot timer to send 10ms pulse for VFM up/down control
 
   //--- DRIVER DISPLAYS ---//
-  glcd_init();
+//  glcd_init();
   pToggle = 0; //Left display to start
 
-  //Testing testing
-  pToggle = 0;
-//  glcd_test_circles();
-
-//	int defaultTest[4] = {420, 874, -454, 69};
-//	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-//
-//	uint8_t sel = 0;
-//	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-//	while(1){
-//		drawP1(sel);
-//		drawP2(sel);
-//
-//		sel = sel + 1;
-//		sel = sel % 6;
-//
-//		HAL_Delay(500);
-//	}
-//  displayInit(); //Legacy from GEN10
-//  glcd_clear();
-
 //  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+//  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
+//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
 //  disp_attachMotOnCallback(motCallback);
@@ -338,18 +338,11 @@ void SystemClock_Config(void)
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
-  /** Macro to configure the PLL clock source
-  */
-  __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSE);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI
-                              |RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
@@ -410,9 +403,9 @@ static void MX_ADC1_Init(void)
   hadc1.Instance = ADC1;
   hadc1.Init.Resolution = ADC_RESOLUTION_16B;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 2;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -450,7 +443,6 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -667,85 +659,6 @@ static void MX_RTC_Init(void)
 }
 
 /**
-  * @brief SDMMC1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SDMMC1_SD_Init(void)
-{
-
-  /* USER CODE BEGIN SDMMC1_Init 0 */
-
-  /* USER CODE END SDMMC1_Init 0 */
-
-  /* USER CODE BEGIN SDMMC1_Init 1 */
-
-  /* USER CODE END SDMMC1_Init 1 */
-  hsd1.Instance = SDMMC1;
-  hsd1.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
-  hsd1.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
-  hsd1.Init.BusWide = SDMMC_BUS_WIDE_4B;
-  hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
-  hsd1.Init.ClockDiv = 0;
-  if (HAL_SD_Init(&hsd1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SDMMC1_Init 2 */
-
-  /* USER CODE END SDMMC1_Init 2 */
-
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 0x0;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi1.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi1.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi1.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi1.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi1.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi1.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi1.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi1.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi1.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
   * @brief SPI2 Initialization Function
   * @param None
   * @retval None
@@ -790,198 +703,6 @@ static void MX_SPI2_Init(void)
   /* USER CODE BEGIN SPI2_Init 2 */
 
   /* USER CODE END SPI2_Init 2 */
-
-}
-
-/**
-  * @brief SPI3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI3_Init(void)
-{
-
-  /* USER CODE BEGIN SPI3_Init 0 */
-
-  /* USER CODE END SPI3_Init 0 */
-
-  /* USER CODE BEGIN SPI3_Init 1 */
-
-  /* USER CODE END SPI3_Init 1 */
-  /* SPI3 parameter configuration*/
-  hspi3.Instance = SPI3;
-  hspi3.Init.Mode = SPI_MODE_MASTER;
-  hspi3.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
-  hspi3.Init.DataSize = SPI_DATASIZE_16BIT;
-  hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi3.Init.CRCPolynomial = 0x0;
-  hspi3.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi3.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi3.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi3.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi3.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi3.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi3.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi3.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi3.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi3.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI3_Init 2 */
-
-  /* USER CODE END SPI3_Init 2 */
-
-}
-
-/**
-  * @brief SPI4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI4_Init(void)
-{
-
-  /* USER CODE BEGIN SPI4_Init 0 */
-
-  /* USER CODE END SPI4_Init 0 */
-
-  /* USER CODE BEGIN SPI4_Init 1 */
-
-  /* USER CODE END SPI4_Init 1 */
-  /* SPI4 parameter configuration*/
-  hspi4.Instance = SPI4;
-  hspi4.Init.Mode = SPI_MODE_MASTER;
-  hspi4.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi4.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi4.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi4.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi4.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-  hspi4.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi4.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi4.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi4.Init.CRCPolynomial = 0x0;
-  hspi4.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi4.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi4.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi4.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi4.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi4.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi4.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi4.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi4.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi4.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI4_Init 2 */
-
-  /* USER CODE END SPI4_Init 2 */
-
-}
-
-/**
-  * @brief SPI5 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI5_Init(void)
-{
-
-  /* USER CODE BEGIN SPI5_Init 0 */
-
-  /* USER CODE END SPI5_Init 0 */
-
-  /* USER CODE BEGIN SPI5_Init 1 */
-
-  /* USER CODE END SPI5_Init 1 */
-  /* SPI5 parameter configuration*/
-  hspi5.Instance = SPI5;
-  hspi5.Init.Mode = SPI_MODE_MASTER;
-  hspi5.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi5.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi5.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi5.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi5.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi5.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-  hspi5.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi5.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi5.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi5.Init.CRCPolynomial = 0x0;
-  hspi5.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi5.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi5.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi5.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi5.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi5.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi5.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi5.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi5.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi5.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI5_Init 2 */
-
-  /* USER CODE END SPI5_Init 2 */
-
-}
-
-/**
-  * @brief SPI6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI6_Init(void)
-{
-
-  /* USER CODE BEGIN SPI6_Init 0 */
-
-  /* USER CODE END SPI6_Init 0 */
-
-  /* USER CODE BEGIN SPI6_Init 1 */
-
-  /* USER CODE END SPI6_Init 1 */
-  /* SPI6 parameter configuration*/
-  hspi6.Instance = SPI6;
-  hspi6.Init.Mode = SPI_MODE_MASTER;
-  hspi6.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi6.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi6.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi6.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi6.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi6.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-  hspi6.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi6.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi6.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi6.Init.CRCPolynomial = 0x0;
-  hspi6.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi6.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi6.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi6.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi6.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi6.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi6.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi6.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi6.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi6.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI6_Init 2 */
-
-  /* USER CODE END SPI6_Init 2 */
 
 }
 
@@ -1738,6 +1459,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIO_IN10_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PJ10 PJ11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI5;
+  HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PK0 PK1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI5;
+  HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PK2 PK3 PK4 PK5
                            PK6 PK7 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
@@ -1761,12 +1498,44 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF7_SPI6;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PD3 PD6 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PD7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PG9 PG10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PG12 PG14 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_14;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF5_SPI6;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
@@ -1778,26 +1547,26 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-static void accResetCallback(){
-	brakeStatus = 1;
-}
-static void vfmUpCallback(){
-	static long lastVfmChange = 0;
-	if(xTaskGetTickCount() > lastVfmChange + 500){
-		lastVfmChange = xTaskGetTickCount();
-		vfmUpState = 1;
-	}
-}
-static void vfmDownCallback(){
-	static long lastVfmChange = 0;
-	if(xTaskGetTickCount() > lastVfmChange + 500){
-		lastVfmChange = xTaskGetTickCount();
-		vfmDownState = 1;
-	}
-}
-static void motCallback(uint8_t motState){
-	motorState =  motState;
-}
+//static void accResetCallback(){
+//	brakeStatus = 1;
+//}
+//static void vfmUpCallback(){
+//	static long lastVfmChange = 0;
+//	if(xTaskGetTickCount() > lastVfmChange + 500){
+//		lastVfmChange = xTaskGetTickCount();
+//		vfmUpState = 1;
+//	}
+//}
+//static void vfmDownCallback(){
+//	static long lastVfmChange = 0;
+//	if(xTaskGetTickCount() > lastVfmChange + 500){
+//		lastVfmChange = xTaskGetTickCount();
+//		vfmDownState = 1;
+//	}
+//}
+//static void motCallback(uint8_t motState){
+//	motorState =  motState;
+//}
 
 static void lightsTmr(TimerHandle_t xTimer){
   static uint8_t current_state = 0;
@@ -1851,6 +1620,22 @@ static void displayTimer(TimerHandle_t xTimer){
 	taskEXIT_CRITICAL();
 }
 
+static void pedalsTimer(TimerHandle_t xTimer){
+	//Could use hardware timer but this is more explicit for the programmer
+	uint16_t res[2] = {2, 2};
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 1);
+    res[0] = HAL_ADC_GetValue(&hadc1);
+
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 1);
+    res[1] = HAL_ADC_GetValue(&hadc1);
+
+    char string[50];
+    sprintf(string, "Accel: %d\nRegen: %d\n\n", res[0], res[1]);
+    HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
+}
+
 static void motorDataTask(TimerHandle_t xTimer){
 	static uint8_t started = 0;
 	static char buf[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -1864,26 +1649,38 @@ static void motorDataTask(TimerHandle_t xTimer){
 	uint16_t accel_reading_lower_bound = 5000; //ADC reading corresponding to 0% power request
 	uint16_t regen_reading_upper_bound = 40000; //ADC reading corresponding to 100% regen request
 	uint16_t regen_reading_lower_bound = 5000; //ADC reading corresponding to 0% regen request
-    uint32_t pedalsReading[2] = {0, 0};
+    uint16_t pedalsReading[2] = {0, 0};
 
+    for(;;){
+		//--- PEDALS ADC READINGS ---//
+//		HAL_ADC_Start(&hadc1);
+//		HAL_ADC_PollForConversion(&hadc1, 10);
+//		pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
+//		pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
+//
+//		float pedals_angles[2] = {0};
+//		pedals_angles[0] = convertToAngle(pedalsReading[0], 0);
+//		pedals_angles[1] = convertToAngle(pedalsReading[1], 1);
+//
+//		uint8_t busMetrics_LV[3 * 4] = {0};
+//		busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
+//
+//		floatToArray((float) pedals_angles[0], buf + 4); // fills 4 - 7 of busMetrics
+//		floatToArray((float) pedals_angles[1], buf + 8); // fills 8 - 11 of busMetrics
+//
+//		B_tcpSend(btcp, busMetrics_LV, sizeof(busMetrics_LV));
 
-    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, 100);
-    pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
-    pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
-    HAL_ADC_Stop(&hadc1);
-
-// -------- FORWARD/REVERSE -------- //
+	// -------- FORWARD/REVERSE -------- //
 		taskENTER_CRITICAL();
-		fwdRevState= (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
+		fwdRevState = (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
 		taskEXIT_CRITICAL();
 
-// -------- ACCELERATION -------- //
+	// -------- ACCELERATION -------- //
 		//Get pedals reading, need to do it polling to ensure we have the latest measurements
 		accel_value = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 		//Bound acceleration value
-		if(accel_value < 0){
+		if (accel_value < 0){
 			accel_value = 0;
 		} else if (accel_value > 0xff){
 			accel_value = 0xff;
@@ -1896,7 +1693,7 @@ static void motorDataTask(TimerHandle_t xTimer){
 		}
 		buf[2] = accel_value; //This is the value sent to the MCMB to control the power to the motor (0-255)
 
-// -------- BUTTONS -------- //
+	// -------- BUTTONS -------- //
 		buf[1] = motorState << 4;
 		buf[1] |= fwdRevState << 3;
 		buf[1] |= vfmUpState << 2;
@@ -1908,7 +1705,7 @@ static void motorDataTask(TimerHandle_t xTimer){
 			vfmDownState = 0;
 		}
 
-// -------- REGEN -------- //
+	// -------- REGEN -------- //
 		regen_value = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 		//Bound regen value
@@ -1928,10 +1725,10 @@ static void motorDataTask(TimerHandle_t xTimer){
 
 		//Check if we need to turn on braking lights
 		if (regen_value >= 10){ //If braking power is >= 10/255%, turn on break lights
-	        uint8_t bufh[2] = {0x03, 0b00001000}; //[DATA ID, LIGHT INSTRUCTION]
-//	        B_tcpSend(btcp, bufh, 2);
+			uint8_t bufh[2] = {0x03, 0b00001000}; //[DATA ID, LIGHT INSTRUCTION]
+			B_tcpSend(btcp, bufh, 2);
 		}
-
+    }
 
 //		// TODO other buttons
 //		disp_setDCMBAccPotPosition(accel_value);
@@ -2180,7 +1977,7 @@ static void steeringWheelTask(const void *pv){
   uint8_t oldSteeringData[3] = {0, 0, 0};
 
   for(;;){
-//	e = B_uartRead(swBuart);
+	e = B_uartRead(swBuart);
 
 	taskENTER_CRITICAL();
 	//Save old data
@@ -2255,9 +2052,6 @@ static void steeringWheelTask(const void *pv){
 
     	//To be implemented
 
-
-
-
     //Radio - Enable driver voice radio
     } else if ((steeringData[1] & 0b00000100) != (oldSteeringData[1] & 0b00000100)){
     	//No plan to implement it in GEN11
@@ -2295,6 +2089,7 @@ static void steeringWheelTask(const void *pv){
 
 	taskEXIT_CRITICAL(); // exit critical section
 
+	//JUST FOR TESTING - WILL BE DELETED AFTER WE HAVE THE STEERING WHEEL
 	// print statement -> connect to serial monitor
     char buffer[100];
     sprintf(buffer, "STEERING WHEEL TEST\r\n");
@@ -2329,16 +2124,13 @@ static void sidePanelTask(const void *pv){
   uint32_t crcExpected;
 
   for(;;){
-//    e = B_uartRead(spbBuart);
+    e = B_uartRead(spbBuart);
 
 	taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
 	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
 		if (sidePanelData != e->buf[2]){ sidePanelData = e->buf[2]; } //Only update if different (it should be different)
-	} else {
-		return; //Data received was not from side panel
 	}
-
 	//Check CRC, optional
 
 //    B_uartDoneRead(e);
@@ -2370,26 +2162,22 @@ static void sidePanelTask(const void *pv){
 	bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
   }
 
+  B_tcpSend(btcp, bufh, 2);
+
   //AUX1 (not implemented in GEN11)
-  if (sidePanelData & (1 << 2)){
-	  HAL_Delay(100);
-  } else { //Turn off horn
-	  HAL_Delay(100);
-  }
+//  if (sidePanelData & (1 << 2)){
+//  } else { //Turn off horn
+//  }
 
   //AUX2 (not implemented in GEN11)
-  if (sidePanelData & (1 << 3)){
-	  HAL_Delay(100);
-  } else { //Turn off horn
-	  HAL_Delay(100);
-  }
+//  if (sidePanelData & (1 << 3)){
+//  } else { //Turn off horn
+//  }
 
   //ARRAY (close solar array power relays (if allowed))
   //To be implemented
   if (sidePanelData & (1 << 0)){
-	  HAL_Delay(100);
   } else { //Turn off horn
-	  HAL_Delay(100);
   }
 
   //FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
@@ -2408,13 +2196,9 @@ static void sidePanelTask(const void *pv){
 
   //IGNITION (put car into drive mode (if allowed)
   //To be implemented
-  if (sidePanelData & (1 << 7)){
-	  HAL_Delay(100);
-  } else {
-	  HAL_Delay(100);
-  }
-
-//  B_tcpSend(btcp, bufh, 2);
+//  if (sidePanelData & (1 << 7)){
+//  } else {
+//  }
 
   taskEXIT_CRITICAL(); // exit critical section
 }
@@ -2444,51 +2228,86 @@ void serialParse(B_tcpPacket_t *pkt){
 	}
 }
 
-void displayTask(TimerHandle_t xTimer){
-	//Peridically runs and checks if/what it needs to refresh on the display
-
-	if (refresh_display){
-		drawP1(0);
-		drawP2(0);
-
-		int defaultTest[4] = {420, 874, -454, 69};
-		int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-
-		uint8_t sel = 0;
-		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-		while(1){
-			drawP1(sel);
-			drawP2(sel);
-
-			sel = sel + 1;
-			sel = sel % 6;
-
-			HAL_Delay(500);
-		}
-
-		taskENTER_CRITICAL(); // data into global variable -> enter critical section
-		refresh_display = 0;
-		taskEXIT_CRITICAL(); // data into global variable -> enter critical section
-	} else {
-		taskYIELD();
-	}
-
-//	uint32_t id = pvTimerGetTimerID(xTimer);
-//	if(id == 0){
-//		vTimerSetTimerID(xTimer, 1);
-//	}else if(id == 1){
-//		//Draw to displays
-//		drawP1();
-//		drawP2();
-//	}else if(id == 2){
-//		xTimerChangePeriod(xTimer, 25, portMAX_DELAY);
-//		vTimerSetTimerID(xTimer, 3);
-//	}else{
-////		if(xSemaphoreTake(dispMtx, 0) == pdPASS){
-////			lv_task_handler();
-////			xSemaphoreGive(dispMtx);
+//void displayTask(TimerHandle_t xTimer){
+//	//Periodically runs and checks if/what it needs to refresh on the display
+//
+//	if (refresh_display){
+//
+////		if (default_or_detailed){
+////
 ////		}
+//
+//
+//		int defaultTest[4] = {420, 874, -454, 69};
+//		int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+//
+//		uint8_t sel = 0;
+//		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port,DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+//		while(1){
+//			drawP1(sel);
+//			drawP2(sel);
+//
+//			sel = sel + 1;
+//			sel = sel % 6;
+//
+//			HAL_Delay(500);
+//		}
+//
+//		taskENTER_CRITICAL(); // data into global variable -> enter critical section
+//		refresh_display = 0;
+//		taskEXIT_CRITICAL(); // data into global variable -> enter critical section
+//	} else {
+//		taskYIELD();
 //	}
+//
+////	uint32_t id = pvTimerGetTimerID(xTimer);
+////	if(id == 0){
+////		vTimerSetTimerID(xTimer, 1);
+////	}else if(id == 1){
+////		//Draw to displays
+////		drawP1();
+////		drawP2();
+////	}else if(id == 2){
+////		xTimerChangePeriod(xTimer, 25, portMAX_DELAY);
+////		vTimerSetTimerID(xTimer, 3);
+////	}else{
+//////		if(xSemaphoreTake(dispMtx, 0) == pdPASS){
+//////			lv_task_handler();
+//////			xSemaphoreGive(dispMtx);
+//////		}
+////	}
+//}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+	//ADC DMA callback --> Send pedals angle to UART bus
+
+	float pedals_angles[2] = {0};
+	uint8_t buf[3 * 4] = {0};
+	buf[0] = DCMB_PEDALS_ANGLE_ID;
+
+	pedals_angles[0] = convertToAngle(pedalsReading[0], 0); //Accel
+	pedals_angles[1] = convertToAngle(pedalsReading[1], 1); //Regen
+
+	floatToArray((float) pedals_angles[0], buf + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) pedals_angles[1], buf + 8); // fills 8 - 11 of busMetrics
+
+	B_tcpSend(btcp, buf, sizeof(buf));
+}
+
+float convertToAngle(uint16_t ADC_reading, uint8_t regen_or_accel){
+	//Convert ADC code of regen and accelerator pedal to angle in degrees
+
+	if (regen_or_accel){ //Accel
+		return (PEDAL_PULLUP * (ADC_reading / 65536 - 1) - ACCEL_ZERO_RESISTANCE) / ACCEL_PEDAL_SLOPE;
+	} else { //Regen
+		return (PEDAL_PULLUP * (ADC_reading / 65536 - 1) - REGEN_ZERO_RESISTANCE) / REGEN_PEDAL_SLOPE;
+	}
+}
+
+void HeartbeatHandler(TimerHandle_t xTimer){
+	//Send periodic heartbeat so we know the board is still running
+	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 /* USER CODE END 4 */
 
@@ -2525,10 +2344,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6) {
     HAL_IncTick();
-  } else if (htim->Instance == TIM7) {
-	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
   }
   /* USER CODE BEGIN Callback 1 */
+  else if (htim->Instance == TIM7) {
+	  HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+  }
 
   /* USER CODE END Callback 1 */
 }

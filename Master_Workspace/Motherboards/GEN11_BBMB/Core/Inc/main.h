@@ -59,10 +59,27 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define RELAY_HS_Pin GPIO_PIN_3
+#define RELAY_HS_GPIO_Port GPIOE
+#define RELAY_LS_Pin GPIO_PIN_9
+#define RELAY_LS_GPIO_Port GPIOI
+#define RELAY_PRECHARGE_Pin GPIO_PIN_2
+#define RELAY_PRECHARGE_GPIO_Port GPIOF
+#define ESD_DETECT_Pin GPIO_PIN_12
+#define ESD_DETECT_GPIO_Port GPIOI
+#define RELAY_DISCHARGE_Pin GPIO_PIN_13
+#define RELAY_DISCHARGE_GPIO_Port GPIOI
+#define BMS_FLT_Pin GPIO_PIN_4
+#define BMS_FLT_GPIO_Port GPIOJ
+#define BMS_FLT_EXTI_IRQn EXTI4_IRQn
+#define BMS_NO_FLT_Pin GPIO_PIN_12
+#define BMS_NO_FLT_GPIO_Port GPIOE
 #define LED2_Pin GPIO_PIN_14
 #define LED2_GPIO_Port GPIOE
 #define LED0_Pin GPIO_PIN_6
 #define LED0_GPIO_Port GPIOH
+#define LED1_Pin GPIO_PIN_9
+#define LED1_GPIO_Port GPIOH
 #define PSM_LVDS_EN_Pin GPIO_PIN_13
 #define PSM_LVDS_EN_GPIO_Port GPIOB
 #define TMC5160_DIAG1_Pin GPIO_PIN_6
@@ -75,17 +92,18 @@ void Error_Handler(void);
 #define PSM_DReady_GPIO_Port GPIOK
 #define PSM_CS_1_Pin GPIO_PIN_2
 #define PSM_CS_1_GPIO_Port GPIOG
-#define PSM_CS_2_Pin GPIO_PIN_3
-#define PSM_CS_2_GPIO_Port GPIOG
-#define PSM_CS_3_Pin GPIO_PIN_4
+#define PSM_CS_3_Pin GPIO_PIN_3
 #define PSM_CS_3_GPIO_Port GPIOG
+#define PSM_CS_2_Pin GPIO_PIN_4
+#define PSM_CS_2_GPIO_Port GPIOG
 #define PSM_CS_0_Pin GPIO_PIN_0
 #define PSM_CS_0_GPIO_Port GPIOI
+#define HORN_EN_Pin GPIO_PIN_3
+#define HORN_EN_GPIO_Port GPIOK
 #define TMC5160_CS1_Pin GPIO_PIN_4
 #define TMC5160_CS1_GPIO_Port GPIOK
 #define Light_ctrl_PWR_EN_Pin GPIO_PIN_5
 #define Light_ctrl_PWR_EN_GPIO_Port GPIOK
-
 /* USER CODE BEGIN Private defines */
 #define TCP_ID BBMB_ID
 

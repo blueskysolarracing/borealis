@@ -43,12 +43,14 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
 
 SPI_HandleTypeDef hspi2;
 
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+uint32_t pedals_readings[2];
 
 /* USER CODE END PV */
 
@@ -57,6 +59,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -96,6 +99,7 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI2_Init();
   MX_USART2_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   //PSM-related variables
@@ -117,100 +121,57 @@ int main(void)
 	psmPeriph.DreadyPin = DReady_Pin;
 	psmPeriph.DreadyPort = DReady_GPIO_Port;
 
+	//Uncomment for PSM #1
 	PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
-	configPSM(&psmPeriph, &hspi2, &huart2, "12");
+	configPSM(&psmPeriph, &hspi2, &huart2, "12", 1000);
+
+	//Uncomment for PSM #2
+//	PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID
+//	configPSM(&psmPeriph, &hspi2, &huart2, "1");
+
+	//Uncomment for PSM #3
+//	PSM_Init(&psmPeriph, 3); //2nd argument is PSM ID
+//	configPSM(&psmPeriph, &hspi2, &huart2, "1234");
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	char printString[50];
   while (1){
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
+	  double PSM_Measurement[2] = {-1, -1};
 
-//	  double PSMBuffer2[30] = {-1, -1, -1};
-//	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer2, 2);
-//	  sprintf(printString, "PSMBuffer2[0]: %lf\nPSMBuffer2[1]: %lf\n", PSMBuffer2[0], PSMBuffer2[1]);
-//	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+	  //Uncomment for PSM #1
+//	  /* CHANNEL #1 */ PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_Measurement, 2);
+//	  /* CHANNEL #2 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 2, PSM_Measurement, 2);
 
-	  double PSMBuffer[30] = {-1, -1, -1};
-	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSMBuffer, 2);
-	  sprintf(printString, "PSMBuffer[0]: %lf\nPSMBuffer[1]: %lf\n", PSMBuffer[0], PSMBuffer[1]);
-	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+	  //Uncomment for PSM #2
+//	  /* CHANNEL #1 */ PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 1, PSM_Measurement, 2);
 
-//	  double PSMBuffer2[30] = {-1, -1, -1};
-//	  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSMBuffer2, 2);
-//	  sprintf(printString, "PSMBuffer2[0]: %lf\nPSMBuffer2[1]: %lf\n\n", PSMBuffer2[0], PSMBuffer2[1]);
-//	  HAL_UART_Transmit(&huart2, (uint8_t*) printString, strlen(printString), 10);
+	  //Uncomment for PSM #3
+//	  /* CHANNEL #1 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 1, PSM_Measurement, 2);
+//	  /* CHANNEL #2 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 2, PSM_Measurement, 2);
+//	  /* CHANNEL #3 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 3, PSM_Measurement, 2);
+//	  /* CHANNEL #4 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 4, PSM_Measurement, 2);
 
-	  HAL_Delay(2000);
 
-//	  int receiveBuffer = 0;
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, 1);
+      pedals_readings[0] = HAL_ADC_GetValue(&hadc1);
+      pedals_readings[1] = HAL_ADC_GetValue(&hadc1);
 
-//	  do {
-//		  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//		  HAL_SPI_Transmit(&hspi2, (uint8_t *) 0x9, 1, 10);
-//		  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-//		  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//		  HAL_SPI_Receive(&hspi2, receiveBuffer, 1, 10);
-//		  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-//		  HAL_Delay(100);
-//	  } while ((receiveBuffer & 0b00000001) != 0);
+      char string[50];
+      sprintf(string, "Accel: %d\nRegen: %d\n\n", pedals_readings[0], pedals_readings[1]);
+      HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
 
-	  //Wait for DREADY to be low
+//	  char string[50];
+//	  sprintf(string, "xx%lf, %lf\n", PSM_Measurement[0], PSM_Measurement[1]);
+//      HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
 
-//	  int dataBuffer[30] = {0, 0, 0};
-//	  char printString[50];
-//
-//	  //CURRENT
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//	  HAL_SPI_Transmit(&hspi2, (uint8_t *) 0x0, 1, 10);
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//	  HAL_SPI_Receive(&hspi2, &dataBuffer, 1, 10);
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-////	  for (int i = 0; i < 3; i++){
-////		  sprinft(printString, "Current[%d]: %d\n", i, dataBuffer[i]);
-////		  HAL_UART_Transmit(&huart2, "Data not ready\n", strlen(printString), 10);
-////	  }
-//
-//	  //VOLTAGE 1
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//	  HAL_SPI_Transmit(&hspi2, (uint8_t *) 0x1, 1, 10);
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//	  HAL_SPI_Receive(&hspi2, &dataBuffer, 1, 10);
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-////	  for (int i = 0; i < 3; i++){
-////		  sprinft(printString, "Voltage1[%d]: %d\n", i, dataBuffer[i]);
-////		  HAL_UART_Transmit(&huart2, "Data not ready\n", strlen(printString), 10);
-////	  }
-//
-//	  //VOLTAGE 2
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//	  HAL_SPI_Transmit(&hspi2, (uint8_t *) 0x2, 1, 10);
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_RESET);
-//	  HAL_SPI_Receive(&hspi2, &dataBuffer, 1, 10);
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//
-////	  for (int i = 0; i < 3; i++){
-////		  sprinft(printString, "Voltage2[%d]: %d\n", i, dataBuffer[i]);
-////		  HAL_UART_Transmit(&huart2, "Data not ready\n", strlen(printString), 10);
-////	  }
-//
-//	  HAL_GPIO_WritePin(SPI2_CS_1_GPIO_Port, SPI2_CS_1_Pin, GPIO_PIN_SET);
-//	  HAL_Delay(250);
+//	  HAL_Delay(2000);
   }
   /* USER CODE END 3 */
 }
@@ -232,6 +193,9 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
+  /** Macro to configure the PLL clock source
+  */
+  __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSI);
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -269,6 +233,78 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_MultiModeTypeDef multimode = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_16B;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure the ADC multi-mode
+  */
+  multimode.Mode = ADC_MODE_INDEPENDENT;
+  if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_64CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  sConfig.OffsetSignedSaturation = DISABLE;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -434,12 +470,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PF0 PF1 PF2 PF3
                            PF4 PF5 PF6 PF7
-                           PF8 PF9 PF10 PF11
-                           PF12 PF13 PF14 PF15 */
+                           PF8 PF9 PF10 PF12
+                           PF13 PF14 PF15 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_12
+                          |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
