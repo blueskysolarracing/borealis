@@ -1931,14 +1931,27 @@ static void motorDataTask(TimerHandle_t xTimer){
 		// check if regen pedal is pressed (some constant threshold), then set motor state to REGEN
 		// REGEN is checked first as it takes priority
 		if (regen_value >= 4 / 1.4 * 3.3){
-			uint8_t bufh[3] = {0x05, 0x03, buf[1]}; // motor state, 5 digital buttons
-			B_tcpSend(btcp, bufh, 3);
+			//uint8_t bufh[3] = {0x05, 0x03, buf[1]}; // motor state, 5 digital buttons
+			//B_tcpSend(btcp, bufh, 3);
 			motorState = 3; // global within DCMB
-		} // check if regen pedal is pressed (some constant threshold), then set motor state to PEDAL
+			uint8_t bufh[10] = {0}; //Initialize all elements to zero
+			bufh[0] = DCMB_MOTOR_CONTROL_STATE_ID;
+			bufh[1] = motorState;
+			bufh[2] = buf[1];
+			packi16(&buf[4], (uint16_t)regen_value);
+			B_tcpSend(btcp, bufh, sizeof(bufh));
+			
+		} // check if accel pedal is pressed (some constant threshold), then set motor state to PEDAL
 		else if (accel_value >= 4 / 1.4 * 3.3){
-			uint8_t bufh[3] = {0x05, 0x01, buf[1]}; // motor state, 5 digital buttons
-			B_tcpSend(btcp, bufh, 3);
+			//uint8_t bufh[3] = {0x05, 0x01, buf[1]}; // motor state, 5 digital buttons
+			//B_tcpSend(btcp, bufh, 3);
 			motorState = 1; // global within DCMB
+			uint8_t bufh[10] = {0}; //Initialize all elements to zero
+			bufh[0] = DCMB_MOTOR_CONTROL_STATE_ID;
+			bufh[1] = motorState;
+			bufh[2] = buf[1];
+			packi16(&buf[4], (uint16_t)accel_value);
+			B_tcpSend(btcp, bufh, sizeof(bufh));
 		}
 
 		//Check if we need to turn on braking lights
@@ -2196,6 +2209,7 @@ static void steeringWheelTask(const void *pv){
   uint32_t crc;
   uint32_t crcExpected;
   uint8_t oldSteeringData[3] = {0, 0, 0};
+  
 
   for(;;){
 	e = B_uartRead(swBuart);
@@ -2277,9 +2291,12 @@ static void steeringWheelTask(const void *pv){
 
     		targetSpeed = targetSpeed + CRUISE_MULT * (new_ang - old_ang); // update global variable
 
-    		uint8_t bufh[2] = {0x05, targetSpeed}; //[DATA ID, angle]
-    		// this bufh is not correct: data ID should be 0x05 + 0x08? and data is two bytes?
-    		B_tcpSend(btcp, bufh, 2);
+    		uint8_t bufh[10] = {0}; //initialize all 10 bytes to zero
+		bufh[0] = DCMB_MOTOR_CONTROL_STATE_ID;
+		bufh[1] = motorState;
+		bufh[2] = buf[0];
+		floatToArray((float)targetSpeed, &bufh[6]); // cast to float and pack into buf 6-9
+    		B_tcpSend(btcp, bufh, sizeof(bufh));
 
     	}
 
@@ -2291,8 +2308,13 @@ static void steeringWheelTask(const void *pv){
     	//To be implemented
     	if (regen_value <= 4 / 1.4 * 3.3){ // regen pedal takes priority, only change state of not pressed
     		motorState = 2; // change global motorState
-    		uint8_t bufh[3] = {0x05, 0x02, buf[0]}; // set motor state to cruise, 5 digital buttons
-    		B_tcpSend(btcp, bufh, 3);
+    		//uint8_t bufh[3] = {0x05, 0x02, buf[0]}; // set motor state to cruise, 5 digital buttons
+    		//B_tcpSend(btcp, bufh, 3);
+		uint8_t bufh[10] = {0}; //initialize all 10 bytes to zero
+		bufh[0] = DCMB_MOTOR_CONTROL_STATE_ID;
+		bufh[1] = motorState;
+		bufh[2] = buf[0];
+    		B_tcpSend(btcp, bufh, sizeof(bufh));
     	}
 
 
