@@ -57,6 +57,8 @@
 
 /* External variables --------------------------------------------------------*/
 extern TIM_HandleTypeDef htim6;
+extern DMA_HandleTypeDef hdma_usart2_rx;
+extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -149,14 +151,28 @@ void EXTI4_15_IRQHandler(void)
   /* USER CODE BEGIN EXTI4_15_IRQn 0 */
 
   /* USER CODE END EXTI4_15_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(PV3_ADC_Pin);
-  HAL_GPIO_EXTI_IRQHandler(PV5_ADC_Pin);
-  HAL_GPIO_EXTI_IRQHandler(PWM5_Pin);
-  HAL_GPIO_EXTI_IRQHandler(PWM3_Pin);
-  HAL_GPIO_EXTI_IRQHandler(EN3_Pin);
+  HAL_GPIO_EXTI_IRQHandler(FLT4_Pin);
+  HAL_GPIO_EXTI_IRQHandler(FLT3_Pin);
+  HAL_GPIO_EXTI_IRQHandler(FLT2_Pin);
+  HAL_GPIO_EXTI_IRQHandler(FLT1_Pin);
+  HAL_GPIO_EXTI_IRQHandler(FLT5_Pin);
   /* USER CODE BEGIN EXTI4_15_IRQn 1 */
 
   /* USER CODE END EXTI4_15_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA1 channel 4, channel 5, channel 6 and channel 7 interrupts.
+  */
+void DMA1_Channel4_5_6_7_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel4_5_6_7_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel4_5_6_7_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart2_rx);
+  /* USER CODE BEGIN DMA1_Channel4_5_6_7_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel4_5_6_7_IRQn 1 */
 }
 
 /**
@@ -173,7 +189,20 @@ void TIM6_IRQHandler(void)
   /* USER CODE END TIM6_IRQn 1 */
 }
 
+/**
+  * @brief This function handles USART2 global interrupt / USART2 wake-up interrupt through EXTI line 26.
+  */
+void USART2_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART2_IRQn 0 */
+
+  /* USER CODE END USART2_IRQn 0 */
+  HAL_UART_IRQHandler(&huart2);
+  /* USER CODE BEGIN USART2_IRQn 1 */
+
+  /* USER CODE END USART2_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-

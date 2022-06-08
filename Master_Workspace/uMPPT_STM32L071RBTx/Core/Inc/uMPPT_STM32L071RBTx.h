@@ -5,7 +5,6 @@
 #include "main.h"
 
 //------ MACROS ------//
-#define NUM_UMPPT 1 //Number of uMPPT on the board (1 to 5). Assumes that uMPPT are populated from #1 upwards and unused uMPPT are jumped
 #define DEFAULT_PWM_FREQ 30
 #define DEFAULT_PWM_DUTY_CYCLE 0.8
 #define VDDA 3.543 //Measured voltage on VDDA pin of MCU (for ADC measurements)
@@ -23,8 +22,12 @@
 #define MAX_PWM_DUTY_CYCLE 0.99 //Maximum allowed PWM duty cycle
 #define NUM_AVG_CURRENT 5 //Number of samples in current measurements averaging
 #define MIN_INPUT_VOLTAGE 1.0 //Minimum allowed input voltage on uMPPT #1 and #3
+#define NUM_UMPPT 2 //Number of uMPPT on the board (1 to 5). Assumes that uMPPT are populated from #1 upwards and unused uMPPT are jumped
 
-#define DEBUG_FLAG 1 //Flag to print debug statements
+#define APB1_Initial_clk_freq 32000 //32 MHz
+#define APB2_Initial_clk_freq 32000 //32 MHz
+
+#define DEBUG_FLAG 0 //Flag to print debug statements
 #define ADC_DEBUG_FLAG 0 //Flag to print ADC debug statements
 
 //------ GLOBAL VARIABLES ------//
@@ -75,3 +78,5 @@ float uMPPT_read_ADC(uint32_t CH, struct board_param* board);
 void update_MPP_IncCond(struct board_param *board, struct uMPPT *target_uMPPT);
 void update_MPP_HillClimb(struct board_param *board, struct uMPPT *target_uMPPT);
 void updatePWMDutyCycle(struct uMPPT *target_uMPPT, struct board_param* board, float new_duty_cycle);
+void updatePWMPhaseOffset(struct uMPPT *target_uMPPT, struct board_param* board, float new_phase_offset);
+void updatePWMFreq(struct uMPPT *target_uMPPT, struct board_param* board, float new_freq);
