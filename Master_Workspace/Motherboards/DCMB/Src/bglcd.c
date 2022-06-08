@@ -372,9 +372,9 @@ void drawP1(uint8_t sel){
 		break;
 	}
 
-	glcd_bbox_refresh();
-	pToggle = 1;
-	glcd_write();
+//	glcd_bbox_refresh();
+//	pToggle = 1;
+//	glcd_write();
 	pToggle = 0;
 }
 
