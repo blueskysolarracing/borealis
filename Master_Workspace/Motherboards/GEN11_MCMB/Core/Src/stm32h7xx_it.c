@@ -59,6 +59,7 @@
 extern SPI_HandleTypeDef hspi3;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim7;
 extern DMA_HandleTypeDef hdma_uart4_tx;
 extern DMA_HandleTypeDef hdma_uart4_rx;
 extern DMA_HandleTypeDef hdma_uart8_rx;
@@ -308,10 +309,9 @@ void EXTI15_10_IRQHandler(void)
   /* USER CODE END EXTI15_10_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_IN10_Pin);
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_11);
-  HAL_GPIO_EXTI_IRQHandler(PSM_LVDS_EN_Pin);
-  HAL_GPIO_EXTI_IRQHandler(BBMB_PSM_CS_0_Pin);
-  HAL_GPIO_EXTI_IRQHandler(PSM_CS_2_Pin);
-  HAL_GPIO_EXTI_IRQHandler(PSM_CS_3_Pin);
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_12);
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_13);
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_15);
   /* USER CODE BEGIN EXTI15_10_IRQn 1 */
 
   /* USER CODE END EXTI15_10_IRQn 1 */
@@ -374,6 +374,20 @@ void TIM6_DAC_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM7 global interrupt.
+  */
+void TIM7_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM7_IRQn 0 */
+
+  /* USER CODE END TIM7_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim7);
+  /* USER CODE BEGIN TIM7_IRQn 1 */
+
+  /* USER CODE END TIM7_IRQn 1 */
+}
+
+/**
   * @brief This function handles UART8 global interrupt.
   */
 void UART8_IRQHandler(void)
@@ -390,4 +404,3 @@ void UART8_IRQHandler(void)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-

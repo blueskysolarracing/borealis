@@ -137,7 +137,7 @@ int main(void)
 
 	  oldSwitchState = newSwitchState;
 
-	  HAL_Delay(100); //Wait for 5ms; could be replaced with power down sleep
+	  HAL_Delay(20); //Wait for 20ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
