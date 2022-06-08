@@ -1,0 +1,9 @@
+#ifndef MATLAB_OCV_DATA_H
+#define MATLAB_OCV_DATA_H
+
+#define BSSR_OCV_DATA_SIZE 10
+
+float BSSR_SOC[BSSR_OCV_DATA_SIZE] = {1,2,3,4,5,6,7,8,9,10};
+float BSSR_OCV[BSSR_OCV_DATA_SIZE] = {1,2,3,4,5,6,7,8,9,10};
+
+#endif // bluesky_OCV_DATA_H
