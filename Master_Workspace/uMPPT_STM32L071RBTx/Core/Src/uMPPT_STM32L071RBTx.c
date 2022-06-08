@@ -3,16 +3,15 @@
 
 void config_uMPPT(struct board_param* board){
 	/*! \brief Set initial signals and configure PWM, ADC
-	 *
-	 *  Input: channel number, UART handle, ADC handle and print enable boolean
-	 *  Return: Raw ADC reading (12 bit)
 	 */
 
 	//Initialize structs
 	for (int i = 0; i < NUM_UMPPT; i++){
 		board->uMPPT_list[i]->pwm_num = i;
-		board->uMPPT_list[i]->pwm_duty_cycle = DEFAULT_PWM_DUTY_CYCLE;
-		board->uMPPT_list[i]->pwm_frequency = DEFAULT_PWM_FREQ;
+//		board->uMPPT_list[i]->pwm_duty_cycle = DEFAULT_PWM_DUTY_CYCLE;
+//		board->uMPPT_list[i]->pwm_frequency = DEFAULT_PWM_FREQ;
+		updatePWMDutyCycle(board->uMPPT_list[i], board, DEFAULT_PWM_DUTY_CYCLE);
+		updatePWMFreq(board->uMPPT_list[i], board, DEFAULT_PWM_FREQ);
 	}
 
 	//Enable MCU_OK_LED interrupt
@@ -28,15 +27,9 @@ void config_uMPPT(struct board_param* board){
 		board->ADC_config->Rank = ADC_RANK_NONE;
 		HAL_ADC_ConfigChannel(board->hadc_handle, board->ADC_config);
 	}
-	//Enable LTC7060 gate drivers
-	for (int i = 0; i < NUM_UMPPT; i++){
-		HAL_GPIO_WritePin(board->EN_Ports[i], board->EN_Pins[i], GPIO_PIN_SET);
-	}
 
 	//Start PWM
 	for (int i = 0; i < NUM_UMPPT; i++){
-		board->PWM_TIM[i]->Instance->ARR = 16000/DEFAULT_PWM_FREQ;
-		board->PWM_TIM[i]->Instance->CCR1 = DEFAULT_PWM_DUTY_CYCLE*(board->PWM_TIM[i]->Instance->ARR);
 		HAL_TIM_PWM_Start(board->PWM_TIM[i], board->PWM_CHANNEL[i]);
 	}
 }
@@ -264,8 +257,33 @@ void updatePWMDutyCycle(struct uMPPT *target_uMPPT, struct board_param* board, f
 		board->PWM_TIM[target_uMPPT->pwm_num]->Instance->CCR1 = round(new_duty_cycle * board->PWM_TIM[target_uMPPT->pwm_num]->Instance->ARR);
 	} else if (target_uMPPT->pwm_num >= 3){ //If uMPPT 4 or 5
 		board->PWM_TIM[target_uMPPT->pwm_num]->Instance->CCR3 = round(new_duty_cycle * board->PWM_TIM[target_uMPPT->pwm_num]->Instance->ARR);
-	} else { //If uMPPT
+	} else { //If uMPPT #2
 		board->PWM_TIM[target_uMPPT->pwm_num]->Instance->CCR4 = round(new_duty_cycle * board->PWM_TIM[target_uMPPT->pwm_num]->Instance->ARR);
 	}
 	target_uMPPT->pwm_duty_cycle = new_duty_cycle;
+}
+
+void updatePWMPhaseOffset(struct uMPPT *target_uMPPT, struct board_param* board, float new_phase_offset){
+	//Empty for now
+}
+
+void updatePWMFreq(struct uMPPT *target_uMPPT, struct board_param* board, float new_freq){ //Frequency in kHz
+	//Wrapper function to update the PWM frequency of the given uMPPT
+	uint8_t i = target_uMPPT->pwm_num;
+
+	if (i == 2){ //PWM3 is the only one on clock APB1
+		board->uMPPT_list[i]->pwm_frequency = new_freq;
+		board->PWM_TIM[i]->Instance->ARR = (uint32_t) (APB1_Initial_clk_freq/new_freq);
+		updatePWMDutyCycle(target_uMPPT, board, target_uMPPT->pwm_duty_cycle);
+	} else if (i == 0 || i == 3){ //PWM1 and PWM4 share the same timer, so they both have to have the same frequency
+		board->uMPPT_list[0]->pwm_frequency = new_freq;
+		board->uMPPT_list[3]->pwm_frequency = new_freq;
+		board->PWM_TIM[i]->Instance->ARR = (uint32_t) (APB2_Initial_clk_freq/new_freq);
+		updatePWMDutyCycle(board->uMPPT_list[0], board, board->uMPPT_list[0]->pwm_duty_cycle);
+		updatePWMDutyCycle(board->uMPPT_list[3], board, board->uMPPT_list[3]->pwm_duty_cycle);
+	} else {
+		board->uMPPT_list[i]->pwm_frequency = new_freq;
+		board->PWM_TIM[i]->Instance->ARR = (uint32_t) (APB2_Initial_clk_freq/new_freq);
+		updatePWMDutyCycle(target_uMPPT, board, target_uMPPT->pwm_duty_cycle);
+	}
 }

@@ -10,7 +10,7 @@ from threading import Thread
 import time as time_mod
 
 #Serial communication setup
-serial = serial.Serial('/dev/cu.usbserial-1420', 115200, timeout=0.002)
+serial = serial.Serial('COM8', 115200, timeout=0.002)
 
 #Commands
 #Generic command encoding is command_name::umppt_id,,value
@@ -33,7 +33,7 @@ STM_cmd = {
 }
 
 default_duty_cycle = 0.45
-default_frequency = 9.50
+default_frequency = 20.0
 default_phase = 0.00
 
 length_message = 16
@@ -56,7 +56,6 @@ if log_avg_current_vs_frequency == 1:
     log_file.write('Frequency (kHz); current (A)\n\n')
     log_file.write('Multimeter average (DC): 2.244')
 
-
 #Set up GUI frame
 root = Tk()
 root.title("µMPPT Control GUI")
@@ -64,7 +63,7 @@ mainframe = ttk.Frame(root, padding="10 10 10 10")
 mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
 root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
-root.geometry("1450x900")
+root.geometry("1550x1000")
 
 output_voltage = StringVar(value="0.000V, 0.000A")
 output_current = StringVar(value="0.000A")
@@ -124,9 +123,10 @@ class uMPPT():
 
     def disable(self):
         #Send command to disable to uMPPT
-        string = STM_cmd["disable"] + str(self.id)
-        serial.write(string.encode('utf8'))
-        print("Disabled uMPPT #" + str(self.id))
+        # string = STM_cmd["disable"] + str(self.id)
+        # serial.write(string.encode('utf8'))
+        # print("Disabled uMPPT #" + str(self.id))
+        return
 
     def send_data(self):
         send_and_receive(STM_cmd["new_duty_cycle"], 0, self.id, self.duty_cycle.get())
@@ -178,7 +178,6 @@ def GUI_loop(arg):
     plots = plt.figure(figsize=(7.75, 8.5), dpi=75, facecolor='#ececec')
     
     #plt.minorticks_on()
-
     #Input voltage
     ax = plots.add_subplot(211)
     ax.set_ylim(0, 5)
@@ -248,11 +247,11 @@ def meas_loop(arg):
 def send_and_receive(cmd, receive, uMPPT_num = 1, newVal = 1.0):
     global serial
     #Prepare and send data
-    string = cmd + str(uMPPT_num) + ',,{:4f}'.format(float(newVal))
+    string = cmd + str(uMPPT_num) + ',,{:.4f}'.format(float(newVal))
     string = pad_message(string, length_message)
     serial.write(string.encode('utf-8'))
-    
     time1 = time_mod.time()
+    
     if receive:
         data_received = ''
         while data_received == '':
