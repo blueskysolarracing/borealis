@@ -117,7 +117,7 @@ void addition_EKF(float* operand_1, float* operand_2, float* result, uint8_t* si
 
 uint8_t multiply_EKF(float* operand_1, float* operand_2, float* result, uint8_t* opDim_1, uint8_t* opDim_2){
 
-    // opDim_1 and opDim_2 conatin the dimensions of operand_1 and operand_2 in an array of size 2 
+    // opDim_1 and opDim_2 contain the dimensions of operand_1 and operand_2 in an array of size 2
     uint8_t r_1 = opDim_1[0];
     uint8_t c_1 = opDim_1[1];
     uint8_t r_2 = opDim_2[0];
@@ -248,7 +248,7 @@ float OCV(float soc){
     float dsoc = BSSR_SOC[1]- BSSR_SOC[0];
     float ocv = 0.0f;
     //using method of linear interpolation
-    if(soc <= BSSR_SOC[0]){ //doesnt make sense for soc to be smaller than 0 but matlab still has this code
+    if(soc <= BSSR_SOC[0]){
         dv = BSSR_OCV[1]-BSSR_OCV[0];
         ocv = (soc - BSSR_SOC[0])*(dv/dsoc)+BSSR_OCV[0];
         return ocv;
