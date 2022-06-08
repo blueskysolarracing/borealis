@@ -57,7 +57,34 @@ void glcd_set_pixel(uint8_t x, uint8_t y, uint8_t color) {
 		glcd_buffer[x+ (y/8)*GLCD_LCD_WIDTH] &= ~ (1 << (y%8));
 	}
 
-	glcd_update_bbox(x,y,x,y);
+	//glcd_update_bbox(x,y,x,y);
+	if (x > (GLCD_LCD_WIDTH-1)) {
+			x = GLCD_LCD_WIDTH-1;
+		}
+		if (x > (GLCD_LCD_WIDTH-1)) {
+			x = GLCD_LCD_WIDTH-1;
+		}
+
+		if (y > (GLCD_LCD_HEIGHT-1)) {
+			y = GLCD_LCD_HEIGHT-1;
+		}
+		if (y > (GLCD_LCD_HEIGHT-1)) {
+			y = GLCD_LCD_HEIGHT-1;
+		}
+
+		/* Update the bounding box size */
+		if (x < glcd_bbox_selected->x_min) {
+			glcd_bbox_selected->x_min = x;
+		}
+		if (x > glcd_bbox_selected->x_max) {
+			glcd_bbox_selected->x_max = x;
+		}
+		if (y < glcd_bbox_selected->y_min) {
+			glcd_bbox_selected->y_min = y;
+		}
+		if (y > glcd_bbox_selected->y_max) {
+			glcd_bbox_selected->y_max = y;
+		}
 }
 
 /* Based on PCD8544 library by Limor Fried */
