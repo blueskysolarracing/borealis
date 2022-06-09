@@ -1,29 +1,23 @@
 #ifndef BATTERY_EKF_H
 #define BATTERY_EKF_H
 
-#define _WINDOWS (0)
+#define _WINDOWS (1)
 #define OFFLINE_TEST (0)
 #define DEBUG_PRINTS (0)
 
 #if OFFLINE_TEST
 #include "blueskyOCVData.h"
-
-#else
-
-#include "blueskyOCVData.h"
-#include <math.h>
-
 #endif //OFFLINE_TEST
 
 #if _WINDOWS
 
 #define NOMINMAX
 #include <windows.h>
-#include <stdio.h>
+#include <stdio.h> //don't need for stm code
 #include <math.h>
-#include <stdint.h>
-#include <time.h>
-#include <stdlib.h>
+#include <stdint.h> //don't need for stm code
+#include <time.h> //don't need for stm code
+#include <stdlib.h> //don't need for stm code
 
 #endif //_WINDOWS
 
@@ -54,19 +48,19 @@
 
 #else
 
-#define NUM_14P_UNITS (5) //except one BMS which has 4
+#define NUM_14P_UNITS (29)
 #define DELTA_T (1.0f)  // sampling rate in seconds. constant
 
 #define STATE_NUM (3)
 #define INPUT_NUM (2)
 #define OUTPUT_NUM (1)
-
-#define Q_CAP (0.0f) //Ah
-#define R_INT (0.0074f) //Ohm
-#define R_CT  (0.005f) //Farad
-#define C_CT  (4772.21f)
-#define R_D   (0.005f)
-#define C_D   (4772.21f)
+//choosen parameter are for when temperature T= 25
+#define Q_CAP (5.1344368f*3600)   // in Ah how precise do we want these values to be?
+#define R_INT (0.0112f)     // internal resistance of the 14p battery unit
+#define R_CT  (0.0025f)     //R*C=2.4107 R=0.0025 -> C=2.4107/0.0025=964.25
+#define C_CT  (964.25f)
+#define R_D   (0.0025f)     //assume R_D and C_D value same as R_CT and C_CT
+#define C_D   (964.25f)
 
 #define VAR_Z    (2e-4f)
 #define VAR_I_D  (1e-6f)
