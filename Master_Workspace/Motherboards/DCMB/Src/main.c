@@ -85,7 +85,6 @@ LPTIM_HandleTypeDef hlptim1;
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi2;
-DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
 
 TIM_HandleTypeDef htim1;
@@ -237,7 +236,7 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
-//  MX_SPI2_Init(); //I don't know why it's not being called above
+  MX_SPI2_Init(); //I don't know why it's not being called above
 
   uint16_t ADC_Val[2];
   HAL_StatusTypeDef sd;
@@ -675,7 +674,7 @@ static void MX_SPI2_Init(void)
   /* SPI2 parameter configuration*/
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
@@ -1238,9 +1237,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
-  /* DMA1_Stream4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
@@ -2297,12 +2293,24 @@ static void sidePanelTask(const void *pv){
 }
 
 static void displayTask(const void *pv){
+//	while(1){
+//		uint8_t c = 0x55;
+//		HAL_SPI_Transmit(&hspi2, &c, 1, 50);
+//	}
 	uint8_t screen = 0;
+	pToggle = 0;
+	glcd_init();
+	glcd_clear();
+	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	uint8_t sel = 0;
 	while(1){
-//		drawP1(0);
-		HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, screen);
-		vTaskDelay(100);
-		screen = !screen;
+		drawP1(sel);
+		drawP2(sel);
+
+		sel = sel + 1;
+		sel = sel % 6;
+
+		HAL_Delay(500);
 	}
 }
 
