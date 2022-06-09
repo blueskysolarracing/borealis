@@ -48,9 +48,6 @@ UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t switchState[3] = {0, 0, 0};
-uint8_t oldSwitchState[3] = {0, 0, 0};
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,44 +59,74 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 //static void switchStateTask(void const* pv);
 
-void getSwitchState(){
+uint8_t getSwitchState(uint8_t whichByte){
+	uint8_t switchState[3] = {0, 0, 0};
+
 	//-- BYTE 0 --
 	//Accelerator rotary encoder
-	switchState[0] = (switchState[0] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) & 0b00000001); //Bit 0 - OK
-	switchState[0] = (switchState[0] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1) & 0b00000010); //Bit 1 - OK
-	switchState[0] = (switchState[0] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2) & 0b00000100); //Bit 2 - OK
-	switchState[0] = (switchState[0] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3) & 0b00001000); //Bit 3 - OK
-	switchState[0] = (switchState[0] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4) & 0b00010000); //Bit 4 - OK
-	switchState[0] = (switchState[0] & ~0b00100000) | ((HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5) & 0b00100000); //Bit 5 - OK
-	switchState[0] = (switchState[0] & ~0b01000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6) & 0b01000000); //Bit 6 - OK
-	switchState[0] = (switchState[0] & ~0b10000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7) & 0b10000000); //Bit 7 - OK
+	switch (whichByte){
+	case 0:
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) << 0;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6;
+		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7;
 
-	//-- BYTE 1 --
-	//Left/right turn signals
-	switchState[1] = (switchState[1] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, L_SIGNAL_Pin) & 0b00000001); //Bit 0 - OK
-	switchState[1] = (switchState[1] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, R_SIGNAL_Pin) << 1) & 0b00000010); //Bit 1 - OK
+		//	switchState[0] = (switchState[0] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) & 0b00000001); //Bit 0 - OK
+		//	switchState[0] = (switchState[0] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1) & 0b00000010); //Bit 1 - OK
+		//	switchState[0] = (switchState[0] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2) & 0b00000100); //Bit 2 - OK
+		//	switchState[0] = (switchState[0] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3) & 0b00001000); //Bit 3 - OK
+		//	switchState[0] = (switchState[0] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4) & 0b00010000); //Bit 4 - OK
+		//	switchState[0] = (switchState[0] & ~0b00100000) | ((HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5) & 0b00100000); //Bit 5 - OK
+		//	switchState[0] = (switchState[0] & ~0b01000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6) & 0b01000000); //Bit 6 - OK
+		//	switchState[0] = (switchState[0] & ~0b10000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7) & 0b10000000); //Bit 7 - OK
+		return switchState[0];
 
-	//Radio
-	switchState[1] = (switchState[1] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, RAD_SIGNAL_Pin) << 2) & 0b00000100); //Bit 2 - OK
+	case 1:
+		//-- BYTE 1 --
+		//Left/right turn signals
+		switchState[1] |= HAL_GPIO_ReadPin(GPIOC, L_SIGNAL_Pin) << 0;
+		switchState[1] |= HAL_GPIO_ReadPin(GPIOC, R_SIGNAL_Pin) << 1;
 
-	//Horn
-	switchState[1] = (switchState[1] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, HORN_SIGNAL_Pin) << 3) & 0b00001000); //Bit 3 - OK
+	//	switchState[1] = (switchState[1] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, L_SIGNAL_Pin) & 0b00000001); //Bit 0 - OK
+	//	switchState[1] = (switchState[1] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, R_SIGNAL_Pin) << 1) & 0b00000010); //Bit 1 - OK
 
-	//Cruise control
-	switchState[1] = (switchState[1] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, CRUISE_SIGNAL_Pin) << 4) & 0b00010000); //Bit 4 - OK
+		//Radio
+		switchState[1] |= HAL_GPIO_ReadPin(GPIOC, RAD_SIGNAL_Pin) << 2;
+	//	switchState[1] = (switchState[1] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, RAD_SIGNAL_Pin) << 2) & 0b00000100); //Bit 2 - OK
 
-	switchState[1] = switchState[1] & 0b00011111; //Make sure other bits are 0
+		//Horn
+		switchState[1] |= HAL_GPIO_ReadPin(GPIOC, HORN_SIGNAL_Pin) << 3;
+	//	switchState[1] = (switchState[1] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, HORN_SIGNAL_Pin) << 3) & 0b00001000); //Bit 3 - OK
 
+		//Cruise control
+		switchState[1] |= HAL_GPIO_ReadPin(GPIOB, CRUISE_SIGNAL_Pin) << 4;
+	//	switchState[1] = (switchState[1] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, CRUISE_SIGNAL_Pin) << 4) & 0b00010000); //Bit 4 - OK
 
-	//-- BYTE 2 --
-	//Navigation
-	switchState[2] = (switchState[2] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOB, UP_Pin) & 0b00000001); //Bit 0 - OK
-	switchState[2] = (switchState[2] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOB, DOWN_Pin) << 1) & 0b00000010); //Bit 1 - OK
-	switchState[2] = (switchState[2] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOB, LEFT_Pin) << 2) & 0b00000100); //Bit 2 - OK
-	switchState[2] = (switchState[2] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOB, RIGHT_Pin) << 3) & 0b00001000); //Bit 3 - OK
-	switchState[2] = (switchState[2] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, SELECT_Pin) << 4) & 0b00010000); //Bit 4 - OK
+		switchState[1] = switchState[1] & 0b00011111; //Make sure other bits are 0
+		return switchState[1];
 
-	switchState[2] = switchState[2] & 0b00011111; //Make sure other bits are 0
+	case 2:
+		//-- BYTE 2 --
+		//Navigation
+		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, UP_Pin) << 0;
+		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, DOWN_Pin) << 1;
+		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, LEFT_Pin) << 2;
+		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, RIGHT_Pin) << 3;
+		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, SELECT_Pin) << 4;
+
+	//	switchState[2] = (switchState[2] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOB, UP_Pin) & 0b00000001); //Bit 0 - OK
+	//	switchState[2] = (switchState[2] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOB, DOWN_Pin) << 1) & 0b00000010); //Bit 1 - OK
+	//	switchState[2] = (switchState[2] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOB, LEFT_Pin) << 2) & 0b00000100); //Bit 2 - OK
+	//	switchState[2] = (switchState[2] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOB, RIGHT_Pin) << 3) & 0b00001000); //Bit 3 - OK
+	//	switchState[2] = (switchState[2] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, SELECT_Pin) << 4) & 0b00010000); //Bit 4 - OK
+
+		switchState[2] = switchState[2] & 0b00011111; //Make sure other bits are 0
+		return switchState[2];
+	}
 }
 /* USER CODE END PFP */
 
@@ -140,6 +167,8 @@ int main(void)
   MX_UART4_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  uint8_t oldSwitchState[3] = {0, 0, 0};
+  uint8_t newSwitchState[3] = {0, 0, 0};
 
   /* USER CODE END 2 */
 
@@ -149,17 +178,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	getSwitchState();
+	newSwitchState[0] = getSwitchState(0);
+	newSwitchState[1] = getSwitchState(1);
+	newSwitchState[2] = getSwitchState(2);
 
-	if ((oldSwitchState[0] != switchState[0]) || (oldSwitchState[1] != switchState[1]) || (oldSwitchState[2] != switchState[2])){ //If any bit has changed, send data
-		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, switchState[0], switchState[1], switchState[2], 0x00}; //Last byte is CRC, optional
+	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2])){ //If any bit has changed, send data
+		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00}; //Last byte is CRC, optional
 		HAL_UART_Transmit(&huart2, buf, 6, 10);
-		HAL_Delay(20);
 		HAL_UART_Transmit(&huart4, buf, 6, 10);
 	}
 
-	for (int i = 0; i < 3; i++){ oldSwitchState[i] = switchState[i];}
-	HAL_Delay(20);
+	//Update switch state
+	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
+
+	HAL_Delay(5);
   }
   /* USER CODE END 3 */
 }

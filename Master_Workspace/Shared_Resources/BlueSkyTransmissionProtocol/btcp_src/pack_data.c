@@ -1,5 +1,39 @@
 #include "pack_data.h"
 
+
+
+
+// Note: arrayToFloat and floatToArray are not cross platform
+// They only work on hardware where floating point values are stored in IEEE 754 format.
+// STM32 uses IEEE 754 format
+
+float arrayToFloat(uint8_t* aryPtr) {
+
+	float val = 0;
+	int* valPtr = (uint8_t*)&val;
+	uint8_t aryIdx = sizeof(val)-1;
+
+	for (; aryIdx >= 0; aryIdx--) {
+		*valPtr = aryPtr[aryIdx];
+		valPtr++;
+	}
+	return val;
+}
+
+void floatToArray(float val, uint8_t* aryPtr) {
+    int aryIdx = sizeof(val)-1;
+    uint8_t* ptr = (uint8_t*)&val;
+    for(; aryIdx >= 0; aryIdx--){
+    	aryPtr[aryIdx] = *ptr;
+    	ptr++;
+    }
+}
+
+
+
+// Everything below works cross platform
+/* ===========================================================*/
+
 /*
 ** packi16() -- store a 16-bit int into a uint8_t buffer (like htons())
 */

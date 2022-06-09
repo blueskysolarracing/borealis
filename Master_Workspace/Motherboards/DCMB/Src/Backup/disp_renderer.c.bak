@@ -638,33 +638,33 @@ static void notifTmr(TimerHandle_t xTimer){
 	}
 }
 
-void displayTask(void* pv){
-	dispMtx = xSemaphoreCreateMutex();
-	xSemaphoreTake(dispMtx, portMAX_DELAY);
-	osDelay(50);
-	SSD_init_hack();
-	lv_init();
-	initStyles();
-	xTimerStart(xTimerCreate("", 1, pdTRUE, NULL, lvglTick),0);
-	lv_disp_buf_t disp_buf;
-	lv_color_t* buf = pvPortMalloc((LV_HOR_RES_MAX * LV_VER_RES_MAX) * sizeof(lv_color_t));
-	lv_disp_buf_init(&disp_buf, buf, NULL, LV_HOR_RES_MAX * LV_VER_RES_MAX);
-	lv_disp_drv_t disp_drv;
-	lv_disp_drv_init(&disp_drv);
-	disp_drv.flush_cb = my_disp_flush_hack;
-	disp_drv.buffer = &disp_buf;
-	disp_drv.rounder_cb = my_rounder_cb;
-	lv_disp_drv_register(&disp_drv);
-	createObjects();
-	xSemaphoreGive(dispMtx);
-	//xTaskCreate(testTask, "", 256, NULL, 3, NULL);
-	for(;;){
-		xSemaphoreTake(dispMtx, portMAX_DELAY);
-		lv_task_handler();
-		xSemaphoreGive(dispMtx);
-		osDelay(10);
-	}
-}
+//void displayTask(void* pv){
+//	dispMtx = xSemaphoreCreateMutex();
+//	xSemaphoreTake(dispMtx, portMAX_DELAY);
+//	osDelay(50);
+//	SSD_init_hack();
+//	lv_init();
+//	initStyles();
+//	xTimerStart(xTimerCreate("", 1, pdTRUE, NULL, lvglTick),0);
+//	lv_disp_buf_t disp_buf;
+//	lv_color_t* buf = pvPortMalloc((LV_HOR_RES_MAX * LV_VER_RES_MAX) * sizeof(lv_color_t));
+//	lv_disp_buf_init(&disp_buf, buf, NULL, LV_HOR_RES_MAX * LV_VER_RES_MAX);
+//	lv_disp_drv_t disp_drv;
+//	lv_disp_drv_init(&disp_drv);
+//	disp_drv.flush_cb = my_disp_flush_hack;
+//	disp_drv.buffer = &disp_buf;
+//	disp_drv.rounder_cb = my_rounder_cb;
+//	lv_disp_drv_register(&disp_drv);
+//	createObjects();
+//	xSemaphoreGive(dispMtx);
+//	//xTaskCreate(testTask, "", 256, NULL, 3, NULL);
+//	for(;;){
+//		xSemaphoreTake(dispMtx, portMAX_DELAY);
+//		lv_task_handler();
+//		xSemaphoreGive(dispMtx);
+//		osDelay(10);
+//	}
+//}
 
 static void lvglTick(void* id){
 	lv_tick_inc(1);

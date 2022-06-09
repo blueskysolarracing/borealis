@@ -13,7 +13,7 @@
 #include "SSD1322.h"
 #include "lvgl/lvgl.h"
 
-void displayTask(void* pv);
+//void displayTask(void* pv);
 void displayInit();
 void displayTmr(void* pv);
 void disp_setMCMBPulseFreq(uint32_t hz); // critical

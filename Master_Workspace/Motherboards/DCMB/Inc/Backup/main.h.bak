@@ -37,7 +37,7 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+extern uint8_t pToggle;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -62,22 +62,40 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define DISP_CS_1_Pin GPIO_PIN_3
+#define DISP_CS_1_GPIO_Port GPIOE
 #define Cam_Ctrl_Pin GPIO_PIN_14
 #define Cam_Ctrl_GPIO_Port GPIOI
-#define regen_input_Pin GPIO_PIN_4
-#define regen_input_GPIO_Port GPIOC
+#define REGEN_PEDAL_Pin GPIO_PIN_4
+#define REGEN_PEDAL_GPIO_Port GPIOC
 #define Screen_Ctrl_Pin GPIO_PIN_15
 #define Screen_Ctrl_GPIO_Port GPIOI
 #define GPIO_IN0_Pin GPIO_PIN_0
 #define GPIO_IN0_GPIO_Port GPIOJ
 #define GPIO_IN0_EXTI_IRQn EXTI0_IRQn
-#define ACC_sig_Pin GPIO_PIN_11
-#define ACC_sig_GPIO_Port GPIOF
+#define ACCEL_PEDAL_Pin GPIO_PIN_11
+#define ACCEL_PEDAL_GPIO_Port GPIOF
 #define Fan_ctrl_Pin GPIO_PIN_0
 #define Fan_ctrl_GPIO_Port GPIOG
+#define LED2_Pin GPIO_PIN_14
+#define LED2_GPIO_Port GPIOE
+#define LED0_Pin GPIO_PIN_6
+#define LED0_GPIO_Port GPIOH
+#define LED1_Pin GPIO_PIN_9
+#define LED1_GPIO_Port GPIOH
 #define GPIO_IN10_Pin GPIO_PIN_10
 #define GPIO_IN10_GPIO_Port GPIOD
 #define GPIO_IN10_EXTI_IRQn EXTI15_10_IRQn
+#define DISP_CS_0_Pin GPIO_PIN_0
+#define DISP_CS_0_GPIO_Port GPIOI
+#define DISP_A0_Pin GPIO_PIN_12
+#define DISP_A0_GPIO_Port GPIOJ
+#define DISP_LED_CTRL_Pin GPIO_PIN_13
+#define DISP_LED_CTRL_GPIO_Port GPIOJ
+#define DISP_RST_1_Pin GPIO_PIN_14
+#define DISP_RST_1_GPIO_Port GPIOJ
+#define DISP_RST_2_Pin GPIO_PIN_15
+#define DISP_RST_2_GPIO_Port GPIOJ
 /* USER CODE BEGIN Private defines */
 #define TCP_ID 0x04
 

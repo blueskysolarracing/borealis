@@ -4,6 +4,11 @@
 #include "stdint.h"
 
 
+float arrayToFloat(uint8_t* aryPtr);
+void floatToArray(float val, uint8_t* aryPtr);
+
+
+
 void packi16(uint8_t *buf, uint16_t i);
 void packi32(uint8_t *buf, uint32_t i);
 uint16_t unpacku16(uint8_t *buf);

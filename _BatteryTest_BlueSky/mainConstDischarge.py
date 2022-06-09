@@ -4,7 +4,7 @@ import pyvisa as pv
 import time
 import datetime
 
-from mainConstCharge import CRateIn
+# from mainConstCharge import CRate
 
 def executeDischarge(inBatteryObj, device):
 
@@ -58,6 +58,8 @@ def executeDischarge(inBatteryObj, device):
 
         inBatteryObj.logMeasurement(currVoltage, currCurrent, timeDelta)
 
+        print("Voltage: " + str(currVoltage) + "V")
+
         if (abs(currVoltage - targetVoltage) <= 0.05):
             break
 
@@ -74,10 +76,9 @@ if __name__ == '__main__':
     cellNum = 14                                                # number of cells in parallel
     testSetting = -1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
     voltageBounds = [2.5, 4.2]                                  # [cutoff voltage, max. charge voltage]
-    CRateIn = 1/30
 
     # initialize BatteryObject
-    batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, CRate = CRateIn)
+    batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, 0.408)
 
     # initialize e-Load and DC Power Supply
     resourceManager = pv.ResourceManager()
