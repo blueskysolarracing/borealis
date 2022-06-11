@@ -25,7 +25,7 @@
 #include "buart.h"
 #include "btcp.h"
 #include "protocol_ids.h"
-#include "batteryEKF.h"
+//#include "batteryEKF.h"
 #include "LTC6810.h"
 #include "timers.h"
 /* USER CODE END Includes */
@@ -38,7 +38,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
-#define MY_ID 0 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS)
+#define MY_ID 1 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS)
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
 #define NUM_CELLS 6
@@ -66,6 +66,8 @@ TIM_HandleTypeDef htim7;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart3;
+DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
@@ -81,8 +83,9 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_CRC_Init(void);
-static void MX_TIM7_Init(void);
+static void MX_DMA_Init(void);
 static void MX_SPI3_Init(void);
+static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -99,7 +102,7 @@ void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send);
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
 
-EKF_Battery battery;
+//EKF_Battery battery;
 
 float voltage_array[NUM_CELLS]; //Voltage measurements
 float SoC_array[NUM_CELLS]; //State of Charge of each cell
@@ -141,8 +144,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_CRC_Init();
-  MX_TIM7_Init();
+  MX_DMA_Init();
   MX_SPI3_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   //--- MCU OK LED ---//
   NVIC_EnableIRQ(TIM7_IRQn);
@@ -159,7 +163,7 @@ int main(void)
   xTimerStart(xTimerCreate("LTC6810_Timer",  pdMS_TO_TICKS(MEAS_PERIOD), pdTRUE, (void *)0, LTC6810_callback), 0); //Temperature and voltage measurements
 
   //--- SOC ALGO ---//
-  initBatteryAlgo(&battery);
+//  initBatteryAlgo(&battery);
 
   /* USER CODE END 2 */
 
@@ -432,6 +436,25 @@ static void MX_USART3_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -527,51 +550,49 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-	while(1){
-		switch(pkt->senderID){
-			  case BBMB_ID: //Parse data from BBMB
-				  //--- SoC REQUEST FROM BBMB ---//
-				  /* BBMB will receive SoC packet, voltage packet and temperature packet*/
-				if((pkt->data[0] == BBMB_SOC_REQUEST_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
-					float current;
-					current = arrayToFloat(pkt->data + 2);
+	switch(pkt->senderID){
+	  case BBMB_ID: //Parse data from BBMB
+		  //--- SoC REQUEST FROM BBMB ---//
+		  /* BBMB will receive SoC packet, voltage packet and temperature packet*/
+		if((pkt->data[0] == BBMB_STATE_OF_CHARGE_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
+			float current;
+			current = arrayToFloat(pkt->data + 2);
 
-					//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough
-					for (int i = 0; i < NUM_CELLS; i++){
-						SoC_array[i] = run_EKF(&battery.batteryPack[i], current, voltage_array[i]);
-					}
-
-					//Send back SoC for all cells
-					uint8_t buf_soc[4 + 5*4]; //[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
-					buf_soc[0] = BMS_CELL_SOC_ID;
-					buf_soc[1] = MY_ID;
-
-					//Pack SoCs into buffer
-					for (int i = 0; i < 5; i++){
-						if (i >= NUM_CELLS){
-							for (int j = 0; j < sizeof(float); j++){	buf_soc[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
-
-						} else {
-							uint8_t floatArray[4];
-							floatToArray(SoC_array[i], floatArray); //Convert float into array
-
-							//Pack into buffer
-							for (int j = 0; j < sizeof(float); j++){
-								buf_soc[4 + sizeof(float) * i + j] = floatArray[j];
-							}
-						}
-					}
-					//Send
-					HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-					B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
-					HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-
-					send_temp_volt(); //Also, send temp and volt
-				}
-				break;
+			//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough
+			for (int i = 0; i < NUM_CELLS; i++){
+//					SoC_array[i] = run_EKF(&battery.batteryPack[i], current, voltage_array[i]);
 			}
+
+			//Send back SoC for all cells
+			uint8_t buf_soc[4 + 5*4]; //[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+			buf_soc[0] = BMS_CELL_SOC_ID;
+			buf_soc[1] = MY_ID;
+
+			//Pack SoCs into buffer
+			for (int i = 0; i < 5; i++){
+				if (i >= NUM_CELLS){
+					for (int j = 0; j < sizeof(float); j++){	buf_soc[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
+
+				} else {
+					uint8_t floatArray[4];
+					floatToArray(SoC_array[i], floatArray); //Convert float into array
+
+					//Pack into buffer
+					for (int j = 0; j < sizeof(float); j++){
+						buf_soc[4 + sizeof(float) * i + j] = floatArray[j];
+					}
+				}
+			}
+			//Send
+			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+			B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+
+			send_temp_volt(); //Also, send temp and volt
 		}
+		break;
 	}
+}
 
 void send_temp_volt(){
 	//--- SEND TEMPERATURE ---//
@@ -632,12 +653,29 @@ void LTC6810_callback(TimerHandle_t xTimer){
 	uint16_t local_voltage_array[6]; //Voltage of each cell
 	uint16_t local_temp_array[3]; //Temperature readings
 
+	uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
+
+
+//	while (1){
+//		char buf[3] = {1, 2, 3};
+////		HAL_UART_Transmit(&huart1, buf, sizeof(buf), 10);
+////
+//		//Send
+//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+//		B_tcpSend(btcp, buf, sizeof(buf));
+////		HAL_UART_Transmit(&huart1, buf, sizeof(buf), 10);
+////		HAL_UART_Transmit(&huart3, buf, sizeof(buf), 10);
+//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+////
+////		vTaskDelay(100);
+//	}
+
 	if (start_LTC6810_meas){
 		//---- LTC6810 MEASUREMENTS ----//
-		while(1){
-			readVolt(local_voltage_array, &hspi3, &huart3); //Places voltage in temp 1, temp
-			readTemp(local_temp_array, 0, 0, 0, 0, 0, &hspi3, &huart3); //Places temperature in temp 1, temp
-		}
+//		while(1){ //testing
+//			readVolt(local_voltage_array, &hspi3, &huart3); //Places voltage in temp 1, temp
+//			readTemp(local_temp_array, 0, 0, 0, 0, 0, &hspi3, &huart3); //Places temperature in temp 1, temp
+//		}
 
 		//---- BATTERY FAULT CHECK----//
 		//Check for UV, OV faults

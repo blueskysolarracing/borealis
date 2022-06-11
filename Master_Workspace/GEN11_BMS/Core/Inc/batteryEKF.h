@@ -12,7 +12,7 @@
 #if _WINDOWS
 
 #define NOMINMAX
-#include <windows.h>
+//#include <windows.h>
 #include <stdio.h> //don't need for stm code
 #include <math.h>
 #include <stdint.h> //don't need for stm code

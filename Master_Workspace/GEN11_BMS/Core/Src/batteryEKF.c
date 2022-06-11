@@ -1,4 +1,5 @@
 #include "batteryEKF.h"
+#include "blueskyOCVData.h"
 
 void printMatrix(float* input, uint8_t* size){
 
@@ -245,23 +246,23 @@ uint8_t inverse_EKF(float* in, float* out, uint8_t* dim){
 
 float OCV(float soc){
     float dv = 0.0f;
-    float dsoc = BSSR_SOC[1]- BSSR_SOC[0];
+    float dsoc = BSSR_SOC[1] - BSSR_SOC[0];
     float ocv = 0.0f;
     //using method of linear interpolation
-    if(soc <= BSSR_SOC[0]){ //doesnt make sense for soc to be smaller than 0 but matlab still has this code
+    if (soc <= BSSR_SOC[0]){ //doesnt make sense for soc to be smaller than 0 but matlab still has this code
         dv = BSSR_OCV[1]-BSSR_OCV[0];
         ocv = (soc - BSSR_SOC[0])*(dv/dsoc)+BSSR_OCV[0];
         return ocv;
-    }else if(soc >= BSSR_SOC[BSSR_OCV_DATA_SIZE-1]){
+    } else if (soc >= BSSR_SOC[BSSR_OCV_DATA_SIZE-1]){
         dv = BSSR_OCV[BSSR_OCV_DATA_SIZE-1]-BSSR_OCV[BSSR_OCV_DATA_SIZE-2];
         ocv = (soc - BSSR_SOC[BSSR_OCV_DATA_SIZE-1])*(dv/dsoc)+BSSR_OCV[BSSR_OCV_DATA_SIZE-1];
         return ocv;
-    }else if((soc>BSSR_SOC[0])&&(soc<BSSR_SOC[BSSR_OCV_DATA_SIZE-1])){
+    } else if ((soc>BSSR_SOC[0])&&(soc<BSSR_SOC[BSSR_OCV_DATA_SIZE-1])){
         int lowerIndex = (soc - BSSR_SOC[0])/dsoc;
         dv = BSSR_OCV[lowerIndex+1]-BSSR_OCV[lowerIndex];
         ocv = BSSR_OCV[lowerIndex] + ((soc - BSSR_SOC[lowerIndex])*(dv/dsoc));
         return ocv;
-    }else{
+    } else {
         return 0;
     }
 }
