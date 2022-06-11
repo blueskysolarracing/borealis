@@ -1,5 +1,6 @@
 #include "batteryEKF.h"
 
+#if _WINDOWS
 void printMatrix(float* input, uint8_t* size){
 
     for(int i = 0; i < size[0]; i++){
@@ -10,6 +11,7 @@ void printMatrix(float* input, uint8_t* size){
     }
 
 }
+#endif
 
 void initBatteryAlgo(EKF_Battery* inBatteryPack){
 
@@ -117,7 +119,7 @@ void addition_EKF(float* operand_1, float* operand_2, float* result, uint8_t* si
 
 uint8_t multiply_EKF(float* operand_1, float* operand_2, float* result, uint8_t* opDim_1, uint8_t* opDim_2){
 
-    // opDim_1 and opDim_2 conatin the dimensions of operand_1 and operand_2 in an array of size 2 
+    // opDim_1 and opDim_2 contain the dimensions of operand_1 and operand_2 in an array of size 2
     uint8_t r_1 = opDim_1[0];
     uint8_t c_1 = opDim_1[1];
     uint8_t r_2 = opDim_2[0];
@@ -177,7 +179,11 @@ uint8_t inverse_EKF(float* in, float* out, uint8_t* dim){
     uint8_t cols = dim[1];
 
     if(rows != cols){
+
+#if _WINDOWS
         printf("Matrix is not square - cannot compute inverse with this method... \n");
+#endif
+
         return 0;
     }
 
@@ -248,7 +254,7 @@ float OCV(float soc){
     float dsoc = BSSR_SOC[1]- BSSR_SOC[0];
     float ocv = 0.0f;
     //using method of linear interpolation
-    if(soc <= BSSR_SOC[0]){ //doesnt make sense for soc to be smaller than 0 but matlab still has this code
+    if(soc <= BSSR_SOC[0]){
         dv = BSSR_OCV[1]-BSSR_OCV[0];
         ocv = (soc - BSSR_SOC[0])*(dv/dsoc)+BSSR_OCV[0];
         return ocv;
@@ -276,25 +282,31 @@ void run_EKF(EKF_Model_14p* inputBatt, uint32_t testDataID){
     printf("Current %f, Voltage %f \n", current[testDataID], voltage[testDataID]);
 #endif
 
-    float I_Input = current[testDataID];
-    float I_InSign = 0.0f;
+    float dt = deltaT[testDataID];
+    compute_A_B_dt(dt);
 
+    float I_Input = current[testDataID]; // current reading
+    float I_InSign = 0.0f;
     if (I_Input != 0){
         I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
     }
+    U[0] = I_Input;
+    U[1] = I_InSign;
 
-    V_Measured[0] = voltage[testDataID];   // voltage reading
+    V_Measured[0] = voltage[testDataID]; // voltage reading
     V_OCV[0] = OCV(inputBatt->stateX[0]);
 
 #if DEBUG_PRINTS
     printf("OCV: %f | %f \n", V_OCV[0], inputBatt->stateX[0]);
+    printf("U\n");
+    printMatrix(U, dim6);
     printf("A\n");
     printMatrix(A, dim1);
-    printf("\nB\n");
+    printf("B\n");
     printMatrix(B, dim5);
-    printf("\nstateX\n");
+    printf("stateX\n");
     printMatrix(inputBatt->stateX, dim2);
-    printf("\ncovP\n");
+    printf("covP\n");
     printMatrix(inputBatt->covP, dim1);
 #endif
 
@@ -305,14 +317,15 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt){
     // insert code for using APIs
     compute_A_B_dt(dt);
 
-    float I_Input = 0.0f;
+    float I_Input = 0.0f; // to be inserted current reading
     float I_InSign = 0.0f;
-
     if (I_Input != 0){
-        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
+    	I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
     }
+    U[0] = I_Input;
+    U[1] = I_InSign;
 
-    V_Measured[0] = 0.0f;   // voltage reading
+    V_Measured[0] = 0.0f; // to be inserted voltage reading
     V_OCV[0] = OCV(inputBatt->stateX[0]);
 
 #endif // OFFLINE_TEST
@@ -357,6 +370,7 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt){
 #endif
 
     multiply_EKF(C, P_k1, C_P, dim3, dim1);
+
 #if DEBUG_PRINTS
     printf("\nC_P\n");
     printMatrix(C_P, dim3);
@@ -425,12 +439,18 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt){
     printf("\ninputBatt->covP\n");
     printMatrix(inputBatt->covP, dim1);
 #endif
+
     // a priori state estimate
     multiply_EKF(A, inputBatt->stateX, A_X, dim1, dim2);
 
 #if DEBUG_PRINTS
     printf("\nA_X\n");
     printMatrix(A_X, dim2);
+#endif
+
+#if DEBUG_PRINTS
+    printf("\nU\n");
+    printMatrix(U, dim6);
 #endif
 
     multiply_EKF(B, U, B_U, dim5, dim6);
@@ -448,8 +468,6 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt){
 #endif
 
     // a priori measurement
-    U[0] = I_Input;
-    U[1] = I_InSign;
     multiply_EKF(C, X_k1, C_X, dim4, dim3);
 
 #if DEBUG_PRINTS
@@ -481,6 +499,7 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt){
 #endif
 
     multiply_EKF(W, Z_err, W_Zerr, dim2, dim4);
+
 #if DEBUG_PRINTS
     printf("\nW_Zerr\n");
     printMatrix(W_Zerr, dim2);
