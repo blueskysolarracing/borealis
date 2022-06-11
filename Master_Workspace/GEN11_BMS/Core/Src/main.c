@@ -153,8 +153,8 @@ int main(void)
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
   //--- COMMS ---//
-  buart = B_uartStart(&huart1);
-  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+  //buart = B_uartStart(&huart1);
+  //btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
 
   //--- LTC6810 ---//
   LTC6810Init(&hspi3, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -655,7 +655,10 @@ void LTC6810_callback(TimerHandle_t xTimer){
 
 	uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
 
-
+	while(1){
+		HAL_UART_Receive(&huart1, buf_temp, 1, 10000);
+		vTaskDelay(100);
+	}
 //	while (1){
 //		char buf[3] = {1, 2, 3};
 ////		HAL_UART_Transmit(&huart1, buf, sizeof(buf), 10);

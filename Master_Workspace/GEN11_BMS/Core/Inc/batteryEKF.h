@@ -17,7 +17,7 @@
 
 #endif //OFFLINE_TEST
 
-#if _WINDOWS
+//#if _WINDOWS
 
 #define NOMINMAX
 //#include <windows.h>
@@ -27,7 +27,7 @@
 #include <time.h>
 #include <stdlib.h>
 
-#endif //_WINDOWS
+//#endif //_WINDOWS
 
 #if OFFLINE_TEST
 
