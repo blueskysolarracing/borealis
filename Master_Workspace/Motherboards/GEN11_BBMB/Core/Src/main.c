@@ -1095,7 +1095,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : BMS_FLT_Pin */
   GPIO_InitStruct.Pin = BMS_FLT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(BMS_FLT_GPIO_Port, &GPIO_InitStruct);
 
@@ -1173,77 +1173,75 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-	while(1){
-		switch(pkt->senderID){
-			case DCMB_ID: //Parse data from DCMB
-				if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
-					xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
+	switch(pkt->senderID){
+		case DCMB_ID: //Parse data from DCMB
+			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
+				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
 
-				} else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
-					uint8_t relay_open_cmd;
-					if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
-						relay_open_cmd = 1;
-						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
-						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+			} else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
+				uint8_t relay_open_cmd;
+				if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
+					relay_open_cmd = 1;
+					xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
+					HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
 
-					} else if (pkt->payload[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
-						relay_open_cmd = 2;
-						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+				} else if (pkt->payload[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
+					relay_open_cmd = 2;
+					xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
+					HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
 
-					} else if (pkt->payload[1] == CAR_DRIVE){ //Need to close power relays
-						relay_open_cmd = 2;
-						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
-					}
+				} else if (pkt->payload[1] == CAR_DRIVE){ //Need to close power relays
+					relay_open_cmd = 2;
+					xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
+					HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
 				}
-			break;
+			}
+		break;
 
-			case BMS_ID: //Parse data from BMS (comes from btcp_bms)
-				if (pkt->payload[0] == BMS_ERROR_STATUS){ //Received error from BMS
-					uint8_t BMS_error[2 * 4] = {0};
-					BMS_error[0] = BBMB_CAR_STATE_ID;
-					BMS_error[1] = CAR_SAFE_STATE;
-					if (pkt->payload[1] == BMS_OV){	BMS_error[2] = 0x00;	}
-					else if (pkt->payload[1] == BMS_UV){	BMS_error[2] = 0x01;	}
-					else if (pkt->payload[1] == BMS_OT){	BMS_error[2] = 0x03;	}
+		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
+			if (pkt->payload[0] == BMS_ERROR_STATUS){ //Received error from BMS
+				uint8_t BMS_error[2 * 4] = {0};
+				BMS_error[0] = BBMB_CAR_STATE_ID;
+				BMS_error[1] = CAR_SAFE_STATE;
+				if (pkt->payload[1] == BMS_OV){	BMS_error[2] = 0x00;	}
+				else if (pkt->payload[1] == BMS_UV){	BMS_error[2] = 0x01;	}
+				else if (pkt->payload[1] == BMS_OT){	BMS_error[2] = 0x03;	}
 
-					B_tcpSend(btcp_main, BMS_error, sizeof(BMS_error));
+				B_tcpSend(btcp_main, BMS_error, sizeof(BMS_error));
 
-				} else { //Received SoCs, temps or voltage from BMS
-					//Simply re-send on main bus
-					B_tcpSend(btcp_main, pkt->payload, sizeof(pkt->payload));
+			} else { //Received SoCs, temps or voltage from BMS
+				//Simply re-send on main bus
+				B_tcpSend(btcp_main, pkt->payload, sizeof(pkt->payload));
 
-					taskENTER_CRITICAL();
-					if (BMS_requesting_from <= 6){
-						//Update flags to indicate what data we've received
-						if (pkt->payload[0] == BMS_CELL_VOLT){
-							BMS_data_received[0] = 1;
-						} else if (pkt->payload[1] == BMS_CELL_TEMP){
-							BMS_data_received[1] = 1;
-						} else if (pkt->payload[0] == BMS_CELL_SOC_ID){
-							BMS_data_received[2] = 1;
-						}
-
-						//If all data from a BMS has been received, we are ready to read the next
-						if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
-							BMS_requesting_from += 1;
-							BMS_data_received[0] = 0;
-							BMS_data_received[1] = 0;
-							BMS_data_received[2] = 0;
-
-							uint8_t BMS_Request[2 * 4] = {0};
-							BMS_Request[0] = BBMB_BMS_DATA_REQUEST_ID;
-							BMS_Request[1] = BMS_requesting_from;
-							floatToArray((float) battery_current, BMS_Request + 4);
-
-							B_tcpSend(btcp_bms, BMS_Request, sizeof(BMS_Request));
-						}
-					taskEXIT_CRITICAL();
+				taskENTER_CRITICAL();
+				if (BMS_requesting_from <= 6){
+					//Update flags to indicate what data we've received
+					if (pkt->payload[0] == BMS_CELL_VOLT){
+						BMS_data_received[0] = 1;
+					} else if (pkt->payload[1] == BMS_CELL_TEMP){
+						BMS_data_received[1] = 1;
+					} else if (pkt->payload[0] == BMS_CELL_SOC_ID){
+						BMS_data_received[2] = 1;
 					}
+
+					//If all data from a BMS has been received, we are ready to read the next
+					if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
+						BMS_requesting_from += 1;
+						BMS_data_received[0] = 0;
+						BMS_data_received[1] = 0;
+						BMS_data_received[2] = 0;
+
+						uint8_t BMS_Request[2 * 4] = {0};
+						BMS_Request[0] = BBMB_BMS_DATA_REQUEST_ID;
+						BMS_Request[1] = BMS_requesting_from;
+						floatToArray((float) battery_current, BMS_Request + 4);
+
+						B_tcpSend(btcp_bms, BMS_Request, sizeof(BMS_Request));
+					}
+				taskEXIT_CRITICAL();
 				}
-			break;
-		}
+			}
+		break;
 	}
 }
 
@@ -1401,10 +1399,12 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	/*Used to kickoff a new cycle of BMS data requests.
 	* Request data from first BMS, and upon reception, serialParse will request from others
 	*/
-	char junk[2] = {3, 1};
+	char junk1[2] = {3, 1};
+	char junk2[2] = {3, 1};
 	while(1){
-		B_tcpSend(btcp_bms, junk, sizeof(junk));
-		B_tcpSend(btcp_main, junk, sizeof(junk));
+		B_tcpSend(btcp_bms, junk1, sizeof(junk1));
+		B_tcpSend(btcp_main, junk2, sizeof(junk2));
+		vTaskDelay(100);
 	}
 	taskENTER_CRITICAL();
 	if (BMS_requesting_from > 6){ //We've received from all BMS, start requesting from the first one again
@@ -1424,10 +1424,13 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 //Triggered on falling edge of BMS_FLT signal (which means BMS FLT)
 {
-    if(GPIO_Pin == BMS_FLT_Pin){ //We've received a FLT signal from one of the BMS
+    if (GPIO_Pin == BMS_FLT_Pin){ //We've received a FLT signal from one of the BMS
     	uint8_t relay_open_cmd = 1;
 		xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
+		HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); //Turn on red LED
     }
+
+	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); //Turn on red LED
 }
 /* USER CODE END 4 */
 

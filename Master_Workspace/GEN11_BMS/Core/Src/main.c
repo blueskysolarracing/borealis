@@ -50,6 +50,11 @@
 #define UV_THRESHOLD 2.5
 #define OT_THRESHOLD 60
 
+#define TEMP_CORRECTION_MULTIPLIER 1.0
+#define TEMP_CORRECTION_OFFSET 0.0
+
+#define TCP_ID BMS_ID
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,19 +76,26 @@ DMA_HandleTypeDef hdma_usart1_tx;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
-uint8_t dataToSend[16];
+uint8_t dataToSend[16]; //data organized by function [LTC6810CommandGenerate]
+//ready to be transmitted via SPI3
 int messageInBinary; //write this in binary. This goes into [LTC6810CommandGenerate]
-//uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
+uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
+uint8_t MSG[500] = { '\0' }; //for sending UART message
 
 /* USER CODE END PV */
+int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
+int readTemp(float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
+int readVolt(float* voltArray);
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static void MX_DMA_Init(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_CRC_Init(void);
-static void MX_DMA_Init(void);
+//static void MX_DMA_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
@@ -126,7 +138,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+   HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -141,10 +153,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_CRC_Init();
-  MX_DMA_Init();
+//  MX_DMA_Init();
   MX_SPI3_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
@@ -153,11 +166,11 @@ int main(void)
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
   //--- COMMS ---//
-  //buart = B_uartStart(&huart1);
-  //btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+  buart = B_uartStart(&huart1);
+  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
 
   //--- LTC6810 ---//
-  LTC6810Init(&hspi3, 0, 0, 0, 0, 0, 0, 0, 0);
+  LTC6810Init(0, 0, 1, 0, 0, 0, 0 ,0);
 
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("LTC6810_Timer",  pdMS_TO_TICKS(MEAS_PERIOD), pdTRUE, (void *)0, LTC6810_callback), 0); //Temperature and voltage measurements
@@ -652,13 +665,12 @@ void LTC6810_callback(TimerHandle_t xTimer){
 	//This callback is called periodically to update voltage and temperature measurements
 	uint16_t local_voltage_array[6]; //Voltage of each cell
 	uint16_t local_temp_array[3]; //Temperature readings
-
 	uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
 
-	while(1){
-		HAL_UART_Receive(&huart1, buf_temp, 1, 10000);
-		vTaskDelay(100);
-	}
+//	while(1){
+//		HAL_UART_Receive(&huart1, buf_temp, 1, 10000);
+//		vTaskDelay(100);
+//	}
 //	while (1){
 //		char buf[3] = {1, 2, 3};
 ////		HAL_UART_Transmit(&huart1, buf, sizeof(buf), 10);
@@ -675,10 +687,10 @@ void LTC6810_callback(TimerHandle_t xTimer){
 
 	if (start_LTC6810_meas){
 		//---- LTC6810 MEASUREMENTS ----//
-//		while(1){ //testing
-//			readVolt(local_voltage_array, &hspi3, &huart3); //Places voltage in temp 1, temp
-//			readTemp(local_temp_array, 0, 0, 0, 0, 0, &hspi3, &huart3); //Places temperature in temp 1, temp
-//		}
+		while(1){ //testing
+			readVolt(local_voltage_array); //Places voltage in temp 1, temp
+			readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
+		}
 
 		//---- BATTERY FAULT CHECK----//
 		//Check for UV, OV faults
@@ -725,6 +737,259 @@ void LTC6810_callback(TimerHandle_t xTimer){
 
 void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send){
 
+}
+
+int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
+	//This function initialize the LTC6810 ADC chip, shall be called at the start of the program
+	//To modify the initialization setting, please refer to the Datasheet and the chart below
+	/*
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | reg   | Bit7    | Bit6    | Bit5    | Bit4    | Bit3    | Bit2    | Bit1    | Bit0   |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | CFGR0 | RSVD    | GPIO4   | GPIO3   | GPIO2   | GPIO1   | REFON   | DTEN    | ADCOPT |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | CFGR1 | VUV[7]  | VUV[6]  | VUV[5]  | VUV[4]  | VUV[3]  | VUV[2]  | VUV[1]  | VUV[0] |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | CFGR2 | VOV[3]  | VOV[2]  | VOV[1]  | VOV[0]  | VUV[11] | VUV[10] | VUV[9]  | VUV[8] |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | CFGR3 | VOV[11] | VOV[10] | VOV[9]  | VOV[8]  | VOV[7]  | VOV[6]  | VOV[5]  | VOV[4] |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | CFGR4 | DCC0    | MCAL    | DCC6    | DCC5    | DCC4    | DCC3    | DCC2    | DCC1   |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
+	 | CFGR5 | DCTO[3] | DCTO[2] | DCTO[1] | DCTO[0] | SCONV   | FDRF    | DIS_RED | DTMEN  |
+	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+*/
+
+	//connection to MUX for thermal measurements:
+	//GPIO2 -> A0
+	//GPIO3 -> A1
+	//GPIO4 -> A2
+	//GPIO1 shall always be set to 1 to avoid internal pull-down, as its the voltage reading pin.
+	//A2 is MSB and A0 is MSB, if want channel 2 -> do A2=0, A1=1, A0=0
+	//above is the table of configuration register bits. How
+	int messageInBinary;
+	int i;
+	int data6Byte[48]; //[47] is MSB, CFGR0 Bit7
+	uint8_t dataToSend[12]; //stores the command and PEC bit of WRCFG
+	//2byte command, 2byte PEC, 6byte data, 2byte PEC
+
+	uint8_t dataToReceive[8];
+
+	//write configure command
+	messageInBinary = 0b1;		//write config
+	LTC6810CommandGenerate(messageInBinary, dataToSend);
+	//set GPIO bits to 1 so they aren`t being pulled down internally by the chip.
+	//set REFON to enable the 3V that goes to the chip
+	//DTEN to 0 to disable discharge timer
+	//ADCOPT bit to 0, use 422Hz as its stable
+	//above are byte0, byte 1 full of 0s as VUV currently not used.
+	messageInBinary = 0b0000110000000000; //CFGR0&1
+	//now add the GPIO config
+	messageInBinary = messageInBinary + 4096 * GPIO2 + 8192 * GPIO3
+			+ 16384 * GPIO4;
+
+	int MSG0[8];
+	int MSG1[8];
+	commandToArray(messageInBinary, MSG0, MSG1);
+	for (i = 7; i >= 0; i--) {
+		data6Byte[40 + i] = MSG0[i];
+		data6Byte[32 + i] = MSG1[i];
+	}
+
+	//set the VOV and VUV as 0;
+	messageInBinary = 0b0000000000000000; //CFGR2&3
+	int MSG2[8];
+	int MSG3[8];
+	commandToArray(messageInBinary, MSG2, MSG3);
+	for (i = 7; i >= 0; i--) {
+		data6Byte[24 + i] = MSG2[i];
+		data6Byte[16 + i] = MSG3[i];
+	}
+
+	//DCC = 0: discharge off, 1: discharge = on
+	//MCAL = 1: enable multi-calibration. for this don`t use, turn to 0
+	//DCTO: discharge timer. for now 0
+	//SCONV: redundant measurement using S pin, disable for now (0)
+	//FDRF: not using it anyway, to 0
+	//DIS_RED: redundancy disable: set to 1 to disable
+	//DTMEN: Discharge timer monitor, 0 to disable
+	messageInBinary = 0b0000000000000010;
+	messageInBinary += 256*DCC1 + 512*DCC2 + 1024*DCC3 + 2048*DCC4 +4096*DCC5;
+
+	int MSG4[8];
+	int MSG5[8];
+	commandToArray(messageInBinary, MSG4, MSG5);
+	for (i = 7; i >= 0; i--) {
+		data6Byte[8 + i] = MSG4[i];
+		data6Byte[0 + i] = MSG5[i];
+	}
+
+	//now create PEC bits based on above data
+	int PEC0_6[8];
+	int PEC1_6[8];
+	generatePECbits6Byte(data6Byte, PEC0_6, PEC1_6);
+
+	//change array back to bytes
+	dataToSend[4] = arrayToByte(MSG0);
+	dataToSend[5] = arrayToByte(MSG1);
+	dataToSend[6] = arrayToByte(MSG2);
+	dataToSend[7] = arrayToByte(MSG3);
+	dataToSend[8] = arrayToByte(MSG4);
+	dataToSend[9] = arrayToByte(MSG5);
+	dataToSend[10] = arrayToByte(PEC0_6);
+	dataToSend[11] = arrayToByte(PEC1_6);
+
+	//now send the data
+
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_Delay(1); //require several us
+	HAL_SPI_Transmit(&hspi3, dataToSend, 12, 100);
+	HAL_Delay(1);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+	//uint8_t MSG[50] = { '\0' };
+	/*sprintf(MSG, "\r\n send = %d , %d, %d, %d, %d, %d, %d, %d \r\n ",
+	 dataToSend[4], dataToSend[5], dataToSend[6], dataToSend[7],
+	 dataToSend[8], dataToSend[9], dataToSend[10], dataToSend[11]);
+	 HAL_UART_Transmit(&huart3, MSG, sizeof(MSG), 100);*/
+
+	return 0; //temp
+
+}
+
+int readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1){
+	//read Temp 0,1,2. Pass by reference to the input array.
+	//if discharging, make DCC global variables so this don't disturb Discharge
+
+	int cycle = 0;
+	while(cycle<3){
+
+		if(cycle ==0){
+		LTC6810Init(0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 1
+		else if(cycle == 1){
+		LTC6810Init(0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
+		else if(cycle == 2){
+		LTC6810Init(0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
+	//cycle are 0,1,2
+
+		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
+		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		HAL_Delay(1);
+
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);//slave low
+		HAL_Delay(1);
+		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+		HAL_Delay(2);
+		//now read from it
+		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
+				  //now receive those data
+		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+
+		HAL_Delay(1);
+		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+		HAL_Delay(2); //ADD DELAY between Transmit & Receive
+		HAL_SPI_Receive(&hspi3, dataToReceive, 6, 100);
+
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+		//write value into array
+		int tempSum = 256*dataToReceive[3] + dataToReceive[2];
+		//float TempInC = 1/(1/298.15+(1/3950) * log((-10)/(tempSum/)))
+		tempArray[cycle] = (float)tempSum;//msb of data
+		//now convert
+		//tempArray[cycle] = (tempArray[cycle] - 0.0618) /  0.596;
+
+		//temp2 = dataToReceive[3];
+		sprintf(MSG, "temp:%f, at%d \n ",tempArray[cycle], cycle);
+		cycle++;
+
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, 1);//enable RS485 converter
+		HAL_UART_Transmit(&huart3, MSG, sizeof(MSG), 100);
+		HAL_UART_Transmit(&huart1, MSG, sizeof(MSG), 100);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, 0);//disable RS485 converter
+
+		}//end of while(cycle = sth)
+	return 0;
+}
+
+int readVolt(float*voltArray){
+	int VmessageInBinary;//for internal command
+
+	  //first read first half of data
+	  VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
+	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);//generate the "check voltage command"
+	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
+	  HAL_Delay(1); //require several us
+	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+	  //now receive those data
+	  HAL_Delay(4); //ADD DELAY between Transmit & Receive
+	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
+	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+	  //Maybe Try fix this BUG???????
+
+	  VmessageInBinary = 0b100;  //read cell voltage reg group 1;
+	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
+	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
+	  HAL_Delay(1); //require several us
+	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+	  HAL_Delay(3); //ADD DELAY between Transmit & Receive
+	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
+	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+
+	  voltArray[0] = voltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
+	  voltArray[1] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
+	  voltArray[2] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
+
+/*
+	  v1 = voltageDataConversion(dataToReceive[0], dataToReceive[1]) ;
+	  v2 = voltageDataConversion(dataToReceive[2], dataToReceive[3]) ;
+	  v3 = voltageDataConversion(dataToReceive[4], dataToReceive[5]);
+*/
+	  VmessageInBinary = 0b110; //read cell voltage reg group 2;
+	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
+	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
+	  HAL_Delay(1); //require several us
+	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+	  HAL_Delay(3); //ADD DELAY between Transmit & Receive
+	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+	  voltArray[3] = voltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
+	  voltArray[4] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
+	  voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
+		/*
+	  v4 = voltageDataConversion(dataToReceive[0], dataToReceive[1]) ;
+	  v5 = voltageDataConversion(dataToReceive[2], dataToReceive[3]) ;
+	  v6 = voltageDataConversion(dataToReceive[4], dataToReceive[5]) ;
+*/
+	  //now transmit through UART
+	  sprintf(MSG, "voltage:  %f, %f, %f, %f, %f, %f \r\n ",voltArray[0],voltArray[1],voltArray[2],voltArray[3],voltArray[4],voltArray[5] );
+	  //sprintf(MSG, "voltage:  %d, %d, %d, %d, %d, %d \r\n " ,v1,v2,v3,v4,v5,v6);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, 1);//enable RS485 converter
+	  HAL_UART_Transmit(&huart3, MSG, sizeof(MSG), 500);
+	  HAL_UART_Transmit(&huart1, MSG, sizeof(MSG), 100);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, 0);//disable RS485 converter
+	  //clean the buffer
+	  int clearmsg;
+	  for (clearmsg = 0; clearmsg < 49; clearmsg++) {
+	  				MSG[clearmsg] = '\0';
+	  }
+}
+
+void convert_to_temp(uint16_t input_voltage[3], float output_temperature[3]){
+	/* Used to convert raw ADC code to temperature */
+	for (int i = 0; i < 3; i++){
+		float corrected_voltage = TEMP_CORRECTION_MULTIPLIER * (input_voltage[i] / 10000.0  - TEMP_CORRECTION_OFFSET);
+		float thermistor_resistance = 10.0 / ((2.8 / (float) corrected_voltage) - 1.0);
+		output_temperature[i] = 1.0 / (0.003356 + 0.0002532 * log(thermistor_resistance / 10.0));
+		output_temperature[i] = output_temperature[i] - 273.15;
+	}
 }
 /* USER CODE END 4 */
 

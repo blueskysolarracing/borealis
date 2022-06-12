@@ -75,6 +75,7 @@
 
 /* Private variables ---------------------------------------------------------*/
  ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 CRC_HandleTypeDef hcrc;
 
@@ -152,6 +153,9 @@ uint8_t sidePanelData;
 //--- STEERING WHEEL ---//
 uint8_t steeringData[3];
 
+//--- PEDALS ---//
+uint16_t adc_data;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -200,6 +204,8 @@ static void motorDataTask(TimerHandle_t xTimer);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint32_t adcval[10];
+
 /* USER CODE END 0 */
 
 /**
@@ -248,35 +254,52 @@ int main(void)
   uint16_t ADC_Val[2];
   HAL_StatusTypeDef sd;
 
+  uint16_t adc_data[2];
+
   //--- NUKE LED ---//
   HAL_TIM_Base_Start_IT(&htim7);
 
   //--- COMMS ---//
-  buart = B_uartStart(&huart4);
-  spbBuart = B_uartStart(&huart3);
-  swBuart = B_uartStart(&huart8);
-  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+//  buart = B_uartStart(&huart4);
+//  spbBuart = B_uartStart(&huart3);
+//  swBuart = B_uartStart(&huart8);
+//  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+  // Calibrate The ADC On Power-Up For Better Accuracy
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
+
+  while (1){
+     // Start ADC Conversion
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, 10);
+      ADC_Val[0] = HAL_ADC_GetValue(&hadc1);
+      HAL_Delay(1);
+  }
 
   //--- FREERTOS ---//
-//  xTimerStart(xTimerCreate("displayTimer", pdMS_TO_TICKS(DISP_REFRESH_DELAY), pdTRUE, NULL, displayTimer), 0); //Refresh display every DISP_REFRESH_DELAY
   xTimerStart(xTimerCreate("pedalsTimer", pdMS_TO_TICKS(PEDALS_REFRESH_PERIOD), pdTRUE, NULL, pedalsTimer), 0); //Measure pedals placement every PEDALS_REFRESH_PERIOD
-  xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
-//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-//  xTimerCreate("VFMSignalTimer", pdMS_TO_TICKS(10), pdFALSE, NULL, VFMSignalTimer); //One shot timer to send 10ms pulse for VFM up/down control
+//  xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
+//  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  //xTimerCreate("VFMSignalTimer", pdMS_TO_TICKS(10), pdFALSE, NULL, VFMSignalTimer); //One shot timer to send 10ms pulse for VFM up/down control
 
   //--- DRIVER DISPLAYS ---//
 //  glcd_init();
-  pToggle = 0; //Left display to start
+//  pToggle = 0; //Left display to start
 
+//  while(1){
+//	//HAL_StatusTypeDef status = HAL_ADC_Start(&hadc1);
+//	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//	uint16_t adcVal = HAL_ADC_GetValue(&hadc1);
+//	//HAL_ADC_Stop(&hadc1);
+//  }
+//
 //  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
-//  xTimerStart(xTimerCreate("displayTimer", 20, pdTRUE, NULL, displayTimer), 0);
 //  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
-  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
-  xTaskCreate(pedalTask, "PedalTask", 1024, "none", 5, NULL);
-
+//  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+//  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+//
+//  //--- PEDALS ---//
+////  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
+//
 //  disp_attachMotOnCallback(motCallback);
 //  disp_attachVfmUpCallback(vfmUpCallback);
 //  disp_attachVfmDownCallback(vfmDownCallback);
@@ -347,18 +370,19 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 2;
-  RCC_OscInitStruct.PLL.PLLN = 50;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 10;
   RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLQ = 3;
   RCC_OscInitStruct.PLL.PLLR = 2;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
-  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
+  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -372,13 +396,13 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -407,12 +431,12 @@ static void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.Resolution = ADC_RESOLUTION_16B;
-  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
-  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
@@ -435,21 +459,13 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC_SAMPLETIME_64CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
   sConfig.OffsetSignedSaturation = DISABLE;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -1097,7 +1113,7 @@ static void MX_UART8_Init(void)
 
   /* USER CODE END UART8_Init 1 */
   huart8.Instance = UART8;
-  huart8.Init.BaudRate = 2000000;
+  huart8.Init.BaudRate = 115200;
   huart8.Init.WordLength = UART_WORDLENGTH_8B;
   huart8.Init.StopBits = UART_STOPBITS_1;
   huart8.Init.Parity = UART_PARITY_NONE;
@@ -1236,6 +1252,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
@@ -1625,23 +1644,28 @@ static void displayTimer(TimerHandle_t xTimer){
 
 static void pedalsTimer(TimerHandle_t xTimer){
 	//Could use hardware timer but this is more explicit for the programmer
-	uint16_t res[2] = {2, 2};
-    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, 1);
-    res[0] = HAL_ADC_GetValue(&hadc1);
 
-    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, 1);
-    res[1] = HAL_ADC_GetValue(&hadc1);
+	//Should change to dma
 
-    char string[50];
-    sprintf(string, "Accel: %d\nRegen: %d\n\n", res[0], res[1]);
-    HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
+//	uint16_t res[2] = {2, 2};
+//    HAL_ADC_Start(&hadc1);
+    //HAL_ADC_PollForConversion(&hadc1, 1000);
+    uint16_t adcVal = adcval;
+
+    //HAL_ADC_Stop(&hadc1);
+	vTaskDelay(100);
+//    HAL_ADC_Start(&hadc1);
+//    HAL_ADC_PollForConversion(&hadc1, 1);
+//    res[1] = HAL_ADC_GetValue(&hadc1);
+//
+//    char string[50];
+//    sprintf(string, "Accel: %d\nRegen: %d\n\n", res[0], res[1]);
+//    HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
 }
 
-
-
-
+HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
+	uint32_t *x = adcval;
+}
 /*
 void ignition_check(uint8_t data){
 	static long ignition_press_time =  0;
@@ -2112,14 +2136,10 @@ static void sidePanelTask(const void *pv){
 				//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
 				//To be implemented
 				if (sidePanelData & (1 << 5)){ // reverse state?
-				  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_SET); //Enable camera
-				  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_SET); //Enable screen
 				  fwdRevState = 1;
 
 				  //Send new motor state (if allowed)
 				} else { // foward state?
-				  HAL_GPIO_WritePin(GPIOI, Cam_Ctrl_Pin, GPIO_PIN_RESET); //Disable camera
-				  HAL_GPIO_WritePin(GPIOI, Screen_Ctrl_Pin, GPIO_PIN_RESET); //Disable screen
 				  fwdRevState = 0;
 				  //Send new motor state (if allowed)
 				}
@@ -2171,7 +2191,7 @@ static void displayTask(const void *pv){
 		sel = sel + 1;
 		sel = sel % 6;
 
-		HAL_Delay(500);
+		vTaskDelay(500);
 	}
 }
 
@@ -2249,21 +2269,23 @@ void serialParse(B_tcpPacket_t *pkt){
 ////	}
 //}
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	//ADC DMA callback --> Send pedals angle to UART bus
 
-	float pedals_angles[2] = {0};
-	uint8_t buf[3 * 4] = {0};
-	buf[0] = DCMB_PEDALS_ANGLE_ID;
-
-	pedals_angles[0] = convertToAngle(pedalsReading[0], 0); //Accel
-	pedals_angles[1] = convertToAngle(pedalsReading[1], 1); //Regen
-
-	floatToArray((float) pedals_angles[0], buf + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) pedals_angles[1], buf + 8); // fills 8 - 11 of busMetrics
-
-	B_tcpSend(btcp, buf, sizeof(buf));
-}
+   // adc_data = HAL_ADC_GetValue(&hadc1);
+//
+//	float pedals_angles[2] = {0};
+//	uint8_t buf[3 * 4] = {0};
+//	buf[0] = DCMB_PEDALS_ANGLE_ID;
+//
+//	pedals_angles[0] = convertToAngle(pedalsReading[0], 0); //Accel
+//	pedals_angles[1] = convertToAngle(pedalsReading[1], 1); //Regen
+//
+//	floatToArray((float) pedals_angles[0], buf + 4); // fills 4 - 7 of busMetrics
+//	floatToArray((float) pedals_angles[1], buf + 8); // fills 8 - 11 of busMetrics
+//
+//	B_tcpSend(btcp, buf, sizeof(buf));
+//}
 
 float convertToAngle(uint16_t ADC_reading, uint8_t regen_or_accel){
 	//Convert ADC code of regen and accelerator pedal to angle in degrees
@@ -2294,10 +2316,10 @@ static void pedalTask(const void* p) {
 
 	while (1) {
 				//--- PEDALS ADC READINGS ---//
-		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 10);
-		pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
-		pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
+//		HAL_ADC_Start(&hadc1);
+//		HAL_ADC_PollForConversion(&hadc1, 10);
+//		pedalsReading[0] = HAL_ADC_GetValue(&hadc1);
+//		pedalsReading[1] =  HAL_ADC_GetValue(&hadc1);
 
 		float pedals_angles[2] = {0};
 		pedals_angles[0] = convertToAngle(pedalsReading[0], 0);
@@ -2381,8 +2403,8 @@ static void motorDataTimer(TimerHandle_t xTimer){
 	floatToArray(motorTargetSpeed, &buf[6]);
 
 	B_tcpSend(btcp, buf, sizeof(buf));
-
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

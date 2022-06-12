@@ -62,8 +62,9 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	buart->txQ = xQueueCreate(TX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
 	// buart->rxBuf = pvPortMalloc(RX_CIRC_BUF_SIZE); // done in task
 	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
-	xTaskCreate(txTask, "uartTxTask", TRX_TASK_STACK_SIZE, buart, TX_TASK_PRIORITY, &buart->txTask);
-	xTaskCreate(rxTask, "uartTxTask", TRX_TASK_STACK_SIZE, buart, RX_TASK_PRIORITY, &buart->rxTask);
+	BaseType_t taskcreate;
+	taskcreate = xTaskCreate(txTask, "uartTxTask", TRX_TASK_STACK_SIZE, buart, TX_TASK_PRIORITY, &buart->txTask);
+	taskcreate = xTaskCreate(rxTask, "uartRxTask", TRX_TASK_STACK_SIZE, buart, RX_TASK_PRIORITY, &buart->rxTask);
 	buart->topFlag = buart->head = buart->tail = 0;
 	return buart;
 }
