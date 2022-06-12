@@ -10,10 +10,10 @@
 float arrayToFloat(uint8_t* aryPtr) {
 
 	float val = 0;
-	int* valPtr = (uint8_t*)&val;
-	uint8_t aryIdx = sizeof(val)-1;
+	uint8_t* valPtr = (uint8_t*)&val;
 
-	for (; aryIdx >= 0; aryIdx--) {
+
+	for (int aryIdx = sizeof(val)-1; aryIdx >= 0; aryIdx--) {
 		*valPtr = aryPtr[aryIdx];
 		valPtr++;
 	}
@@ -35,7 +35,7 @@ void floatToArray(float val, uint8_t* aryPtr) {
 /* ===========================================================*/
 
 /*
-** packi16() -- store a 16-bit int into a uint8_t buffer (like htons())
+** packi16() -- store a 16-bit unsigned into a uint8_t buffer (like htons())
 */
 void packi16(uint8_t *buf, uint16_t i)
 {
@@ -43,7 +43,7 @@ void packi16(uint8_t *buf, uint16_t i)
 }
 
 /*
-** packi32() -- store a 32-bit int into a uint8_t buffer (like htonl())
+** packi32() -- store a 32-bit unsigned into a uint8_t buffer (like htonl())
 */
 void packi32(uint8_t *buf, uint32_t i)
 {

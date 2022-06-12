@@ -351,7 +351,7 @@ int main(void)
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  //xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
@@ -414,14 +414,14 @@ int main(void)
 
 	TaskHandle_t cruiseControl_handle;
 
-	status = xTaskCreate(cruiseControlTaskHandler,  //Function that implements the task.
-				"cruiseControlTask",  //Text name for the task.
-				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
-				"none",  //Parameter passed into the task.
-				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
-				&cruiseControl_handle  //Used to pass out the created task's handle.
-							);
-	configASSERT(status == pdPASS);// Error checking
+//	status = xTaskCreate(cruiseControlTaskHandler,  //Function that implements the task.
+//				"cruiseControlTask",  //Text name for the task.
+//				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+//				"none",  //Parameter passed into the task.
+//				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
+//				&cruiseControl_handle  //Used to pass out the created task's handle.
+//							);
+//	configASSERT(status == pdPASS);// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -2213,11 +2213,14 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	double voltageCurrent[2] = {0, 0};
 	busMetrics[0] = MCMB_BUS_METRICS_ID;
 
-	PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 2, busMetrics, 2); //Hack because argument 6 should be 1 for MCMB
-	floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+	while (1) {
+		//PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 2, busMetrics, 2); //Hack because argument 6 should be 1 for MCMB
+		floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+		floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
 
-	B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		vTaskDelay(1000);
+	}
 }
 
 void HeartbeatHandler(TimerHandle_t xTimer){

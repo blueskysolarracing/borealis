@@ -2304,7 +2304,6 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 
-// TODO: initialize the task
 static void pedalTask(const void* p) {
 	int32_t accelValue = 0;
 	int32_t regenValue = 0;
@@ -2327,15 +2326,16 @@ static void pedalTask(const void* p) {
 
 		uint8_t busMetrics_LV[3 * 4] = {0};
 
-		accelValue = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		regenValue = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		//accelValue = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue++; if (accelValue == 255) accelValue = 0;
+		regenValue = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
-		if (accelValue >= 4 / 1.4 * 3.3){
-			motorState = 1; // global within DCMB
-		}
-		if (regenValue >= 4 / 1.4 * 3.3){
-			motorState = 3; // global within DCMB
-		}
+//		if (accelValue >= 4 / 1.4 * 3.3){
+//			motorState = 1; // global within DCMB
+//		}
+//		if (regenValue >= 4 / 1.4 * 3.3){
+//			motorState = 3; // global within DCMB
+//		}
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
@@ -2399,7 +2399,7 @@ static void motorDataTimer(TimerHandle_t xTimer){
 
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;
 	buf[1] = digitalButtons;
-	packi16(&buf[5], (uint16_t)motorTargetPower);
+	packi16(&buf[4], (uint16_t)motorTargetPower);
 	floatToArray(motorTargetSpeed, &buf[6]);
 
 	B_tcpSend(btcp, buf, sizeof(buf));
