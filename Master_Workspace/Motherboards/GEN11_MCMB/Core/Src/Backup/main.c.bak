@@ -77,6 +77,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim7;
 TIM_HandleTypeDef htim12;
 
 UART_HandleTypeDef huart4;
@@ -95,15 +96,19 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
-//PSM
+//--- PSM ---//
 struct PSM_Peripheral psmPeriph;
 double voltageCurrent_Motor[2] = {0, 0};
 uint8_t busMetrics[20] = {0};
 
+//--- COMMS ---//
 B_uartHandle_t *buart;
 B_uartHandle_t *radioBuart;
 B_tcpHandle_t *btcp;
 B_tcpHandle_t *radioBtcp;
+
+uint8_t heartbeat[2] = {MCMB_HEARTBEAT_ID, 0};
+
 //uint16_t accValue = 0;
 //uint16_t regenValue = 0;
 
@@ -203,6 +208,7 @@ static void MX_SPI3_Init(void);
 static void MX_UART8_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_TIM7_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -286,10 +292,12 @@ int main(void)
   MX_UART8_Init();
   MX_ADC1_Init();
   MX_SPI2_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
+  //--- NUKE LED ---//
+  HAL_TIM_Base_Start_IT(&htim7);
+
   //uint8_t SPI_START_VAL = 0b00010001;
-  //radioBuart = B_uartStart(&huart8);
-  //B_uartHandle_t * sendBuarts[2] = {buart, radioBuart};
 
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
   btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
@@ -335,13 +343,15 @@ int main(void)
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (2 for MCMB)
-  configPSM(&psmPeriph, &hspi2, &huart2, "1"); //Use channel #1 only
+  if (configPSM(&psmPeriph, &hspi2, &huart2, "1", 2000) == -1){ //2000ms timeout
+	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+  }
 
   //--- FREERTOS ---//
-  xTimerStart(xTimerCreate("motorStateTimer", 10, pdTRUE, NULL, motorTmr), 0);
+  xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  //xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
@@ -404,14 +414,14 @@ int main(void)
 
 	TaskHandle_t cruiseControl_handle;
 
-	status = xTaskCreate(cruiseControlTaskHandler,  //Function that implements the task.
-				"cruiseControlTask",  //Text name for the task.
-				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
-				"none",  //Parameter passed into the task.
-				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
-				&cruiseControl_handle  //Used to pass out the created task's handle.
-							);
-	configASSERT(status == pdPASS);// Error checking
+//	status = xTaskCreate(cruiseControlTaskHandler,  //Function that implements the task.
+//				"cruiseControlTask",  //Text name for the task.
+//				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+//				"none",  //Parameter passed into the task.
+//				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
+//				&cruiseControl_handle  //Used to pass out the created task's handle.
+//							);
+//	configASSERT(status == pdPASS);// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -1158,6 +1168,44 @@ static void MX_TIM5_Init(void)
 }
 
 /**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 32499;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 2000;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
   * @brief TIM12 Initialization Function
   * @param None
   * @retval None
@@ -1170,7 +1218,6 @@ static void MX_TIM12_Init(void)
   /* USER CODE END TIM12_Init 0 */
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM12_Init 1 */
 
@@ -1190,26 +1237,9 @@ static void MX_TIM12_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_PWM_Init(&htim12) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim12, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM12_Init 2 */
 
   /* USER CODE END TIM12_Init 2 */
-  HAL_TIM_MspPostInit(&htim12);
 
 }
 
@@ -1516,7 +1546,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOK_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3|LED2_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
@@ -1534,6 +1564,9 @@ static void MX_GPIO_Init(void)
                           |PSM_CS_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BBMB_PSM_CS_0_GPIO_Port, BBMB_PSM_CS_0_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1543,8 +1576,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_3, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PE3 PE0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_0;
+  /*Configure GPIO pins : PE3 LED2_Pin PE0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|LED2_Pin|GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1589,10 +1622,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PE11 PE12 PE13 PE14
-                           PE15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+  /*Configure GPIO pins : PE11 PE12 PE13 PE15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -1605,6 +1636,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LED0_Pin LED1_Pin */
+  GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB12 PB14 PB15 */
   GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15;
@@ -1881,12 +1919,11 @@ float speedToFrequency(uint8_t targetSpeed){
 //}
 
 
-
 static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentMotorOn = 0; //1 is on, 0 is off
 	static uint8_t currentFwdRevState = 0;
-	static uint16_t currentAccValue = 1;
-	static uint16_t currentRegenValue = 1;
+	static uint16_t currentAccValue = 0;
+	static uint16_t currentRegenValue = 0;
 	static uint8_t currentVfmUpState = 0;
 	static uint8_t currentVfmDownState = 0;
 	static uint8_t vfm_up_count = 0;
@@ -1894,20 +1931,25 @@ static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t vfmCount = 0;
 
 
-//	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //Stops accel if serialParse stops being called (this means uart connection is lost)
-//		accValue = 0; // Just send here instead;
-//	}
+	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //if serialParse stops being called (this means uart connection is lost)
+		MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3); //stops accel
+		return;
+	}
 
 	switch (motorState) {
 		case OFF:
 			if(currentMotorOn){
-				// if motor is on, turn it off
+				// if motor is on, turn it off by driving pin high
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
 				currentMotorOn = 0;
 			}
-			break;
+			return; //return instead of break here
 		case PEDAL:
-			currentMotorOn = 1;
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
+
 			if(currentFwdRevState != fwdRevState){
 				if(fwdRevState){
 					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
@@ -1917,110 +1959,99 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
-			// then, drive accel or regen pots
-		break;
-
+			// drive accel pots
+			uint16_t localAccValue = targetPower;
+			if(currentAccValue != localAccValue){
+				MCP4161_Pot_Write(localAccValue, GPIOK, GPIO_PIN_2, &hspi3);
+				currentAccValue = localAccValue;
+			}
+			break;
 		case CRUISE:
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
+			if(currentFwdRevState != fwdRevState){
+				if(fwdRevState){
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+					currentFwdRevState = 1;
+				} else {
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
+					currentFwdRevState = 0;
+				}
+			}
 			// TODO: call pid controller update
+			break;
+
+		case REGEN:
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
+			if(currentFwdRevState != fwdRevState){
+				if(fwdRevState){
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+					currentFwdRevState = 1;
+				} else {
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
+					currentFwdRevState = 0;
+				}
+			}
+			// drive regen pots
+			uint16_t localRegenValue = targetPower;
+			if (batteryVoltage > 110 || batteryVoltage < 110) {
+				localRegenValue = 0; // for safety
+			}
+			if(currentRegenValue != localRegenValue){
+				MCP4161_Pot_Write(localRegenValue, GPIOG, GPIO_PIN_2, &hspi3);
+				currentRegenValue = localRegenValue;
+			}
 			break;
 	}
 
 
-//	if(currentMotorOnOff != motorOnOff){
-//		if(motorOnOff){
-//			HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-//			currentMotorOnOff = 1;
-//		} else {
-//			HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
-//			currentMotorOnOff = 0;
-//		}
-//	}
+	// The VFMUpState comes from the DCMB
+	// Normally it is zero
+	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
+	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
+	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
+	if(currentVfmUpState != vfmUpState){
+		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount < 8){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
+			vfm_up_count++;
+			currentVfmUpState = 1;
+		} else if (vfm_up_count < 20){
+			vfm_up_count++;
+		} else if(vfm_up_count == 20){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
+				vfm_up_count++;
+		} else if(vfm_up_count < 40){
+			vfm_up_count++;
+		} else if(vfm_up_count == 40){
+			vfm_up_count = 0;
+			currentVfmUpState = 0;
+			vfmCount++;
+		}
+	}
 
-//	if(currentFwdRevState != fwdRevState){
-//		if(fwdRevState){
-//			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-//			currentFwdRevState = 1;
-//		} else {
-//			HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-//			currentFwdRevState = 0;
-//		}
-//	}
-//
-//	uint16_t localAccValue = accValue;
-//	uint16_t localRegenValue = regenValue;
-//	// Since the max you can send to potentiometer is 256 but the max value from DCMB is 255, we will just set 255 to 256 for simplicity
-//	if (accValue == 255) {
-//		localAccValue = 256;
-//	}
-//	if (regenValue == 255) {
-//		localRegenValue = 256;
-//	}
-//	if (batteryVoltage > 110 || batteryVoltage < 110) {
-//		localRegenValue = 0;
-//	}
-//
-//	// The follow if statement is to prevent sending Accel and Regen signals to the motor at the same time
-//	// REgen is prioritized at the moment (if both signals received from DCMB are not zero, we will force Accel to be zero)
-//	if (localAccValue != 0 && localRegenValue != 0) {
-//		localAccValue = 0;
-//	}
-//
-//
-//	if(currentAccValue != localAccValue){
-//
-//		MCP4161_Pot_Write(localAccValue, GPIOK, GPIO_PIN_2, &hspi3);
-//		currentAccValue = localAccValue;
-//	}
-//
-//	if(currentRegenValue != localRegenValue){
-//
-//		MCP4161_Pot_Write(localRegenValue, GPIOG, GPIO_PIN_2, &hspi3);
-//		currentRegenValue = localRegenValue;
-//
-//	}
-//
-//	// The VFMUpState comes from the DCMB
-//	// Normally it is zero
-//	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
-//	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
-//	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-//	if(currentVfmUpState != vfmUpState){
-//		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount < 8){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-//			vfm_up_count++;
-//			currentVfmUpState = 1;
-//		} else if (vfm_up_count < 20){
-//			vfm_up_count++;
-//		} else if(vfm_up_count == 20){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
-//				vfm_up_count++;
-//		} else if(vfm_up_count < 40){
-//			vfm_up_count++;
-//		} else if(vfm_up_count == 40){
-//			vfm_up_count = 0;
-//			currentVfmUpState = 0;
-//			vfmCount++;
-//		}
-//	}
-//
-//	if(currentVfmDownState != vfmDownState){
-//		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount > 0){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-//			vfm_down_count++;
-//			currentVfmDownState = 1;
-//		} else if (vfm_down_count < 20){
-//			vfm_down_count++;
-//		} else if(vfm_down_count == 20){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-//				vfm_down_count++;
-//		} else if(vfm_down_count < 40){
-//			vfm_down_count++;
-//		} else if(vfm_down_count == 40){
-//			vfm_down_count = 0;
-//			currentVfmDownState = 0;
-//			vfmCount--;
-//		}
-//	}
+	if(currentVfmDownState != vfmDownState){
+		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount > 0){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
+			vfm_down_count++;
+			currentVfmDownState = 1;
+		} else if (vfm_down_count < 20){
+			vfm_down_count++;
+		} else if(vfm_down_count == 20){
+			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
+				vfm_down_count++;
+		} else if(vfm_down_count < 40){
+			vfm_down_count++;
+		} else if(vfm_down_count == 40){
+			vfm_down_count = 0;
+			currentVfmDownState = 0;
+			vfmCount--;
+		}
+	}
 }
 
 // New implementation GEN11
@@ -2069,12 +2100,12 @@ void tempSenseTaskHandler(void* parameters) {
 
 void cruiseControlTaskHandler(void* parameters){
 
-	while(1) {
-		float target = speedToFrequency(speedTarget);
-		pwm_in.frequency = PIDControllerUpdate(target, pwm_in.frequency);
-		// TODO: last line makes no sense
-		// TODO: might want to remove this task,might not exactly necessary
-	}
+//	while(1) {
+//		float target = speedToFrequency(speedTarget);
+//		pwm_in.frequency = PIDControllerUpdate(target, pwm_in.frequency);
+//		// TODO: last line makes no sense
+//		// TODO: might want to remove this task,might not exactly necessary
+//	}
 
 }
 
@@ -2179,22 +2210,23 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
 void PSMTaskHandler(TimerHandle_t xTimer){
 	uint8_t busMetrics[3 * 4] = {0};
-	double voltageCurrent[2];
-	busMetrics[0] = MCMB_PPT_METRICS_ID;
+	double voltageCurrent[2] = {0, 0};
+	busMetrics[0] = MCMB_BUS_METRICS_ID;
 
-	PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 1, busMetrics, 2);
-	floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+	while (1) {
+		//PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 2, busMetrics, 2); //Hack because argument 6 should be 1 for MCMB
+		floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+		floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
 
-	B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		vTaskDelay(1000);
+	}
 }
 
 void HeartbeatHandler(TimerHandle_t xTimer){
 	//Send periodic heartbeat so we know the board is still running
-	uint8_t heartbeat[2] = {PPTMB_HEARTBEAT_ID, 0};
 	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
-	heartbeat[1] = 1;
-	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 
 /* USER CODE END 4 */

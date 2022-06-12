@@ -215,6 +215,7 @@ void StartDefaultTask(void const * argument);
 /* =================== Software Timers ========================*/
 static void motorTmr(TimerHandle_t xTimer);
 static void spdTmr(TimerHandle_t xTimer);
+void HeartbeatHandler(TimerHandle_t xTimer);
 /* ============================================================*/
 
 //Cruise control task
@@ -222,8 +223,7 @@ void cruiseControlTaskHandler(void* parameters);
 
 //Tasks for temperature reading and PSM and heartbeat
 void tempSenseTaskHandler(void* parameters);
-void PSMTaskHandler(TimerHandle_t xTimer);
-void HeartbeatHandler(TimerHandle_t xTimer);
+void PSMTaskHandler(void* parameters);
 
 // function which writes to the MCP4146 potentiometer on the MC^2
 void MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr);
@@ -350,8 +350,7 @@ int main(void)
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
-  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
-  //xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
@@ -390,16 +389,16 @@ int main(void)
   /* add threads, ... */
 
   BaseType_t status;
-  TaskHandle_t tempSense_handle;
-
-	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
-				"tempSenseTask", /* Text name for the task. */
-				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
-				"none", /* Parameter passed into the task. */
-				4, /* Priority at which the task is created. */ //Note must be 4 since btcp is 4
-				&tempSense_handle /* Used to pass out the created task's handle. */
-							  );
-	configASSERT(status == pdPASS); // Error checking
+//  TaskHandle_t tempSense_handle;
+//
+//	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
+//				"tempSenseTask", /* Text name for the task. */
+//				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
+//				"none", /* Parameter passed into the task. */
+//				4, /* Priority at which the task is created. */ //Note must be 4 since btcp is 4
+//				&tempSense_handle /* Used to pass out the created task's handle. */
+//							  );
+//	configASSERT(status == pdPASS); // Error checking
 
 	TaskHandle_t PSM_handle;
 
@@ -1943,7 +1942,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
 				currentMotorOn = 0;
 			}
-			return; //return instead of break here
+			return; //return instead of break here, since no need for VFM gear change
 		case PEDAL:
 			if (!currentMotorOn) {
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
@@ -2208,13 +2207,13 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
-void PSMTaskHandler(TimerHandle_t xTimer){
+void PSMTaskHandler(void* parameters){
 	uint8_t busMetrics[3 * 4] = {0};
 	double voltageCurrent[2] = {0, 0};
 	busMetrics[0] = MCMB_BUS_METRICS_ID;
 
 	while (1) {
-		//PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 2, busMetrics, 2); //Hack because argument 6 should be 1 for MCMB
+		PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 2, busMetrics, 2); //Hack because argument 6 should be 1 for MCMB
 		floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
 		floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
 
