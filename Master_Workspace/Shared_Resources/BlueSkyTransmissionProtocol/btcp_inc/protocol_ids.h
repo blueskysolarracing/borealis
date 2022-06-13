@@ -54,11 +54,12 @@ enum DCMB_Data_ID {
 	DCMB_BBOX_STARTUP_ID,
 	DCMB_PPTBOX_STARTUP_ID,
 	DCMB_LIGHTCONTROL_ID,
-	DCMB_HORNSTATE_ID,
+	DCMB_STEERING_WHEEL_ID,
 	DCMB_MOTOR_CONTROL_STATE_ID,
-	DCMB_CAR_STATE_ID,
+	DCMB_RELAYS_STATE_ID,
 	DCMB_PEDALS_ANGLE_ID,
-	
+	DCMB_SIDE_PANEL_ID,
+
 	DCMB_LP_BUS_METRICS_ID = 0x0D,
 	DCMB_CORE_TEMP_ID = 0x0E,
 	DCMB_HEARTBEAT_ID = 0x0F
@@ -85,11 +86,12 @@ enum BMS_Error_Code {
 	BMS_LTC6810_UNRESPONSIVE = 0x04 //Not receiving response from LTC6810 (cause safe state because we can't measure cell voltage and temperature anymore)
 };
 
-enum CAR_STATE_ID {
+enum RELAY_STATE_ID {
 	CAR_SAFE_STATE, //Car is in safe state due to fault. Relays open, supplied by supplemental battery, motor disabled, hazard and fault indicator lights ON
 	CAR_SLEEP, //Car is sleeping. Relays open, motor disabled
 	CAR_CHARGING_SOLAR, //Car is charging (still, not driving). Relays closed, motor disabled.
-	CAR_DRIVE //Car is in drive mode. Relays closed, motor enabled.
+	CAR_DRIVE_WITH_SOLAR, //Car is in drive mode. Solar and battery relays closed, motor enabled.
+	CAR_DRIVE_WITHOUT_SOLAR //Car is in drive mode. Solar and battery relays closed, motor enabled.
 };
 
 

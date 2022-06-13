@@ -75,6 +75,7 @@
 
 /* Private variables ---------------------------------------------------------*/
  ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 CRC_HandleTypeDef hcrc;
 
@@ -203,6 +204,8 @@ static void motorDataTask(TimerHandle_t xTimer);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint32_t adcval[10];
+
 /* USER CODE END 0 */
 
 /**
@@ -253,40 +256,50 @@ int main(void)
 
   uint16_t adc_data[2];
 
-//  //--- NUKE LED ---//
-//  HAL_TIM_Base_Start_IT(&htim7);
-//
-//  //--- COMMS ---//
+  //--- NUKE LED ---//
+  HAL_TIM_Base_Start_IT(&htim7);
+
+  //--- COMMS ---//
 //  buart = B_uartStart(&huart4);
 //  spbBuart = B_uartStart(&huart3);
 //  swBuart = B_uartStart(&huart8);
 //  btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
+  // Calibrate The ADC On Power-Up For Better Accuracy
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
+
+  while (1){
+     // Start ADC Conversion
+      HAL_ADC_Start(&hadc1);
+      HAL_ADC_PollForConversion(&hadc1, 10);
+      ADC_Val[0] = HAL_ADC_GetValue(&hadc1);
+      HAL_Delay(1);
+  }
 
   //--- FREERTOS ---//
-//  xTimerStart(xTimerCreate("pedalsTimer", pdMS_TO_TICKS(PEDALS_REFRESH_PERIOD), pdTRUE, NULL, pedalsTimer), 0); //Measure pedals placement every PEDALS_REFRESH_PERIOD
+  xTimerStart(xTimerCreate("pedalsTimer", pdMS_TO_TICKS(PEDALS_REFRESH_PERIOD), pdTRUE, NULL, pedalsTimer), 0); //Measure pedals placement every PEDALS_REFRESH_PERIOD
 //  xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
 //  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-//  xTimerCreate("VFMSignalTimer", pdMS_TO_TICKS(10), pdFALSE, NULL, VFMSignalTimer); //One shot timer to send 10ms pulse for VFM up/down control
+  //xTimerCreate("VFMSignalTimer", pdMS_TO_TICKS(10), pdFALSE, NULL, VFMSignalTimer); //One shot timer to send 10ms pulse for VFM up/down control
 
   //--- DRIVER DISPLAYS ---//
 //  glcd_init();
-  pToggle = 0; //Left display to start
+//  pToggle = 0; //Left display to start
 
-  while(1){
-	//HAL_StatusTypeDef status = HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-	uint16_t adcVal = HAL_ADC_GetValue(&hadc1);
-	//HAL_ADC_Stop(&hadc1);
-  }
-
+//  while(1){
+//	//HAL_StatusTypeDef status = HAL_ADC_Start(&hadc1);
+//	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//	uint16_t adcVal = HAL_ADC_GetValue(&hadc1);
+//	//HAL_ADC_Stop(&hadc1);
+//  }
+//
 //  xTimerStart(xTimerCreate("mc2StateTimer", 20, pdTRUE, NULL, mc2StateTmr), 0);
 //  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
 //  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
 //  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
-
-  //--- PEDALS ---//
-//  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
-
+//
+//  //--- PEDALS ---//
+////  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
+//
 //  disp_attachMotOnCallback(motCallback);
 //  disp_attachVfmUpCallback(vfmUpCallback);
 //  disp_attachVfmDownCallback(vfmDownCallback);
@@ -1239,6 +1252,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
@@ -1631,15 +1647,13 @@ static void pedalsTimer(TimerHandle_t xTimer){
 
 	//Should change to dma
 
-	HAL_StatusTypeDef status = HAL_ADC_Start(&hadc1);
-
 //	uint16_t res[2] = {2, 2};
 //    HAL_ADC_Start(&hadc1);
-    HAL_ADC_PollForConversion(&hadc1, 1);
-    uint16_t adcVal = HAL_ADC_GetValue(&hadc1);
+    //HAL_ADC_PollForConversion(&hadc1, 1000);
+    uint16_t adcVal = adcval;
 
-    HAL_ADC_Stop(&hadc1);
-
+    //HAL_ADC_Stop(&hadc1);
+	vTaskDelay(100);
 //    HAL_ADC_Start(&hadc1);
 //    HAL_ADC_PollForConversion(&hadc1, 1);
 //    res[1] = HAL_ADC_GetValue(&hadc1);
@@ -1649,6 +1663,9 @@ static void pedalsTimer(TimerHandle_t xTimer){
 //    HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
 }
 
+HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
+	uint32_t *x = adcval;
+}
 /*
 void ignition_check(uint8_t data){
 	static long ignition_press_time =  0;
@@ -2252,10 +2269,10 @@ void serialParse(B_tcpPacket_t *pkt){
 ////	}
 //}
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	//ADC DMA callback --> Send pedals angle to UART bus
 
-    adc_data = HAL_ADC_GetValue(&hadc1);
+   // adc_data = HAL_ADC_GetValue(&hadc1);
 //
 //	float pedals_angles[2] = {0};
 //	uint8_t buf[3 * 4] = {0};
@@ -2268,7 +2285,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 //	floatToArray((float) pedals_angles[1], buf + 8); // fills 8 - 11 of busMetrics
 //
 //	B_tcpSend(btcp, buf, sizeof(buf));
-}
+//}
 
 float convertToAngle(uint16_t ADC_reading, uint8_t regen_or_accel){
 	//Convert ADC code of regen and accelerator pedal to angle in degrees
@@ -2287,7 +2304,6 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 
-// TODO: initialize the task
 static void pedalTask(const void* p) {
 	int32_t accelValue = 0;
 	int32_t regenValue = 0;
@@ -2310,15 +2326,16 @@ static void pedalTask(const void* p) {
 
 		uint8_t busMetrics_LV[3 * 4] = {0};
 
-		accelValue = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		regenValue = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) / 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		//accelValue = (pedalsReading[0] - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue++; if (accelValue == 255) accelValue = 0;
+		regenValue = (pedalsReading[1] - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256; //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
-		if (accelValue >= 4 / 1.4 * 3.3){
-			motorState = 1; // global within DCMB
-		}
-		if (regenValue >= 4 / 1.4 * 3.3){
-			motorState = 3; // global within DCMB
-		}
+//		if (accelValue >= 4 / 1.4 * 3.3){
+//			motorState = 1; // global within DCMB
+//		}
+//		if (regenValue >= 4 / 1.4 * 3.3){
+//			motorState = 3; // global within DCMB
+//		}
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
@@ -2382,7 +2399,7 @@ static void motorDataTimer(TimerHandle_t xTimer){
 
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;
 	buf[1] = digitalButtons;
-	packi16(&buf[5], (uint16_t)motorTargetPower);
+	packi16(&buf[4], (uint16_t)motorTargetPower);
 	floatToArray(motorTargetSpeed, &buf[6]);
 
 	B_tcpSend(btcp, buf, sizeof(buf));

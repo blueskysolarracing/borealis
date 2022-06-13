@@ -64,19 +64,19 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define DISP_CS_1_Pin GPIO_PIN_3
 #define DISP_CS_1_GPIO_Port GPIOE
-#define Cam_Ctrl_Pin GPIO_PIN_14
-#define Cam_Ctrl_GPIO_Port GPIOI
+#define BACKUP_CAM_CTRL_Pin GPIO_PIN_14
+#define BACKUP_CAM_CTRL_GPIO_Port GPIOI
 #define REGEN_PEDAL_Pin GPIO_PIN_4
 #define REGEN_PEDAL_GPIO_Port GPIOC
-#define Screen_Ctrl_Pin GPIO_PIN_15
-#define Screen_Ctrl_GPIO_Port GPIOI
+#define BACKUP_SCREEN_CTRL_Pin GPIO_PIN_15
+#define BACKUP_SCREEN_CTRL_GPIO_Port GPIOI
 #define GPIO_IN0_Pin GPIO_PIN_0
 #define GPIO_IN0_GPIO_Port GPIOJ
 #define GPIO_IN0_EXTI_IRQn EXTI0_IRQn
 #define ACCEL_PEDAL_Pin GPIO_PIN_11
 #define ACCEL_PEDAL_GPIO_Port GPIOF
-#define Fan_ctrl_Pin GPIO_PIN_0
-#define Fan_ctrl_GPIO_Port GPIOG
+#define FAN_CTRL_Pin GPIO_PIN_0
+#define FAN_CTRL_GPIO_Port GPIOG
 #define LED2_Pin GPIO_PIN_14
 #define LED2_GPIO_Port GPIOE
 #define LED0_Pin GPIO_PIN_6

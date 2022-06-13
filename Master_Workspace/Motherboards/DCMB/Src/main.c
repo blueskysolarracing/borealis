@@ -1365,14 +1365,14 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, DISP_CS_1_Pin|LED2_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
-                          |Screen_Ctrl_Pin|DISP_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|BACKUP_CAM_CTRL_Pin
+                          |BACKUP_SCREEN_CTRL_Pin|DISP_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, Fan_ctrl_Pin|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+  HAL_GPIO_WritePin(GPIOG, FAN_CTRL_Pin|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1399,10 +1399,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PI9 PI12 PI13 Cam_Ctrl_Pin
-                           Screen_Ctrl_Pin DISP_CS_0_Pin PI4 PI7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|Cam_Ctrl_Pin
-                          |Screen_Ctrl_Pin|DISP_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7;
+  /*Configure GPIO pins : PI9 PI12 PI13 BACKUP_CAM_CTRL_Pin
+                           BACKUP_SCREEN_CTRL_Pin DISP_CS_0_Pin PI4 PI7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|BACKUP_CAM_CTRL_Pin
+                          |BACKUP_SCREEN_CTRL_Pin|DISP_CS_0_Pin|GPIO_PIN_4|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1437,9 +1437,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : Fan_ctrl_Pin PG1 PG2 PG3
+  /*Configure GPIO pins : FAN_CTRL_Pin PG1 PG2 PG3
                            PG4 PG5 PG15 */
-  GPIO_InitStruct.Pin = Fan_ctrl_Pin|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
+  GPIO_InitStruct.Pin = FAN_CTRL_Pin|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
                           |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -2382,7 +2382,7 @@ static void motorDataTimer(TimerHandle_t xTimer){
 	int negativeTurn = 0;
 	int difference = 0;
 
-		// -------- FORWARD/REVERSE -------- //
+	// -------- FORWARD/REVERSE -------- //
 	fwdRevState = (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
 
 	// -------- BUTTONS -------- //

@@ -1178,22 +1178,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
 
-			} else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
-				uint8_t relay_open_cmd;
-				if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
-					relay_open_cmd = 1;
-					xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
-					HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+			} else if (pkt->payload[0] == DCMB_RELAYS_STATE_ID){
 
-				} else if (pkt->payload[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
-					relay_open_cmd = 2;
-					xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-					HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
-
-				} else if (pkt->payload[1] == CAR_DRIVE){ //Need to close power relays
-					relay_open_cmd = 2;
-					xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-					HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
+			} else if (pkt->payload[0] == DCMB_STEERING_WHEEL_ID){
+				//Horn
+				if (pkt->payload[2] & (1 << 3)){ //Turn on horn
+					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_SET);
+				} else {  //Turn off horn
+					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_RESET);
 				}
 			}
 		break;
