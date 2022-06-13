@@ -402,6 +402,7 @@ void HAL_LPTIM_MspDeInit(LPTIM_HandleTypeDef* hlptim)
 }
 
 /**
+<<<<<<< HEAD
 * @brief QSPI MSP Initialization
 * This function configures the hardware resources used in this example
 * @param hqspi: QSPI handle pointer
@@ -512,6 +513,8 @@ void HAL_QSPI_MspDeInit(QSPI_HandleTypeDef* hqspi)
 }
 
 /**
+=======
+>>>>>>> 6b5d7629e80de21e9c32efc6d31341c2e6ca8dae
 * @brief RTC MSP Initialization
 * This function configures the hardware resources used in this example
 * @param hrtc: RTC handle pointer
@@ -1318,6 +1321,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+<<<<<<< HEAD
     /* USART3 DMA Init */
     /* USART3_RX Init */
     hdma_usart3_rx.Instance = DMA1_Stream6;
@@ -1358,6 +1362,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     /* USART3 interrupt Init */
     HAL_NVIC_SetPriority(USART3_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(USART3_IRQn);
+=======
+>>>>>>> 6b5d7629e80de21e9c32efc6d31341c2e6ca8dae
   /* USER CODE BEGIN USART3_MspInit 1 */
 
   /* USER CODE END USART3_MspInit 1 */
@@ -1459,12 +1465,15 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     */
     HAL_GPIO_DeInit(GPIOD, GPIO_PIN_8|GPIO_PIN_9);
 
+<<<<<<< HEAD
     /* USART3 DMA DeInit */
     HAL_DMA_DeInit(huart->hdmarx);
     HAL_DMA_DeInit(huart->hdmatx);
 
     /* USART3 interrupt DeInit */
     HAL_NVIC_DisableIRQ(USART3_IRQn);
+=======
+>>>>>>> 6b5d7629e80de21e9c32efc6d31341c2e6ca8dae
   /* USER CODE BEGIN USART3_MspDeInit 1 */
 
   /* USER CODE END USART3_MspDeInit 1 */
@@ -1486,6 +1495,7 @@ void HAL_HCD_MspInit(HCD_HandleTypeDef* hhcd)
   {
   /* USER CODE BEGIN USB_OTG_HS_MspInit 0 */
 
+<<<<<<< HEAD
   /* USER CODE END USB_OTG_HS_MspInit 0 */
 
   /** Initializes the peripherals clock
@@ -1563,6 +1573,8 @@ void HAL_WWDG_MspInit(WWDG_HandleTypeDef* hwwdg)
   {
   /* USER CODE BEGIN WWDG1_MspInit 0 */
 
+=======
+>>>>>>> 6b5d7629e80de21e9c32efc6d31341c2e6ca8dae
   /* USER CODE END WWDG1_MspInit 0 */
     /* Peripheral clock enable */
     HAL_RCCEx_WWDGxSysResetConfig(RCC_WWDG1);

@@ -1478,7 +1478,6 @@ void HAL_HCD_MspInit(HCD_HandleTypeDef* hhcd)
   if(hhcd->Instance==USB_OTG_HS)
   {
   /* USER CODE BEGIN USB_OTG_HS_MspInit 0 */
-
   /* USER CODE END USB_OTG_HS_MspInit 0 */
 
   /** Initializes the peripherals clock
