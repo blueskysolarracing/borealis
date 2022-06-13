@@ -1958,6 +1958,10 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
+			if (currentRegenValue >= 0) { // turn off regen
+				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+				currentRegenValue = 0;
+			}
 			// drive accel pots
 			uint16_t localAccValue = targetPower;
 			if(currentAccValue != localAccValue){
@@ -1996,6 +2000,13 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
+
+			if (currentAccValue > 0) { // turn off accel
+				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+				currentAccValue = 0;
+			}
+
+
 			// drive regen pots
 			uint16_t localRegenValue = targetPower;
 			if (batteryVoltage > 110 || batteryVoltage < 110) {
