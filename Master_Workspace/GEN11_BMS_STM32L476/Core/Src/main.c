@@ -629,73 +629,51 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	uint16_t local_temp_array[3]; //Temperature readings
 	uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
 
-//	while(1){
-//		HAL_UART_Receive(&huart1, buf_temp, 1, 10000);
-//		vTaskDelay(100);
-//	}
-//	while (1){
-//		char buf[3] = {1, 2, 3};
-////		HAL_UART_Transmit(&huart1, buf, sizeof(buf), 10);
-////
-//		//Send
-//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-//		B_tcpSend(btcp, buf, sizeof(buf));
-////		HAL_UART_Transmit(&huart1, buf, sizeof(buf), 10);
-////		HAL_UART_Transmit(&huart3, buf, sizeof(buf), 10);
-//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-////
-////		vTaskDelay(100);
-//	}
+	//---- LTC6810 MEASUREMENTS ----//
+	readVolt(local_voltage_array); //Places voltage in temp 1, temp
+	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
+	convert_to_temp(local_temp_array, local_temp_array);
 
-	if (start_LTC6810_meas){
-		//---- LTC6810 MEASUREMENTS ----//
-		while(1){ //testing
-			readVolt(local_voltage_array); //Places voltage in temp 1, temp
-			readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
-			convert_to_temp(local_temp_array, local_temp_array);
+	//---- BATTERY FAULT CHECK----//
+	//Check for UV, OV faults
+	for (int i = 0; i < 5; i++){
+		if (local_voltage_array[i] > OV_THRESHOLD){ //Overvoltage
+			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
+			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //Switch to 12V power
+			send_error_msg(i, BMS_OV, voltage_array[i]);
+
+		} else if (local_voltage_array[i] < UV_THRESHOLD){ //Undervoltage
+			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
+			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+			send_error_msg(i, BMS_UV, voltage_array[i]);
+
+		} else { //Voltage OK
+			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
 		}
-
-		//---- BATTERY FAULT CHECK----//
-		//Check for UV, OV faults
-		for (int i = 0; i < 5; i++){
-			if (local_voltage_array[i] > OV_THRESHOLD){ //Overvoltage
-				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
-				htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //Switch to 12V power
-				send_error_msg(i, BMS_OV, voltage_array[i]);
-
-			} else if (local_voltage_array[i] < UV_THRESHOLD){ //Undervoltage
-				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
-				htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-				send_error_msg(i, BMS_UV, voltage_array[i]);
-
-			} else { //Voltage OK
-				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-			}
-		}
-
-		//Check for OT faults
-		for (int i = 0; i < 6; i++){
-			if (local_temp_array[i] > OT_THRESHOLD){
-				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
-				htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-				send_error_msg(i, BMS_OT, temperature_array[i]);
-
-			} else {
-				HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-			}
-		}
-
-		send_temp_volt(); //Also, send temp and volt
-
-		//Update global variables
-		taskENTER_CRITICAL();
-		for (int i = 0; i < NUM_CELLS; i++){	voltage_array[i] = local_voltage_array[i];	}
-		for (int i = 0; i < 3; i++){			temperature_array[i] = local_temp_array[i];	}
-		taskEXIT_CRITICAL();
-	} else {
-		taskYIELD();
 	}
+
+	//Check for OT faults
+	for (int i = 0; i < 6; i++){
+		if (local_temp_array[i] > OT_THRESHOLD){
+			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
+			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+			send_error_msg(i, BMS_OT, temperature_array[i]);
+
+		} else {
+			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
+		}
+	}
+
+	send_temp_volt(); //Also, send temp and volt
+
+	//Update global variables
+	taskENTER_CRITICAL();
+	for (int i = 0; i < NUM_CELLS; i++){	voltage_array[i] = local_voltage_array[i];	}
+	for (int i = 0; i < 3; i++){			temperature_array[i] = local_temp_array[i];	}
+	taskEXIT_CRITICAL();
+	send_temp_volt();
+	osDelay(SEND_PERIOD);
 }
 
 void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send){

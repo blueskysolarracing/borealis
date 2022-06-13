@@ -255,11 +255,11 @@ int main(void)
   relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
 
   xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
-  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
-
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
-  xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0); //Read from BMS periodically
+//  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
+//
+//  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+//  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
+//  xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0); //Read from BMS periodically
 
   /* USER CODE END 2 */
 
@@ -1093,11 +1093,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BMS_FLT_Pin */
-  GPIO_InitStruct.Pin = BMS_FLT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(BMS_FLT_GPIO_Port, &GPIO_InitStruct);
+  /*Configure GPIO pins : BMS_FLT_Pin TMC5160_DIAG1_Pin TMC5160_DIAG0_Pin */
+  GPIO_InitStruct.Pin = BMS_FLT_Pin|TMC5160_DIAG1_Pin|TMC5160_DIAG0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PG0 PG1 PG5 PG6
                            PG7 PG8 PG9 PG10
@@ -1137,12 +1137,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TMC5160_DIAG1_Pin TMC5160_DIAG0_Pin */
-  GPIO_InitStruct.Pin = TMC5160_DIAG1_Pin|TMC5160_DIAG0_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
-
   /*Configure GPIO pins : TMC5160_CS0_Pin PSM_DReady_Pin HORN_EN_Pin TMC5160_CS1_Pin
                            Light_ctrl_PWR_EN_Pin */
   GPIO_InitStruct.Pin = TMC5160_CS0_Pin|PSM_DReady_Pin|HORN_EN_Pin|TMC5160_CS1_Pin
@@ -1164,10 +1158,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
 }
 
@@ -1345,7 +1335,6 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 
 void PSMTaskHandler(TimerHandle_t xTimer){
 //Battery
-
 	double voltageCurrent_HV[2] = {0};
 	uint8_t busMetrics_HV[3 * 4] = {0};
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
@@ -1391,6 +1380,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	/*Used to kickoff a new cycle of BMS data requests.
 	* Request data from first BMS, and upon reception, serialParse will request from others
 	*/
+	//Testing testing
 	char junk1[2] = {3, 1};
 	char junk2[2] = {3, 1};
 	while(1){
@@ -1398,6 +1388,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 		B_tcpSend(btcp_main, junk2, sizeof(junk2));
 		vTaskDelay(100);
 	}
+	//Testing testing ^
 	taskENTER_CRITICAL();
 	if (BMS_requesting_from > 6){ //We've received from all BMS, start requesting from the first one again
 
@@ -1413,17 +1404,6 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	taskEXIT_CRITICAL();
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-//Triggered on falling edge of BMS_FLT signal (which means BMS FLT)
-{
-    if (GPIO_Pin == BMS_FLT_Pin){ //We've received a FLT signal from one of the BMS
-    	uint8_t relay_open_cmd = 1;
-		xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
-		HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); //Turn on red LED
-    }
-
-	HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); //Turn on red LED
-}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

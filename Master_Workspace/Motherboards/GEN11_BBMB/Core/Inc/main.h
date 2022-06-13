@@ -71,7 +71,6 @@ void Error_Handler(void);
 #define RELAY_DISCHARGE_GPIO_Port GPIOI
 #define BMS_FLT_Pin GPIO_PIN_4
 #define BMS_FLT_GPIO_Port GPIOJ
-#define BMS_FLT_EXTI_IRQn EXTI4_IRQn
 #define BMS_NO_FLT_Pin GPIO_PIN_12
 #define BMS_NO_FLT_GPIO_Port GPIOE
 #define LED2_Pin GPIO_PIN_14
