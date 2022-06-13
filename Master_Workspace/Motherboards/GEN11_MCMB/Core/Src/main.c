@@ -2009,7 +2009,7 @@ static void motorTmr(TimerHandle_t xTimer){
 
 			// drive regen pots
 			uint16_t localRegenValue = targetPower;
-			if (batteryVoltage > 110 || batteryVoltage < 110) {
+			if (batteryVoltage > 110 || batteryVoltage < 0) {
 				localRegenValue = 0; // for safety
 			}
 			if(currentRegenValue != localRegenValue){
