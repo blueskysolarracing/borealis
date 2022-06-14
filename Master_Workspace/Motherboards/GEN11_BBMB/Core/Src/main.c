@@ -242,19 +242,18 @@ int main(void)
   turn_off_brake_lights(&lightsPeriph);
   turn_off_fault_indicator(&lightsPeriph);
   turn_off_hazard_lights(&lightsPeriph);
-  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
 
   //--- COMMS ---//
-  buart_main = B_uartStart(&huart4);
-  btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
+  //buart_main = B_uartStart(&huart4);
+  //btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
   buart_bms = B_uartStart(&huart8);
   btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
   //--- FREERTOS ---//
-  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
-  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
-
-  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
+//  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
+//  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
+//
+//  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
 //  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
 //
 //  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
@@ -1168,17 +1167,24 @@ void serialParse(B_tcpPacket_t *pkt){
 			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
 
-			} else if (pkt->payload[0] == DCMB_RELAYS_STATE_ID){
-
-			} else if (pkt->payload[0] == DCMB_STEERING_WHEEL_ID){
-				//Horn
-				if (pkt->payload[2] & (1 << 3)){ //Turn on horn
-					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_SET);
-				} else {  //Turn off horn
-					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_RESET);
-				}
-			}
-		break;
+			} //else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
+//					uint8_t relay_open_cmd;
+//					if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
+//						relay_open_cmd = 1;
+//						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
+//						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+//
+//					} else if (pkt->payload[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
+//						relay_open_cmd = 2;
+//						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
+//						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
+//
+//					} else if (pkt->payload[1] == CAR_DRIVE){ //Need to close power relays
+//						relay_open_cmd = 2;
+//						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
+//						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
+//					}
+			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
 			if (pkt->payload[0] == BMS_ERROR_STATUS){ //Received error from BMS
@@ -1335,6 +1341,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 
 void PSMTaskHandler(TimerHandle_t xTimer){
 //Battery
+
 	double voltageCurrent_HV[2] = {0};
 	uint8_t busMetrics_HV[3 * 4] = {0};
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
@@ -1380,15 +1387,9 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	/*Used to kickoff a new cycle of BMS data requests.
 	* Request data from first BMS, and upon reception, serialParse will request from others
 	*/
-	//Testing testing
-	char junk1[2] = {3, 1};
-	char junk2[2] = {3, 1};
-	while(1){
-		B_tcpSend(btcp_bms, junk1, sizeof(junk1));
-		B_tcpSend(btcp_main, junk2, sizeof(junk2));
-		vTaskDelay(100);
-	}
-	//Testing testing ^
+	char junk[2] = {3, 1};
+	B_tcpSend(btcp_bms, junk, sizeof(junk));
+	B_tcpSend(btcp_main, junk, sizeof(junk));
 	taskENTER_CRITICAL();
 	if (BMS_requesting_from > 6){ //We've received from all BMS, start requesting from the first one again
 
