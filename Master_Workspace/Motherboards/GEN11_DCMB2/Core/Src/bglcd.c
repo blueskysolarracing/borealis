@@ -356,8 +356,14 @@ void drawP1BMSFault(){
 // draw p1
 void drawP1(uint8_t sel){
 	pToggle = 0;
-//	int defaultTest[4] = {420, 874, -454, 69};
-//	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	/* Display selection (sel):
+	 * 0: Default
+	 * 1: Detailed
+	 * 2: Cruise control activated
+	 * 3: Cruise control deactivated
+	 * 4: Ignition off (car is sleeping)
+	 * 5: BMS fault
+	 */
 
 	switch(sel){
 	case 0:

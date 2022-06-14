@@ -22,13 +22,13 @@ struct disp_common{
 };
 
 struct disp_default_frame{
-	uint8_t 	P1_speed_kph;
-	uint8_t		P1_left_indicator_status;
+	uint8_t P1_speed_kph;
+	uint8_t	P1_left_indicator_status;
 
-	uint8_t		P2_cruise_state;
-	uint8_t		P2_DRL_state;
-	uint8_t		P2_regen_state;
-	uint8_t		P2_left_indicator_status;
+	uint8_t	P2_cruise_state;
+	uint8_t	P2_DRL_state;
+	uint8_t	P2_regen_state;
+	uint8_t	P2_left_indicator_status;
 };
 
 struct disp_detailed_frame{

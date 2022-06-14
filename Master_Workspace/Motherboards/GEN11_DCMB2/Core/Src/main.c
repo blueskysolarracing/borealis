@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "buart.h"
 #include "btcp.h"
+#include "protocol_ids.h"
 #include "h7Boot.h"
 #include "ACE128Map.h"
 #include "glcd.h"
@@ -45,17 +46,19 @@
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
 
 //--- PEDALS ---//
-#define PEDAL_PULLUP 10 //Pullup resistance of pedal ADC input (kR)
-#define ACCEL_ZERO_RESISTANCE 2.3 //Resistance of acceleration pedal when not pressed
+#define PEDAL_PULLUP 1.0 //Pullup resistance of pedal ADC input (kR)
+#define ACCEL_ZERO_RESISTANCE 0.358 //Resistance of acceleration pedal when not pressed
 #define REGEN_ZERO_RESISTANCE 2.3 //Resistance of regen pedal when not pressed
-#define ACCEL_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
+#define ACCEL_PEDAL_SLOPE 0.166 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-#define REGEN_THRESHOLD 50 //Power request to be sent to MCMB (0-256) needs to be greater than this to engage regen
 
 //--- MOTOR ---//
 #define MOTOR_DATA_PERIOD 20 //Send motor data every MOTOR_DATA_PERIOD ms
+
+//--- SPB/SWB ---//
+#define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
 
 /* USER CODE END PD */
 
@@ -118,7 +121,8 @@ float pedals_angle[2] = {-1, -1};
 //--- DISPLAY ---//
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 uint8_t pToggle = 0; //Needed to choose which display to write data to
-disp_common common_data = {0};			//three global structs where data is written to
+uint8_t display_selection = 0; //Select which frame to display
+disp_common common_data = {0};			//Three global structs where data is written to
 disp_default_frame default_data = {0};
 disp_detailed_frame detailed_data = {0};
 
@@ -139,7 +143,7 @@ typedef enum {
 	CRUISE,
 	REGEN
 } MOTORSTATE;
-uint16_t motorTargetPower = 0; // value from 0 - 255
+uint16_t motorTargetPower = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
 uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
@@ -1664,10 +1668,14 @@ static void MX_GPIO_Init(void)
 static void pedalTask(const void* p) {
 	float accelValue = 0.0;
 	float regenValue = 0.0;
-	float accel_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 400.0; //ADC reading corresponding to 0% power request
+	float accel_reading_upper_bound = 41146.0; //ADC reading corresponding to 100% power request
+	float accel_reading_lower_bound = 17312.0; //ADC reading corresponding to 0% power request
+	float accel_reading_threshold = 20.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+
 	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
 	float regen_reading_lower_bound = 400.0; //ADC reading corresponding to 0% regen request
+	float regen_reading_threshold = 40.0; //Threshold at which the regen engages (overides acceleration)
+
 	float pedalsReading[2] = {0, 0};
 	float pedals_angles_temp[2] = {0};
 
@@ -1684,15 +1692,10 @@ static void pedalTask(const void* p) {
 			HAL_ADC_Stop(&hadc1);
 		}
 
-		accelValue = round((pedalsReading[0] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		regenValue = round((pedalsReading[1] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		//Compute value on 0-256 scale
+		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
-//		if (accelValue >= 4 / 1.4 * 3.3){
-//			motorState = 1; // global within DCMB
-//		}
-//		if (regenValue >= 4 / 1.4 * 3.3){
-//			motorState = 3; // global within DCMB
-//		}
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
@@ -1714,18 +1717,22 @@ static void pedalTask(const void* p) {
 		// setting global motorTargetPower, motorState
 		taskENTER_CRITICAL();
 		// Prioritize regen if both are pressed
-		if (ignitionState == IGNITION_ON){
-			if (regenValue > REGEN_THRESHOLD) {
-				motorTargetPower = (uint16_t) regenValue;
-				motorState = REGEN;
-			} else if (accelValue > 0) {
-				motorTargetPower = (uint16_t) accelValue;
-				// Will not change motorState if in cruise
-				if (motorState != CRUISE){
-					motorState = PEDAL;
-				}
+		if (regenValue > regen_reading_threshold) {
+			motorTargetPower = (uint16_t) regenValue - regen_reading_threshold;
+			motorState = REGEN;
+		} else if (accelValue > accel_reading_threshold) {
+			motorTargetPower = (uint16_t) accelValue - accel_reading_threshold;
+			// Will not change motorState if in cruise
+			if (motorState != CRUISE){
+				motorState = PEDAL;
 			}
 		} else {
+			motorTargetPower = (uint16_t) 0;
+			motorState = OFF;
+		}
+
+		//Turn off motor if needed
+		if (ignitionState != IGNITION_ON){
 			motorState = OFF;
 		}
 
@@ -1759,23 +1766,33 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->sender){
-	case 0x01:
-		  if(pkt->payload[4] == 0x02){
-			  uint32_t value = pkt->payload[7];
-			  value |= (pkt->payload[7] << 8);
-			  if(pkt->payload[5] == 0x01){
-				 // setBBMBBmsAlertType(DISP_BMS_ALERT_BUS_OV, value );
-			  } else if (pkt->payload[5] == 0x02){
-				//  setBBMBBmsAlertType(DISP_BMS_ALERT_BUS_UV, value );
-			  } else if (pkt->payload[6] == 0x03){
-				 // setBBMBBmsAlertType(DISP_BMS_ALERT_CELL_OT, value );
-			  } else if (pkt->payload[7] == 0x04){
-				 // setBBMBBmsAlertType(DISP_BMS_ALERT_CELL_UT, value );
-			  }
+	case PPTMB_ID:
+		 if (pkt->payload[4] == PPTMB_BUS_METRICS_ID){ //HV bus
+			default_data.solar_power = arrayToFloat(pkt->payload[8]) * arrayToFloat(pkt->payload[12]); //Solar power
+			default_data.P1_solar_voltage = arrayToFloat(pkt->payload[8]); //Solar voltage
+			default_data.P1_solar_current = arrayToFloat(pkt->payload[12]); //Solar current
 		  }
 		  break;
-	case 0x03:
-		if(pkt->payload[4] == 0x03){
+	case MCMB_ID:
+		if (pkt->payload[4] == MCMB_BUS_METRICS_ID){ //HV bus
+			default_data.motor_power = arrayToFloat(pkt->payload[8]) * arrayToFloat(pkt->payload[12]); //Motor power
+			default_data.P1_motor_voltage = arrayToFloat(pkt->payload[8]); //Motor voltage
+			default_data.P1_motor_current = arrayToFloat(pkt->payload[12]); //Motor current
+		} else if (pkt->payload[4] == MCMB_CAR_SPEED_ID){ //Car speed
+			default_frame.P1_speed_kph = arrayToFloat(pkt->payload[5]); //Car speed
+		}
+	case BBMB_ID:
+		 if (pkt->payload[4] == BBMB_BUS_METRICS_ID){ //HV bus
+			default_data.battery_power = arrayToFloat(pkt->payload[8]) * arrayToFloat(pkt->payload[12]); //Battery power
+			default_data.P1_battery_voltage = arrayToFloat(pkt->payload[8]); //Battery voltage
+			default_data.P1_battery_current = arrayToFloat(pkt->payload[12]); //Battery current
+		  }	else if (pkt->payload[4] == BBMB_RELAY_STATE_ID){
+			  if (pkt->payload[5] == 0){ //Battery faulted
+				taskENTER_CRITICAL();
+				display_selection = 5;
+				motorState = OFF;
+				taskEXIT_CRITICAL();
+			  }
 		}
 	}
 }
@@ -1803,7 +1820,11 @@ static void steeringWheelTask(const void *pv){
 		}
 	}
 
-	//Send to RS485 bus
+	//------- Send acknowledge -------//
+	uint8_t buf_to_swb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
+	HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
+
+	//------- Send to RS485 bus -------//
     uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]}; //[DATA ID, LIGHT INSTRUCTION]
     B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
 
@@ -1911,6 +1932,10 @@ static void sidePanelTask(const void *pv){
 				sidePanelData = e->buf[2];
 				//Only update if different (it should be different)
 
+				//------- Send acknowledge -------//
+				uint8_t buf_to_spb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
+				HAL_UART_Transmit(&huart3, buf_to_spb, sizeof(buf_to_spb), 100);
+
 				//---------- Process data ----------//
 			//REAR CAMERA AND SCREEN
 				if (sidePanelData & (1 << 6)){
@@ -1986,19 +2011,27 @@ static void sidePanelTask(const void *pv){
 }
 
 static void displayTask(const void *pv){
-	uint8_t screen = 0;
 	pToggle = 0;
 	glcd_init();
 	glcd_clear();
 	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-	uint8_t sel = 0;
+
+	/* Display selection (sel):
+	 * 0: Default
+	 * 1: Detailed
+	 * 2: Cruise control activated
+	 * 3: Cruise control deactivated
+	 * 4: Ignition off (car is sleeping)
+	 * 5: BMS fault
+	 */
+
 	while(1){
-		drawP1(sel);
-		drawP2(sel);
+		taskENTER_CRITICAL();
+		uint8_t local_display_sel = display_selection;
+		taskEXIT_CRITICAL();
 
-		sel = sel + 1;
-		sel = sel % 6;
-
+		drawP1(local_display_sel);
+		drawP2(local_display_sel);
 		vTaskDelay(500);
 	}
 }
@@ -2021,6 +2054,7 @@ static void motorDataTimer(TimerHandle_t xTimer){
 		vfmDownState = 0;
 	}
 
+	// -------- SEND -------- //
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;
 	buf[1] = motorState;
 	buf[2] = digitalButtons;

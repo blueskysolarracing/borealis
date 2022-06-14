@@ -33,6 +33,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define BSSR_SERIAL_START 0xa5
+#define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
 
 /* USER CODE END PD */
 
@@ -64,7 +65,7 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 
 uint8_t getSwitchState(){
-	uint8_t switchState =
+	uint8_t switchState = 0;
 
 	switchState |= HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin) << 0;
 	switchState |= HAL_GPIO_ReadPin(GPIOC, AUX0_Pin) 			<< 1;
@@ -132,12 +133,18 @@ int main(void)
 
 	  if (newSwitchState != oldSwitchState){ //Switches changed; need to send
 		  //print_switches();
-		  HAL_UART_Transmit(&huart2, &buf, 4, 10); //To DCMB
+		  uint8_t rx_buf[2];
+		  do { //Keep sending data until acknowledge is received from DCMB
+			  HAL_UART_Transmit(&huart2, sizeof(buf), 4, 10); //To DCMB
+			  HAL_UART_Transmit(&huart4, sizeof(buf), 4, 10); //To debug
+			  HAL_UART_Receive(&huart2, sizeof(rx_buf), 2, 100);
+			  HAL_Delay(1);
+		  } while (rx_buf[1] != BSSR_SPB_SWB_ACK);
 	  }
 
 	  oldSwitchState = newSwitchState;
 
-	  HAL_Delay(20); //Wait for 20ms; could be replaced with power down sleep
+	  HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
@@ -326,57 +333,32 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-static void switchStateTask(void const* pv){
-	//This task sends a byte representing the
-	GPIO_TypeDef* swPort1 = GPIOB; // AUX1, FWD_REV, AUX2, CAMERA
-	GPIO_TypeDef* swPort2 = GPIOC; // FAN, IGNITION, AUX0
-	GPIO_TypeDef* swPort3 = GPIOD; // ARRAY
-
-	#define uartFrame_SIZE 9
-	uint8_t uartFrame[uartFrame_SIZE] = {0xa5, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-	for(;;){
-		if(uartFrame[2] == ((swPort1->IDR >> 3) & 0xff) && uartFrame[3] == ((swPort2->IDR >> 10) & 0xff) && uartFrame[4] == ((swPort3->IDR >> 2) & 0xff)) continue;
-		uartFrame[2] = (swPort1->IDR >> 3) & 0xff;
-		uartFrame[3] = (swPort2->IDR >> 10) & 0xff;
-		uartFrame[4] = (swPort3->IDR >> 2) & 0xff;
-
-		uint32_t crc = ~HAL_CRC_Calculate(&hcrc, (uint32_t*) uartFrame, uartFrame_SIZE-4);
-		for(size_t i=0; i<4; i++) uartFrame[i+5] = (crc >> (i << 3)) & 0xff;
-		HAL_UART_Transmit_IT(&huart4, uartFrame, uartFrame_SIZE);
-		HAL_UART_Transmit_IT(&huart2, uartFrame, uartFrame_SIZE);
-		osDelay(1000);
-	}
-}
-
 void print_switches(){
-  char buffer[100];
+  if (HAL_GPIO_ReadPin(GPIOC, FAN_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "FAN: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "FAN: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOC, FAN_Pin)){	HAL_UART_Transmit(&huart4, "FAN: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "FAN: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(GPIOC, AUX0_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "AUX0: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "AUX0: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOC, AUX0_Pin)){	HAL_UART_Transmit(&huart4, "AUX0: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "AUX0: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(GPIOB, AUX1_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "AUX1: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "AUX1: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOB, AUX1_Pin)){	HAL_UART_Transmit(&huart4, "AUX1: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "AUX1: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(GPIOB, AUX2_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "AUX2: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "AUX2: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOB, AUX2_Pin)){	HAL_UART_Transmit(&huart4, "AUX2: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "AUX2: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "ARRAY: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "ARRAY: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(ARRAY_GPIO_Port, ARRAY_Pin)){	HAL_UART_Transmit(&huart4, "ARRAY: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "ARRAY: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "FWD/REV: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "FWD/REV: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOB, FWD_REV_Pin)){	HAL_UART_Transmit(&huart4, "FWD/REV: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "FWD/REV: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "CAMERA: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "CAMERA: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOB, CAMERA_Pin)){	HAL_UART_Transmit(&huart4, "CAMERA: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "CAMERA: 1\n", 30, 100);	}
+  if (HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin)){	HAL_UART_Transmit(&huart4, (uint8_t*) "IGNITION: 0\n", 30, 100);	}
+  else {	HAL_UART_Transmit(&huart4, (uint8_t*) "IGNITION: 1\n", 30, 100);	}
 
-  if (HAL_GPIO_ReadPin(GPIOC, IGNITION_Pin)){	HAL_UART_Transmit(&huart4, "IGNITION: 0\n", 30, 100);	}
-  else {	HAL_UART_Transmit(&huart4, "IGNITION: 1\n", 30, 100);	}
-
-  HAL_UART_Transmit(&huart4, buffer, "\n\n", 100);
+  HAL_UART_Transmit(&huart4, (uint8_t*) "\n\n", 5, 100);
 }
 /* USER CODE END 4 */
 

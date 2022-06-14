@@ -33,6 +33,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define BSSR_SERIAL_START 0xa5
+#define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
 
 /* USER CODE END PD */
 
@@ -184,14 +185,20 @@ int main(void)
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2])){ //If any bit has changed, send data
 		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00}; //Last byte is CRC, optional
-		HAL_UART_Transmit(&huart2, buf, 6, 10);
-		HAL_UART_Transmit(&huart4, buf, 6, 10);
+		uint8_t rx_buf[2];
+
+		do { //Keep sending data until acknowledge is received from DCMB
+			HAL_UART_Transmit(&huart2, buf, sizeof(buf), 10); //To DCMB
+			HAL_UART_Transmit(&huart4, buf, sizeof(buf), 10); //To debug
+			HAL_UART_Receive(&huart2, rx_buf, sizeof(rx_buf), 100);
+			HAL_Delay(1);
+		} while (rx_buf[1] != BSSR_SPB_SWB_ACK);
 	}
 
 	//Update switch state
 	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
 
-	HAL_Delay(5);
+	HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
