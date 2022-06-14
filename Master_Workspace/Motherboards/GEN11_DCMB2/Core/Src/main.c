@@ -118,6 +118,9 @@ float pedals_angle[2] = {-1, -1};
 //--- DISPLAY ---//
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 uint8_t pToggle = 0; //Needed to choose which display to write data to
+disp_common common_data = {0};			//three global structs where data is written to
+disp_default_frame default_data = {0};
+disp_detailed_frame detailed_data = {0};
 
 //--- COMMS ---//
 B_uartHandle_t* buart;
