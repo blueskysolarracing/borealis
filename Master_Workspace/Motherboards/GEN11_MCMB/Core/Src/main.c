@@ -137,6 +137,7 @@ uint8_t vfmResetState = 0;
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 uint8_t speedTarget;
+globalKmPerHour = 0;
 
 int16_t batteryVoltage = 0;
 
@@ -324,6 +325,17 @@ int main(void)
 
   //Gen11 accel write below:
   MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+
+//  //temp
+//  while(1) {
+//	  //HAL_SPI_Transmit()
+//	  MCP4161_Pot_Write(45, GPIOK, GPIO_PIN_2, &hspi3);
+//		//uint8_t fullCommand[2] = {20, 35};
+//
+//	  //HAL_SPI_Transmit(&hspi3, fullCommand, sizeof(fullCommand), 100);
+//
+//	  //vTaskDelay(100);
+//  }
 
   //Initialize PSM
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
@@ -1937,6 +1949,14 @@ static void motorTmr(TimerHandle_t xTimer){
 
 	switch (motorState) {
 		case OFF:
+			if (currentAccValue > 0) { // turn off accel
+				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+				currentAccValue = 0;
+			}
+			if (currentRegenValue >= 0) { // turn off regen
+				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+				currentRegenValue = 0;
+			}
 			if(currentMotorOn){
 				// if motor is on, turn it off by driving pin high
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
@@ -2009,7 +2029,7 @@ static void motorTmr(TimerHandle_t xTimer){
 
 			// drive regen pots
 			uint16_t localRegenValue = targetPower;
-			if (batteryVoltage > 110 || batteryVoltage < 0) {
+			if (batteryVoltage > 110 || batteryVoltage < 110) {
 				localRegenValue = 0; // for safety
 			}
 			if(currentRegenValue != localRegenValue){
@@ -2092,6 +2112,7 @@ static void spdTmr(TimerHandle_t xTimer){
 	//buf[1] = pwm_in.frequency;
 	// Send motor speed to DCMB
 	buf[1] = kmPerHour;
+	globalKmPerHour = kmPerHour; // used for debugger live expression
 	B_tcpSend(btcp, buf, 4);
 }
 
