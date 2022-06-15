@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "buart.h"
 #include "btcp.h"
+#include "protocol_ids.h"
 #include "bmisc.h"
 #include "psm.h"
 #include "h7Boot.h"
@@ -1166,7 +1167,6 @@ void serialParse(B_tcpPacket_t *pkt){
 		case DCMB_ID: //Parse data from DCMB
 			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
-
 			} //else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
 //					uint8_t relay_open_cmd;
 //					if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
@@ -1228,6 +1228,10 @@ void serialParse(B_tcpPacket_t *pkt){
 					}
 				taskEXIT_CRITICAL();
 				}
+			}
+		case CHASE_ID:
+			if (pkt->payload[0] == CHASE_LIGHTCONTROL_ID){
+				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
 			}
 		break;
 	}
