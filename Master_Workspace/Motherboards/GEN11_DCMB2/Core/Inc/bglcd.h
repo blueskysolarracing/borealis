@@ -27,8 +27,9 @@ struct disp_default_frame{
 
 	uint8_t	P2_cruise_state;
 	uint8_t	P2_DRL_state;
-	uint8_t	P2_regen_state;
-	uint8_t	P2_left_indicator_status;
+	uint8_t	P2_motor_state;
+	uint8_t	P2_VFM;
+	uint8_t	P2_right_indicator_status;
 };
 
 struct disp_detailed_frame{
@@ -43,12 +44,11 @@ struct disp_detailed_frame{
 	short	P2_LV_voltage;
 	short	P2_LV_current;
 	short	P2_max_batt_temp;
-	short	P2_VFM_state;
 };
 
-extern disp_common common_data;
-extern disp_default_frame default_data;
-extern disp_detailed_frame detailed_data;
+extern struct disp_common common_data;
+extern struct disp_default_frame default_data;
+extern struct disp_detailed_frame detailed_data;
 
 void drawP1Default(/*int value[4]*/);
 void drawP1Detailed(/*int value[9]*/);

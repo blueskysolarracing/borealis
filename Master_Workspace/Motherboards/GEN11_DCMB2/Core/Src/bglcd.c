@@ -32,10 +32,10 @@ uint8_t correct_Y(uint8_t y){
 // p1 stuff start
 
 void drawP1Default(/*int value[4]*/){
-	short value[4] = {	common_data->solar_power,
-						common_data->motor_power,
-						common_data->battery_power,
-						(short)(default_data->P1_speed_kph)};
+	short value[4] = {	common_data.solar_power,
+						common_data.motor_power,
+						common_data.battery_power,
+						(short)(default_data.P1_speed_kph)};
 
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
@@ -123,12 +123,12 @@ void drawP1Default(/*int value[4]*/){
 void drawP1Detailed(/*int value[9]*/){
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
-	short value[9] = {	common_data->solar_power,
-						common_data->motor_power,
-						common_data->battery_power,
-						detailed_data->P1_solar_voltage, detailed_data->P1_solar_current,
-						detailed_data->P1_motor_voltage, detailed_data->P1_motor_current,
-						detailed_data->P1_battery_voltage, detailed_data->P1_battery_current};
+	short value[9] = {	common_data.solar_power,
+						common_data.motor_power,
+						common_data.battery_power,
+						detailed_data.P1_solar_voltage, detailed_data.P1_solar_current,
+						detailed_data.P1_motor_voltage, detailed_data.P1_motor_current,
+						detailed_data.P1_battery_voltage, detailed_data.P1_battery_current};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -397,10 +397,10 @@ void drawP1(uint8_t sel){
 
 // p2 stuff start
 void drawP2Default(/*int value[4]*/){
-	uint8_t value[4] = {default_data->P2_cruise_state,
-						default_data->P2_DRL_state,
-						default_data->P2_regen_state,
-						common_data->battery_soc};
+	uint8_t value[4] = {default_data.P2_cruise_state,
+						default_data.P2_DRL_state,
+						default_data.P2_motor_state,
+						common_data.battery_soc};
 	char* labelsP2[] = {"Cruise:", "DRL:"};
 	int labelsP2L = 2;
 
@@ -451,12 +451,11 @@ void drawP2Default(/*int value[4]*/){
 }
 
 void drawP2Detailed(/*int value[5]*/){
-	short value[5] = {	common_data->LV_power,
-						common_data->LV_voltage,
-						detailed_data->P2_LV_current,
-						detailed_data->P2_max_batt_temp,
-						detailed_data->P2_VFM_state};
-	char* labelsP2[] = {"Lo Voltage:", "Max pack temp:", "VFM:"};
+	short value[5] = {	common_data.LV_power,
+						common_data.LV_voltage,
+						detailed_data.P2_LV_current,
+						detailed_data.P2_max_batt_temp};
+	char* labelsP2[] = {"Low Voltage:", "Max pack temp:", "VFM:"};
 	int labelsP2L = 3;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -608,10 +607,10 @@ void drawP2Deactivate(){
 }
 
 void drawP2IgnitionOff(/*int value[4]*/){
-	short value[4] = {	detailed_data->P2_HV_voltage,
-						common_data->LV_voltage,
-						common_data->LV_power,
-						(short)(common_data->battery_soc)};
+	short value[4] = {	detailed_data.P2_HV_voltage,
+						common_data.LV_voltage,
+						common_data.LV_power,
+						(short)(common_data.battery_soc)};
 	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
 	int labelsP2L = 3;
 
@@ -702,10 +701,10 @@ void drawP2IgnitionOff(/*int value[4]*/){
 }
 
 void drawP2BMSFault(/*int value[4]*/){
-	short value[4] = {	detailed_data->P2_HV_voltage,
-						common_data->LV_voltage,
-						common_data->LV_power,
-						(short)(common_data->battery_soc)};
+	short value[4] = {	detailed_data.P2_HV_voltage,
+						common_data.LV_voltage,
+						common_data.LV_power,
+						(short)(common_data.battery_soc)};
 	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
 	int labelsP2L = 3;
 
