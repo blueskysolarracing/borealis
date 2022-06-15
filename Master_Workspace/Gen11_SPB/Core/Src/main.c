@@ -133,6 +133,7 @@ int main(void)
 	  if (newSwitchState != oldSwitchState){ //Switches changed; need to send
 		  //print_switches();
 		  HAL_UART_Transmit(&huart2, &buf, 4, 10); //To DCMB
+		  HAL_UART_Transmit(&huart4, &buf, 4, 10); //To DCMB
 	  }
 
 	  oldSwitchState = newSwitchState;

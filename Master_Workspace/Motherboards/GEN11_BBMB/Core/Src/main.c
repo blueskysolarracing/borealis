@@ -244,21 +244,21 @@ int main(void)
   turn_off_hazard_lights(&lightsPeriph);
 
   //--- COMMS ---//
-  //buart_main = B_uartStart(&huart4);
-  //btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
+  buart_main = B_uartStart(&huart4);
+  btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
   buart_bms = B_uartStart(&huart8);
   btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
   //--- FREERTOS ---//
-//  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
-//  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
-//
-//  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
-//  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
-//
-//  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-//  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
-//  xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0); //Read from BMS periodically
+  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
+  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
+
+  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
+  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
+
+  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
+  xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0); //Read from BMS periodically
 
   /* USER CODE END 2 */
 

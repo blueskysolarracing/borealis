@@ -73,8 +73,6 @@ HRTIM_HandleTypeDef hhrtim;
 
 LPTIM_HandleTypeDef hlptim1;
 
-QSPI_HandleTypeDef hqspi;
-
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi2;
@@ -194,7 +192,6 @@ static void MX_ADC1_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_USART3_UART_Init(void);
-static void MX_QUADSPI_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -259,7 +256,6 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM7_Init();
   MX_USART3_UART_Init();
-  MX_QUADSPI_Init();
   /* USER CODE BEGIN 2 */
   //--- NUKE LED ---//
   HAL_TIM_Base_Start_IT(&htim7);
@@ -269,13 +265,6 @@ int main(void)
   spbBuart = B_uartStart(&huart3);
   swBuart = B_uartStart(&huart8);
   btcp = B_tcpStart(DCMB_ID, &buart, buart, 1, &hcrc);
-
-  //Junk for testing
-  uint8_t msg[2] = {0x49, 0x25};
-  while(1){
-	  B_tcpSend(&huart4, msg, sizeof(msg));
-	  vTaskDelay(10);
-  }
 
   //--- ADC ---//
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
@@ -351,10 +340,6 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
-
-  /** Macro to configure the PLL clock source
-  */
-  __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_HSI);
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -639,41 +624,6 @@ static void MX_LPTIM1_Init(void)
   /* USER CODE BEGIN LPTIM1_Init 2 */
 
   /* USER CODE END LPTIM1_Init 2 */
-
-}
-
-/**
-  * @brief QUADSPI Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_QUADSPI_Init(void)
-{
-
-  /* USER CODE BEGIN QUADSPI_Init 0 */
-
-  /* USER CODE END QUADSPI_Init 0 */
-
-  /* USER CODE BEGIN QUADSPI_Init 1 */
-
-  /* USER CODE END QUADSPI_Init 1 */
-  /* QUADSPI parameter configuration*/
-  hqspi.Instance = QUADSPI;
-  hqspi.Init.ClockPrescaler = 255;
-  hqspi.Init.FifoThreshold = 1;
-  hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_NONE;
-  hqspi.Init.FlashSize = 1;
-  hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_1_CYCLE;
-  hqspi.Init.ClockMode = QSPI_CLOCK_MODE_0;
-  hqspi.Init.FlashID = QSPI_FLASH_ID_1;
-  hqspi.Init.DualFlash = QSPI_DUALFLASH_DISABLE;
-  if (HAL_QSPI_Init(&hqspi) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN QUADSPI_Init 2 */
-
-  /* USER CODE END QUADSPI_Init 2 */
 
 }
 
@@ -1365,9 +1315,9 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOK_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, DISP_CS_1_Pin|LED2_Pin|GPIO_PIN_0, GPIO_PIN_RESET);
@@ -1522,8 +1472,8 @@ static void MX_GPIO_Init(void)
 static void pedalTask(const void* p) {
 	float accelValue = 0.0;
 	float regenValue = 0.0;
-	float accel_reading_upper_bound = 42000.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 17000.0; //ADC reading corresponding to 0% power request
+	float accel_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% power request
+	float accel_reading_lower_bound = 400.0; //ADC reading corresponding to 0% power request
 	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
 	float regen_reading_lower_bound = 400.0; //ADC reading corresponding to 0% regen request
 	float pedalsReading[2] = {0, 0};
@@ -1542,8 +1492,8 @@ static void pedalTask(const void* p) {
 			HAL_ADC_Stop(&hadc1);
 		}
 
-		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue = round((pedalsReading[0] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		regenValue = round((pedalsReading[1] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 //		if (accelValue >= 4 / 1.4 * 3.3){
 //			motorState = 1; // global within DCMB
@@ -1572,15 +1522,19 @@ static void pedalTask(const void* p) {
 		// setting global motorTargetPower, motorState
 		taskENTER_CRITICAL();
 		// Prioritize regen if both are pressed
-		if (regenValue > REGEN_THRESHOLD) {
-			motorTargetPower = (uint16_t) regenValue;
-			motorState = REGEN;
-		} else if (accelValue > 0) {
-			motorTargetPower = (uint16_t) accelValue;
-			// Will not change motorState if in cruise
-			if (motorState != CRUISE && ignitionState != IGNITION_OFF){
-				motorState = PEDAL;
+		if (ignitionState == IGNITION_ON){
+			if (regenValue > REGEN_THRESHOLD) {
+				motorTargetPower = (uint16_t) regenValue;
+				motorState = REGEN;
+			} else if (accelValue > 0) {
+				motorTargetPower = (uint16_t) accelValue;
+				// Will not change motorState if in cruise
+				if (motorState != CRUISE){
+					motorState = PEDAL;
+				}
 			}
+		} else {
+			motorState = OFF;
 		}
 
 		pedals_angle[0] = pedals_angles_temp[0];
@@ -1860,6 +1814,8 @@ static void displayTask(const void *pv){
 static void motorDataTimer(TimerHandle_t xTimer){
 	static uint8_t buf[10] = {0};
 
+	// -------- FORWARD/REVERSE -------- //
+	fwdRevState = (sidePanelData & 0b00100000) >> 5; //Fill in 4th MSb of MC2_state "5 digital Buttons" byte (2nd of payload) with state of fwd/reverse switch on SPB
 
 	// -------- BUTTONS -------- //
 	uint8_t digitalButtons = 0;
