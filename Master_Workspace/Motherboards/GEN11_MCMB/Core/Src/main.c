@@ -326,6 +326,18 @@ int main(void)
   //Gen11 accel write below:
   MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 
+//while(1) {
+//	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+//
+//		//MCP4161_Pot_Write(100, GPIOG, GPIO_PIN_2, &hspi3);
+//		//currentRegenValue = 0;
+//	  MCP4161_Pot_Write(100, GPIOK, GPIO_PIN_2, &hspi3);
+//
+//
+//}
+
+
+
 //  //temp
 //  while(1) {
 //	  //HAL_SPI_Transmit()
@@ -1978,7 +1990,7 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
-			if (currentRegenValue >= 0) { // turn off regen
+			if (currentRegenValue > 0) { // turn off regen
 				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 				currentRegenValue = 0;
 			}
@@ -2029,7 +2041,7 @@ static void motorTmr(TimerHandle_t xTimer){
 
 			// drive regen pots
 			uint16_t localRegenValue = targetPower;
-			if (batteryVoltage > 110 || batteryVoltage < 110) {
+			if (batteryVoltage > 110 || batteryVoltage < -110) {
 				localRegenValue = 0; // for safety
 			}
 			if(currentRegenValue != localRegenValue){
