@@ -64,7 +64,9 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
 	BaseType_t taskcreate;
 	taskcreate = xTaskCreate(txTask, "uartTxTask", TRX_TASK_STACK_SIZE, buart, TX_TASK_PRIORITY, &buart->txTask);
+	configASSERT(taskcreate);
 	taskcreate = xTaskCreate(rxTask, "uartRxTask", TRX_TASK_STACK_SIZE, buart, RX_TASK_PRIORITY, &buart->rxTask);
+	configASSERT(taskcreate);
 	buart->topFlag = buart->head = buart->tail = 0;
 	return buart;
 }

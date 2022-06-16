@@ -88,11 +88,8 @@ enum BMS_Error_Code {
 };
 
 enum RELAY_STATE_ID {
-	CAR_SAFE_STATE, //Car is in safe state due to fault. Relays open, supplied by supplemental battery, motor disabled, hazard and fault indicator lights ON
-	CAR_SLEEP, //Car is sleeping. Relays open, motor disabled
-	CAR_CHARGING_SOLAR, //Car is charging (still, not driving). Relays closed, motor disabled.
-	CAR_DRIVE_WITH_SOLAR, //Car is in drive mode. Solar and battery relays closed, motor enabled.
-	CAR_DRIVE_WITHOUT_SOLAR //Car is in drive mode. Solar and battery relays closed, motor enabled.
+	OPEN,
+	CLOSED
 };
 
 

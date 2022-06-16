@@ -61,7 +61,7 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
     btcp->txQ = xQueueCreate(TCP_TX_QUEUE_SIZE, sizeof(B_tcpPacket_t));
     //hpQ = xQueueCreate(10, sizeof(uint8_t));
     //xTaskCreate(tcpTxTask, "tcpTxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->txTask);
-    xTaskCreate(tcpRxTask, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->rxTask);
+	configASSERT(xTaskCreate(tcpRxTask, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->rxTask));
     //xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
     return btcp;
 }
@@ -230,7 +230,7 @@ static void tcpRxTask(void *pv){
                 	//crcExpected = ~HAL_CRC_Calculate(btcp->crc, input_buffer, buf_pos);
                 	//GEN11 change:
                 	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos);
-
+                		//crcExpected == crc && sender != TCP_ID
 					if(crcExpected == crc && sender != TCP_ID){ // If CRC correct and the sender is not this motherboard
 						/*for(int i = 0; i < btcp->numTransmitBuarts; i++){
 							B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);

@@ -63,7 +63,7 @@ static void MX_USART2_UART_Init(void);
 uint8_t getSwitchState(uint8_t whichByte){
 	uint8_t switchState[3] = {0, 0, 0};
 
-	//-- BYTE 0 --
+	//-- BYTE 0 = [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] --//
 	//Accelerator rotary encoder
 	switch (whichByte){
 	case 0:
@@ -87,7 +87,7 @@ uint8_t getSwitchState(uint8_t whichByte){
 		return switchState[0];
 
 	case 1:
-		//-- BYTE 1 --
+		//-- BYTE 1 = [x, x, x, CRUISE_SIGNAL_Pin, HORN_SIGNAL_Pin, RAD_SIGNAL_Pin, R_SIGNAL_Pin, L_SIGNAL_Pin] --//
 		//Left/right turn signals
 		switchState[1] |= HAL_GPIO_ReadPin(GPIOC, L_SIGNAL_Pin) << 0;
 		switchState[1] |= HAL_GPIO_ReadPin(GPIOC, R_SIGNAL_Pin) << 1;
@@ -111,7 +111,7 @@ uint8_t getSwitchState(uint8_t whichByte){
 		return switchState[1];
 
 	case 2:
-		//-- BYTE 2 --
+		//-- BYTE 1 = [x, x, x, SELECT_Pin, RIGHT_Pin, LEFT_Pin, DOWN_Pin, UP_Pin] --//
 		//Navigation
 		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, UP_Pin) << 0;
 		switchState[2] |= HAL_GPIO_ReadPin(GPIOB, DOWN_Pin) << 1;

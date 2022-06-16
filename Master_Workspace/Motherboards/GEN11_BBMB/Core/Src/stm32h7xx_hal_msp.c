@@ -617,7 +617,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 
     /* UART4 DMA Init */
     /* UART4_RX Init */
-    hdma_uart4_rx.Instance = DMA1_Stream2;
+    hdma_uart4_rx.Instance = DMA1_Stream0;
     hdma_uart4_rx.Init.Request = DMA_REQUEST_UART4_RX;
     hdma_uart4_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     hdma_uart4_rx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -635,7 +635,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     __HAL_LINKDMA(huart,hdmarx,hdma_uart4_rx);
 
     /* UART4_TX Init */
-    hdma_uart4_tx.Instance = DMA1_Stream3;
+    hdma_uart4_tx.Instance = DMA1_Stream1;
     hdma_uart4_tx.Init.Request = DMA_REQUEST_UART4_TX;
     hdma_uart4_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
     hdma_uart4_tx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -691,7 +691,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 
     /* UART8 DMA Init */
     /* UART8_RX Init */
-    hdma_uart8_rx.Instance = DMA1_Stream1;
+    hdma_uart8_rx.Instance = DMA1_Stream2;
     hdma_uart8_rx.Init.Request = DMA_REQUEST_UART8_RX;
     hdma_uart8_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     hdma_uart8_rx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -709,7 +709,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     __HAL_LINKDMA(huart,hdmarx,hdma_uart8_rx);
 
     /* UART8_TX Init */
-    hdma_uart8_tx.Instance = DMA1_Stream0;
+    hdma_uart8_tx.Instance = DMA1_Stream3;
     hdma_uart8_tx.Init.Request = DMA_REQUEST_UART8_TX;
     hdma_uart8_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
     hdma_uart8_tx.Init.PeriphInc = DMA_PINC_DISABLE;

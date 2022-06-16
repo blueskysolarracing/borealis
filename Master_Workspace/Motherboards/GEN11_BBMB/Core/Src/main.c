@@ -109,7 +109,6 @@ static void MX_GPIO_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_DMA_Init(void);
-static void MX_UART4_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_SPI5_Init(void);
@@ -117,6 +116,7 @@ static void MX_CRC_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM7_Init(void);
+static void MX_UART4_Init(void);
 static void MX_UART8_Init(void);
 void StartDefaultTask(void const * argument);
 
@@ -166,7 +166,6 @@ int main(void)
   MX_TIM5_Init();
   MX_TIM1_Init();
   MX_DMA_Init();
-  MX_UART4_Init();
   MX_TIM2_Init();
   MX_SPI2_Init();
   MX_SPI5_Init();
@@ -174,6 +173,7 @@ int main(void)
   MX_TIM3_Init();
   MX_USART2_UART_Init();
   MX_TIM7_Init();
+  MX_UART4_Init();
   MX_UART8_Init();
   /* USER CODE BEGIN 2 */
   //--- MCU OK LED ---//
@@ -254,12 +254,12 @@ int main(void)
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
   relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
 
-  xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL);
-  xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL);
+  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL));
+  configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
 
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-  xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0); //Temperature and voltage measurements
-  xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0); //Read from BMS periodically
+  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
+  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
 
   /* USER CODE END 2 */
 
@@ -377,8 +377,8 @@ static void MX_CRC_Init(void)
   hcrc.Instance = CRC;
   hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
   hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
-  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
-  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
   hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
   if (HAL_CRC_Init(&hcrc) != HAL_OK)
   {
@@ -1189,8 +1189,8 @@ void serialParse(B_tcpPacket_t *pkt){
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
 			if (pkt->payload[0] == BMS_ERROR_STATUS){ //Received error from BMS
 				uint8_t BMS_error[2 * 4] = {0};
-				BMS_error[0] = BBMB_CAR_STATE_ID;
-				BMS_error[1] = CAR_SAFE_STATE;
+				BMS_error[0] = BBMB_RELAY_STATE_ID;
+				BMS_error[1] = OPEN;
 				if (pkt->payload[1] == BMS_OV){	BMS_error[2] = 0x00;	}
 				else if (pkt->payload[1] == BMS_UV){	BMS_error[2] = 0x01;	}
 				else if (pkt->payload[1] == BMS_OT){	BMS_error[2] = 0x03;	}
@@ -1361,8 +1361,8 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	//Check overcurrent protection
 	if (voltageCurrent_HV[1] >= HV_BATT_OVERCURRENT_DISCHARGE){ //Overcurrent protection --> Put car into safe state
 		uint8_t car_state_error[1 * 4];
-		car_state_error[0] = BBMB_CAR_STATE_ID;
-		car_state_error[1] = CAR_SAFE_STATE;
+		car_state_error[0] = BBMB_RELAY_STATE_ID;
+		car_state_error[1] = OPEN;
 		car_state_error[2] = 0x02; //Overcurrent
 
 		B_tcpSend(btcp_main, car_state_error, sizeof(car_state_error));

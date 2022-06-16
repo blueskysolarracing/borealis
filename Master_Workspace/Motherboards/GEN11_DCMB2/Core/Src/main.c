@@ -173,6 +173,7 @@ typedef enum {
 } BATTERYSTATE;
 uint8_t batteryState = BATTERY_FAULTED;
 uint8_t batteryRelayState = RELAY_OPEN;
+float voltage_array[29]; //Array of the voltages of each 14P group
 float soc_array[29]; //Array of the SoCs of each 14P group
 float temp_array[18]; //Array of the temp of each thermistor
 
@@ -1525,12 +1526,12 @@ static void MX_GPIO_Init(void)
 static void pedalTask(const void* p) {
 	float accelValue = 0.0;
 	float regenValue = 0.0;
-	float accel_reading_upper_bound = 41146.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 17312.0; //ADC reading corresponding to 0% power request
-	float accel_reading_threshold = 20.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float accel_reading_upper_bound = 44066.0; //ADC reading corresponding to 100% power request
+	float accel_reading_lower_bound = 15000.0; //ADC reading corresponding to 0% power request
+	float accel_reading_threshold = 15.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
 	float regen_reading_lower_bound = 400.0; //ADC reading corresponding to 0% regen request
-	float regen_reading_threshold = 40.0; //Threshold at which the regen engages (overides acceleration)
+	float regen_reading_threshold = 15.0; //Threshold at which the regen engages (overides acceleration)
 
 	float pedalsReading[2] = {0, 0};
 	float pedals_angles_temp[2] = {0};
@@ -1549,20 +1550,19 @@ static void pedalTask(const void* p) {
 		}
 
 		//Compute value on 0-256 scale
-		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
-		} else if (accelValue > 0xff){
-			accelValue = 0xff;
+			accelValue = 256;
 		}
 		//Bound regen value
 		if(regenValue < 0){
 			regenValue = 0;
-		} else if (regenValue > 0xff){
-			regenValue = 0xff;
+		} else if (regenValue > 256){
+			regenValue = 256;
 		}
 		//Check if we need to turn on braking lights
 		if (regenValue >= 10){ //If braking power is >= 10/255%, turn on break lights (higher threshold)
@@ -1656,20 +1656,20 @@ void serialParse(B_tcpPacket_t *pkt){
 		 } else if (pkt->payload[4] == BBMB_RELAY_STATE_ID){ //Relay state
 			  if (pkt->payload[5] == 0){ //Battery faulted
 				display_selection = 5;
-				motorState = OFF;
+				//motorState = OFF;
 				default_data.P2_motor_state = OFF;
 			  }
 		} else if (pkt->payload[4] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
 			for (int i = 0; i < 3; i++){ //Parse cell temps in global array
-				cell_temp[i + 3*pkt->payload[5]] = arrayToFloat(&pkt->payload[8 + 4*i]);
+				temp_array[i + 3*pkt->payload[5]] = arrayToFloat(&pkt->payload[8 + 4*i]);
 			}
 
 			for (int i = 0; i < 5; i++){ //Parse cell voltages in global array
-				cell_voltage[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x20 + 4*i]);
+				voltage_array[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x20 + 4*i]);
 			}
 
 			for (int i = 0; i < 5; i++){ //Parse cell SoCs in global array
-				cell_soc[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x34 + i]);
+				soc_array[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x34 + i]);
 			}
 		}
 	}
@@ -1679,9 +1679,10 @@ void serialParse(B_tcpPacket_t *pkt){
 
 void steeringWheelTask(const void *pv){
 // {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
-// DATA_1: [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] <-- ROTARY ENCODER DATA
-// DATA_2: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
-// DATA_3: [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
+
+// DATA_0: [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] <-- ROTARY ENCODER DATA
+// DATA_1: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
+// DATA_2  : [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
 
   B_bufQEntry_t *e;
   uint8_t oldSteeringData[3] = {0, 0, 0};
@@ -1705,7 +1706,7 @@ void steeringWheelTask(const void *pv){
 	HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
 
 	//------- Send to RS485 bus -------//
-    uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]}; //[DATA ID, LIGHT INSTRUCTION]
+    uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
     B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
 
 	//---------- Process data ----------//
