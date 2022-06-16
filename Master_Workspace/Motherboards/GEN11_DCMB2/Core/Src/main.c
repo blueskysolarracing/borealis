@@ -114,12 +114,14 @@ typedef enum {
 
 //--- PEDALS ---//
 float pedals_angle[2] = {-1, -1};
+float accelValue = 0.0;
+float regenValue = 0.0;
 
 //--- DISPLAY ---//
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 uint8_t pToggle = 0; //Needed to choose which display to write data to
 uint8_t display_selection = 0; //Select which frame to display
-struct disp_common common_data = {0};			//Three global structs where data is written to
+struct disp_common common_data = {0}; //Three global structs where data is written to
 struct disp_default_frame default_data = {0};
 struct disp_detailed_frame detailed_data = {0};
 
@@ -1524,13 +1526,11 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
-	float accelValue = 0.0;
-	float regenValue = 0.0;
-	float accel_reading_upper_bound = 44066.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 15000.0; //ADC reading corresponding to 0% power request
+	float accel_reading_upper_bound = 59000.0; //ADC reading corresponding to 100% power request
+	float accel_reading_lower_bound = 17000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_threshold = 15.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
-	float regen_reading_lower_bound = 400.0; //ADC reading corresponding to 0% regen request
+	float regen_reading_lower_bound = 1000.0; //ADC reading corresponding to 0% regen request
 	float regen_reading_threshold = 15.0; //Threshold at which the regen engages (overides acceleration)
 
 	float pedalsReading[2] = {0, 0};
@@ -1660,9 +1660,15 @@ void serialParse(B_tcpPacket_t *pkt){
 				default_data.P2_motor_state = OFF;
 			  }
 		} else if (pkt->payload[4] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
+			float maxTemp = 0;
+			float minSoC = 200; //Very high initial value to make sure we can detect the true minimum
+
 			for (int i = 0; i < 3; i++){ //Parse cell temps in global array
 				temp_array[i + 3*pkt->payload[5]] = arrayToFloat(&pkt->payload[8 + 4*i]);
+				if (temp_array[i + 3*pkt->payload[5]] > maxTemp) {maxTemp = temp_array[i + 3*pkt->payload[5]];};
 			}
+
+			detailed_data.P2_max_batt_temp = maxTemp;
 
 			for (int i = 0; i < 5; i++){ //Parse cell voltages in global array
 				voltage_array[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x20 + 4*i]);
@@ -1670,7 +1676,10 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			for (int i = 0; i < 5; i++){ //Parse cell SoCs in global array
 				soc_array[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x34 + i]);
+				if (soc_array[i + 3*pkt->payload[5]] < minSoC) {minSoC = soc_array[i + 3*pkt->payload[5]];};
 			}
+
+			common_data.battery_soc = minSoC;
 		}
 	}
 
@@ -1783,6 +1792,9 @@ void steeringWheelTask(const void *pv){
 
     //Left button pressed
 	if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
+		//Toggle between default and detailed display frames
+		if (display_selection == 0){ display_selection = 1;
+		} else if (display_selection){ display_selection = 0;};
 	} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
 	}
 	oldLeftButton = (steeringData[2] & (1 << 2));
