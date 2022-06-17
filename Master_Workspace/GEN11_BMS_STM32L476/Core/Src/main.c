@@ -88,10 +88,10 @@ uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC681
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_CRC_Init(void);
-static void MX_DMA_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void const * argument);
@@ -102,7 +102,7 @@ int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, i
 int readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
 int readVolt(float*voltArray);
 void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send);
-
+void convert_to_temp(float input_voltage[3], float output_temperature[3]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -139,10 +139,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_TIM7_Init();
   MX_CRC_Init();
-  MX_DMA_Init();
   MX_SPI3_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -619,6 +619,14 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
 	convert_to_temp(local_temp_array, local_temp_array);
 
+//	while (1){
+//		uint8_t junk[3] = {3,2,5};
+//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+//		B_tcpSend(btcp, junk, sizeof(junk));
+//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+//		HAL_Delay(100);
+//	}
+
 	//---- BATTERY FAULT CHECK----//
 	//Check for UV, OV faults
 	for (int i = 0; i < 5; i++){
@@ -649,8 +657,6 @@ void LTC6810Handler(TimerHandle_t xTimer){
 			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
 		}
 	}
-
-	send_temp_volt(); //Also, send temp and volt
 
 	//Update global variables
 	taskENTER_CRITICAL();
