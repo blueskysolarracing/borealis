@@ -15,7 +15,6 @@ struct disp_common{
 	short	battery_power;
 	short	LV_power;
 
-	short 	solar_voltage;
 	short	LV_voltage;
 
 	uint8_t	battery_soc;
@@ -25,7 +24,6 @@ struct disp_default_frame{
 	uint8_t P1_speed_kph;
 	uint8_t	P1_left_indicator_status;
 
-	uint8_t	P2_cruise_state;
 	uint8_t	P2_DRL_state;
 	uint8_t	P2_motor_state;
 	uint8_t	P2_VFM;
@@ -41,7 +39,6 @@ struct disp_detailed_frame{
 	short 	P1_battery_current;
 
 	short	P2_HV_voltage;
-	short	P2_LV_voltage;
 	short	P2_LV_current;
 	short	P2_max_batt_temp;
 };

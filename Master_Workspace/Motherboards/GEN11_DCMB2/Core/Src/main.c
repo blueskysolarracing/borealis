@@ -1919,15 +1919,50 @@ void displayTask(const void *pv){
 	 * 4: Ignition off (car is sleeping)
 	 * 5: BMS fault
 	 */
+	uint8_t prev_display_sel = 0xFF;
+
+	// test values
+    default_data.P1_speed_kph = 69;
+    default_data.P2_VFM = 5;
+    default_data.P2_motor_state = 2;
+    default_data.P2_DRL_state = 0;
+
+    common_data.LV_power = -11;
+    common_data.LV_voltage = 100;	// write x10 value
+    common_data.battery_power = -454;
+    common_data.battery_soc = 87;
+    common_data.motor_power = 874;
+    common_data.solar_power = 420;
+
+    detailed_data.P1_battery_current = 4;
+    detailed_data.P1_battery_voltage = 116;
+    detailed_data.P1_motor_current = 7;
+    detailed_data.P1_motor_voltage = 124;
+    detailed_data.P1_solar_current = 4;
+    detailed_data.P1_solar_voltage = 105;
+    detailed_data.P2_HV_voltage = 89;
+    detailed_data.P2_LV_current = 1;
+    detailed_data.P2_max_batt_temp = 462; // write x10 value
+
+    uint8_t dis_sel = 0;
+    uint8_t force = 1;
 
 	while(1){
 		taskENTER_CRITICAL();
 		uint8_t local_display_sel = display_selection;
 		taskEXIT_CRITICAL();
+		if(force){
+			local_display_sel = dis_sel;
+		}
 
-		drawP1(local_display_sel);
-		drawP2(local_display_sel);
-		vTaskDelay(500);
+		if(prev_display_sel != local_display_sel){
+			drawP1(local_display_sel);
+			drawP2(local_display_sel);
+			prev_display_sel = local_display_sel;
+		}
+		dis_sel = (dis_sel + 1) % 6;
+
+		vTaskDelay(1000);
 	}
 }
 
