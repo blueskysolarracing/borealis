@@ -329,9 +329,9 @@ int main(void)
 //while(1) {
 //	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 //
-//		//MCP4161_Pot_Write(100, GPIOG, GPIO_PIN_2, &hspi3);
+//		//MCP4161_Pot_Write(255, GPIOG, GPIO_PIN_2, &hspi3);
 //		//currentRegenValue = 0;
-//	  MCP4161_Pot_Write(100, GPIOK, GPIO_PIN_2, &hspi3);
+//	  MCP4161_Pot_Write(255, GPIOK, GPIO_PIN_2, &hspi3);
 //
 //
 //}
@@ -1955,31 +1955,37 @@ static void motorTmr(TimerHandle_t xTimer){
 
 
 	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //if serialParse stops being called (this means uart connection is lost)
-		MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3); //stops accel
+		MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+		currentAccValue = 0;
+		MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+		currentRegenValue = 0;
+
+		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
+		currentMotorOn = 0;
 		return;
 	}
 
 	switch (motorState) {
 		case OFF:
-			if (currentAccValue > 0) { // turn off accel
+			//if (currentAccValue > 0) { // turn off accel
 				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 				currentAccValue = 0;
-			}
-			if (currentRegenValue >= 0) { // turn off regen
+			//}
+			//if (currentRegenValue >= 0) { // turn off regen
 				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 				currentRegenValue = 0;
-			}
-			if(currentMotorOn){
+			//}
+			//if(currentMotorOn){
 				// if motor is on, turn it off by driving pin high
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
 				currentMotorOn = 0;
-			}
+			//}
 			return; //return instead of break here, since no need for VFM gear change
 		case PEDAL:
-			if (!currentMotorOn) {
+			//if (!currentMotorOn) {
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 				currentMotorOn = 1;
-			}
+			//}
 
 			if(currentFwdRevState != fwdRevState){
 				if(fwdRevState){
@@ -1990,10 +1996,10 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
-			if (currentRegenValue > 0) { // turn off regen
+			//if (currentRegenValue > 0) { // turn off regen
 				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 				currentRegenValue = 0;
-			}
+			//}
 			// drive accel pots
 			uint16_t localAccValue = targetPower;
 			if(currentAccValue != localAccValue){
@@ -2019,10 +2025,10 @@ static void motorTmr(TimerHandle_t xTimer){
 			break;
 
 		case REGEN:
-			if (!currentMotorOn) {
+			//if (!currentMotorOn) {
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 				currentMotorOn = 1;
-			}
+			//}
 			if(currentFwdRevState != fwdRevState){
 				if(fwdRevState){
 					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
@@ -2033,10 +2039,10 @@ static void motorTmr(TimerHandle_t xTimer){
 				}
 			}
 
-			if (currentAccValue > 0) { // turn off accel
+			//if (currentAccValue > 0) { // turn off accel
 				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 				currentAccValue = 0;
-			}
+			//}
 
 
 			// drive regen pots
@@ -2261,6 +2267,7 @@ void PSMTaskHandler(void* parameters){
 		floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
 		floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
 
+		batteryVoltage = (float) voltageCurrent[0]; //Set global value, to disable regen when necessary
 		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
 		vTaskDelay(1000);
 	}
