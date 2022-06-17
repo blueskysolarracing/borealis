@@ -1526,7 +1526,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
-	float accel_reading_upper_bound = 59000.0; //ADC reading corresponding to 100% power request
+	float accel_reading_upper_bound = 42000.0; //ADC reading corresponding to 100% power request
 	float accel_reading_lower_bound = 17000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_threshold = 15.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
@@ -1556,7 +1556,6 @@ static void pedalTask(const void* p) {
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
-			accelValue = 256;
 		}
 		//Bound regen value
 		if(regenValue < 0){

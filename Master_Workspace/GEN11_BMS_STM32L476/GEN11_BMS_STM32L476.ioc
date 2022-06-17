@@ -1,4 +1,7 @@
 #MicroXplorer Configuration settings - do not modify
+CRC.IPParameters=InputDataInversionMode,OutputDataInversionMode
+CRC.InputDataInversionMode=CRC_INPUTDATA_INVERSION_BYTE
+CRC.OutputDataInversionMode=CRC_OUTPUTDATA_INVERSION_ENABLE
 Dma.Request0=USART1_RX
 Dma.Request1=USART1_TX
 Dma.RequestsNb=2
@@ -263,8 +266,9 @@ TIM7.AutoReloadPreload=TIM_AUTORELOAD_PRELOAD_ENABLE
 TIM7.IPParameters=AutoReloadPreload,Prescaler,Period
 TIM7.Period=1000
 TIM7.Prescaler=64000
-USART1.AutoBaudRateEnableParam=UART_ADVFEATURE_AUTOBAUDRATE_ENABLE
-USART1.IPParameters=VirtualMode-Asynchronous,AutoBaudRateEnableParam
+USART1.AutoBaudRateEnableParam=UART_ADVFEATURE_AUTOBAUDRATE_DISABLE
+USART1.BaudRate=500000
+USART1.IPParameters=VirtualMode-Asynchronous,AutoBaudRateEnableParam,BaudRate
 USART1.VirtualMode-Asynchronous=VM_ASYNC
 USART3.IPParameters=VirtualMode-Asynchronous
 USART3.VirtualMode-Asynchronous=VM_ASYNC

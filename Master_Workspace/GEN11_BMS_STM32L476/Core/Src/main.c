@@ -80,25 +80,10 @@ osThreadId defaultTaskHandle;
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
 
+uint8_t dataToSend[];
+uint8_t dataToReceive[];
+
 /* USER CODE END PV */
-uint8_t dataToSend[16]; //data organized by function [LTC6810CommandGenerate]
-int messageInBinary; //write this in binary. This goes into [LTC6810CommandGenerate]
-uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
-uint8_t MSG[500] = { '\0' }; //for sending UART message
-
-//--- COMMS ---///
-B_uartHandle_t* buart;
-B_tcpHandle_t* btcp;
-
-//EKF_Battery battery;
-
-float voltage_array[NUM_CELLS]; //Voltage measurements
-float SoC_array[NUM_CELLS]; //State of Charge of each cell
-float temperature_array[NUM_TEMP_SENSE]; //Temperature measurements
-
-//--- LTC6810 ---//
-uint8_t start_LTC6810_meas = 1; //Flag to start LTC6810 measurements
-int temp1, temp2, temp3, temp4, temp5, temp6; // data received via spi, msb which?
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -116,12 +101,14 @@ void LTC6810Handler(TimerHandle_t xTimer);
 int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
 int readTemp(float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
 int readVolt(float* voltArray);
+void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+float voltage_array[NUM_CELLS];
+float temperature_array[NUM_TEMP_SENSORS];
 /* USER CODE END 0 */
 
 /**
@@ -152,11 +139,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_TIM7_Init();
   MX_CRC_Init();
-//  MX_DMA_Init();
+  MX_DMA_Init();
   MX_SPI3_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -284,8 +270,8 @@ static void MX_CRC_Init(void)
   hcrc.Instance = CRC;
   hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
   hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
-  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
-  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
   hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
   if (HAL_CRC_Init(&hcrc) != HAL_OK)
   {
@@ -391,7 +377,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 500000;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -399,9 +385,7 @@ static void MX_USART1_UART_Init(void)
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
   huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_AUTOBAUDRATE_INIT;
-  huart1.AdvancedInit.AutoBaudRateEnable = UART_ADVFEATURE_AUTOBAUDRATE_ENABLE;
-  huart1.AdvancedInit.AutoBaudRateMode = UART_ADVFEATURE_AUTOBAUDRATE_ONSTARTBIT;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
   if (HAL_UART_Init(&huart1) != HAL_OK)
   {
     Error_Handler();
@@ -521,6 +505,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -792,6 +777,7 @@ int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, i
 int readTemp(float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1){
 	//read Temp 0,1,2. Pass by reference to the input array.
 	//if discharging, make DCC global variables so this don't disturb Discharge
+	uint8_t messageInBinary;
 
 	for (int cycle = 0; cycle < 3; cycle++){
 		if (cycle ==0){
@@ -862,6 +848,7 @@ void convert_to_temp(uint16_t input_voltage[3], float output_temperature[3]){
 		output_temperature[i] = output_temperature[i] - 273.15;
 	}
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

@@ -167,7 +167,7 @@ int main(void)
 
   //--- COMMS ---//
   buart = B_uartStart(&huart1);
-  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+  btcp = B_tcpStart_bms(BMS_ID, &buart, buart, 1, &hcrc);
 
   //--- LTC6810 ---//
   LTC6810Init(0, 0, 1, 0, 0, 0, 0 ,0);

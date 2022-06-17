@@ -66,6 +66,32 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
     return btcp;
 }
 
+B_tcpHandle_t* B_tcpStart_bms(uint8_t senderID, B_uartHandle_t** transmitBuarts, B_tcpHandle_t *btcp,
+                            B_uartHandle_t* rxBuart,
+                            uint8_t numTransmitBuarts,
+                            CRC_HandleTypeDef* crc){
+
+//    B_tcpHandle_t *btcp;
+//    btcp = pvPortMalloc(sizeof(B_tcpHandle_t));
+    btcp->numTransmitBuarts = numTransmitBuarts;
+    btcp->transmitBuarts = pvPortMalloc(sizeof(B_tcpHandle_t*)*numTransmitBuarts);
+    for(int i = 0; i < numTransmitBuarts; i++){
+    	btcp->transmitBuarts[i] = transmitBuarts[i];
+    }
+    btcp->senderID = senderID;
+    btcp->rxBuart = rxBuart;
+    btcp->tcpSeqNum = 0;
+    btcp->crc = crc;
+    btcp->txQ = xQueueCreate(TCP_TX_QUEUE_SIZE, sizeof(B_tcpPacket_t));
+    //hpQ = xQueueCreate(10, sizeof(uint8_t));
+    //xTaskCreate(tcpTxTask, "tcpTxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->txTask);
+	configASSERT(xTaskCreate(tcpRxTask, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->rxTask));
+    //xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
+    return btcp;
+}
+
+
+
 /** B_tcpSend
   * @brief  Function which enqueues the input messages into FreeRTOS queues, which behave in FIFO order. 
 			The queues are constantly read by the txTasks in buart.c, which dequeue the messages. 

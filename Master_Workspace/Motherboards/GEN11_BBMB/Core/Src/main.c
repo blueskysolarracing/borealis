@@ -78,10 +78,13 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 
 //--- COMMS ---//
+B_tcpHandle_t btcp_bms_actual;
+B_tcpHandle_t btcp_main_actual;
+
 B_uartHandle_t* buart_main;
 B_uartHandle_t* buart_bms;
-B_tcpHandle_t* btcp_main;
-B_tcpHandle_t* btcp_bms;
+B_tcpHandle_t* btcp_main = &btcp_main_actual;
+B_tcpHandle_t* btcp_bms = &btcp_bms_actual;
 uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 
 //--- LIGHTS ---//
@@ -245,21 +248,22 @@ int main(void)
   turn_off_hazard_lights(&lightsPeriph);
 
   //--- COMMS ---//
-  buart_main = B_uartStart(&huart4);
+  buart_main = B_uartStart(&huart8);
   btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
-  buart_bms = B_uartStart(&huart8);
-  btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
+  //buart_bms = B_uartStart(&huart8);
+  //btcp_main = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
+  //B_tcpStart_bms(BBMB_ID, &buart_bms, btcp_bms, buart_bms, 1, &hcrc);
 
   //--- FREERTOS ---//
-  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
-  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
+  //lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
+  //relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
 
-  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL));
-  configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
-
-  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
-  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
+//  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL));
+//  configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
+//
+//  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
+//  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+//  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
 
   /* USER CODE END 2 */
 
@@ -825,7 +829,7 @@ static void MX_UART8_Init(void)
 
   /* USER CODE END UART8_Init 1 */
   huart8.Instance = UART8;
-  huart8.Init.BaudRate = 500000;
+  huart8.Init.BaudRate = 115200;
   huart8.Init.WordLength = UART_WORDLENGTH_8B;
   huart8.Init.StopBits = UART_STOPBITS_1;
   huart8.Init.Parity = UART_PARITY_NONE;

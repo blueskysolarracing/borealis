@@ -13,11 +13,6 @@
  *
  * the LTC6810checkAllVoltage(int voltageArray[]) is a function
  *
- *
- *
- *
- *
- *
  */
 
 void generatePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]){
