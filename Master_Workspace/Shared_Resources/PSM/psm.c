@@ -25,10 +25,10 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 			PSM->CM_CH1 = 1 * (1.2) / 8388607 / 4; //40.576234; 40.576234
 
 			// PSM->VDCOS_CH2 = 354159;
-			PSM->VDCOS_CH2 = 0; //9.502083
-			PSM->CDCOS_CH2 = 0; //4.031504
-			PSM->VM_CH2 = 1 * (1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)); //2.2kR; 0.648576
-			PSM->CM_CH2 =  1 * (1.2) / 8388607 / 0.5; //40.977943
+			PSM->VDCOS_CH2 = 14.8; //14.8
+			PSM->CDCOS_CH2 = 0.0969; //0.0969
+			PSM->VM_CH2 = 0.64935 * (1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)); //2.2kR; 0.6493506494
+			PSM->CM_CH2 = 40.9836 * (1.2) / 8388607 / 0.5; //40.9836065574
 
 			break;
 
@@ -487,9 +487,9 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
         V1WV_val = (dataIn[0] << 16) + (dataIn[1] << 8) + dataIn[3];
 
         //current += (IWV_val - currentOffset)*currentMultiplier;
-        current += IWV_val*currentMultiplier - currentOffset;
+        current += IWV_val*(currentMultiplier - currentOffset);
         //voltage += (V1WV_val - voltageOffset)*voltageMultiplier;
-        voltage += V1WV_val*voltageMultiplier - voltageOffset;
+        voltage += V1WV_val*(voltageMultiplier - voltageOffset);
 //        current += (IWV_val - currentOffset)*((1.2) / 8388607 / 0.5);
 //        voltage += (V1WV_val - voltageOffset)*((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)));
     }

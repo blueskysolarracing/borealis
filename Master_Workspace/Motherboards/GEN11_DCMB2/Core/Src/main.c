@@ -140,7 +140,8 @@ typedef enum {
 	OFF,
 	PEDAL,
 	CRUISE,
-	REGEN
+	REGEN,
+	STANDBY
 } MOTORSTATE;
 uint16_t motorTargetPower = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
@@ -1894,6 +1895,7 @@ void sidePanelTask(const void *pv){
 			//IGNITION
 				if (sidePanelData & (1 << 7)){ //Ignition ON
 					ignitionState = IGNITION_ON;
+					motorState = STANDBY;
 				} else { //Ignition OFF
 					ignitionState = IGNITION_OFF;
 					motorState = OFF; //Turn off motor if ignition is OFF

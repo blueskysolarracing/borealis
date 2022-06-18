@@ -44,6 +44,7 @@
 #define NUM_BATT_CELLS 29 //Number of series parallel groups in battery pack
 #define NUM_BATT_TEMP_SENSORS 3 * 6 //Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 1000//(Other intervals defined in psm.h and btcp.h)
+#define BMS_FLT_CHECK_INTERVAL 10 //Interval at which to read the BMS_FLT pin
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -75,6 +76,8 @@ DMA_HandleTypeDef hdma_uart8_rx;
 DMA_HandleTypeDef hdma_uart8_tx;
 
 osThreadId defaultTaskHandle;
+uint32_t defaultTaskBuffer[ 128 ];
+osStaticThreadDef_t defaultTaskControlBlock;
 /* USER CODE BEGIN PV */
 
 //--- COMMS ---//
@@ -129,8 +132,7 @@ static void relayTask(void * argument);
 void PSMTaskHandler(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
+void BMS_Flt_Check(TimerHandle_t xTimer);
 
 /* USER CODE END PFP */
 
@@ -166,10 +168,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM5_Init();
-  MX_TIM1_Init();
+//  MX_TIM5_Init();
+//  MX_TIM1_Init();
   MX_DMA_Init();
   MX_TIM2_Init();
+  MX_TIM5_Init();
+  MX_TIM1_Init();
   MX_SPI2_Init();
   MX_SPI5_Init();
   MX_CRC_Init();
@@ -199,7 +203,7 @@ int main(void)
 
   psmPeriph.DreadyPin = PSM_DReady_Pin;
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
-
+  //HAL_TIM_PWM_Start_PWM(&htim7, 5);
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
@@ -240,30 +244,46 @@ int main(void)
   lightsPeriph.FLT_CH = TIM_CHANNEL_1;
 
   //Initial state of lights: all off
-  turn_off_indicators(&lightsPeriph, 0);
-  turn_off_indicators(&lightsPeriph, 1);
-  turn_off_DRL(&lightsPeriph);
-  turn_off_brake_lights(&lightsPeriph);
-  turn_off_fault_indicator(&lightsPeriph);
-  turn_off_hazard_lights(&lightsPeriph);
+//  turn_off_indicators(&lightsPeriph, 0);
+//  turn_off_indicators(&lightsPeriph, 1);
+//  turn_off_DRL(&lightsPeriph);
+//  turn_off_brake_lights(&lightsPeriph);
+//  turn_off_fault_indicator(&lightsPeriph);
+//  turn_off_hazard_lights(&lightsPeriph);
+
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+
+
+  HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
+
+  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_10, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_11, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_10, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_11, GPIO_PIN_RESET);
 
   //--- COMMS ---//
   buart_main = B_uartStart(&huart8);
-  btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
+ // btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
   //buart_bms = B_uartStart(&huart8);
-  //btcp_main = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
-  //B_tcpStart_bms(BBMB_ID, &buart_bms, btcp_bms, buart_bms, 1, &hcrc);
+  //btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
   //--- FREERTOS ---//
-  //lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
-  //relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
+  lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
+  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
 
 //  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL));
 //  configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
-//
+
 //  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-//  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  //configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
 //  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
+//  configASSERT(xTimerStart(xTimerCreate("BMS_Flt_Handler",  pdMS_TO_TICKS(BMS_FLT_CHECK_INTERVAL), pdTRUE, (void *)0, BMS_Flt_Check), 0)); //Check BMS_FLT pin periodically for
 
   /* USER CODE END 2 */
 
@@ -285,7 +305,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -327,19 +347,20 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 9;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 2;
+  RCC_OscInitStruct.PLL.PLLN = 12;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
-  RCC_OscInitStruct.PLL.PLLFRACN = 3072;
+  RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -349,7 +370,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
@@ -606,7 +627,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 160;
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -659,7 +680,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 640;
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -708,14 +729,13 @@ static void MX_TIM5_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 320;
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.Pulse = 0;
   if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
@@ -829,7 +849,7 @@ static void MX_UART8_Init(void)
 
   /* USER CODE END UART8_Init 1 */
   huart8.Instance = UART8;
-  huart8.Init.BaudRate = 115200;
+  huart8.Init.BaudRate = 500000;
   huart8.Init.WordLength = UART_WORDLENGTH_8B;
   huart8.Init.StopBits = UART_STOPBITS_1;
   huart8.Init.Parity = UART_PARITY_NONE;
@@ -1057,12 +1077,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(ESD_DETECT_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PH0 PH1 PH2 PH3
-                           PH4 PH5 PH7 PH8
-                           PH12 PH13 PH14 PH15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+  /*Configure GPIO pins : PH2 PH3 PH4 PH5
+                           PH7 PH8 PH12 PH13
+                           PH14 PH15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_12|GPIO_PIN_13
+                          |GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
@@ -1167,6 +1187,9 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
+
+	uint8_t buf[100];
+
 	switch(pkt->senderID){
 		case DCMB_ID: //Parse data from DCMB
 			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
@@ -1237,6 +1260,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			if (pkt->payload[0] == CHASE_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
 			}
+
+		case MCMB_ID:
+			/*BBMB no need for MCMB data*/
+
 		break;
 	}
 }
@@ -1350,6 +1377,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 void PSMTaskHandler(TimerHandle_t xTimer){
 //Battery
 
+
 	double voltageCurrent_HV[2] = {0};
 	uint8_t busMetrics_HV[3 * 4] = {0};
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
@@ -1413,6 +1441,26 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	taskEXIT_CRITICAL();
 }
 
+void BMS_Flt_Check(TimerHandle_t xTimer){
+	/*
+	 * Periodically read the BMS_FLT pin, which is de-asserted by BMS on overtemp, over/undervoltage and overcurrent faults.
+	 * This should really by an EXTI interrupt, or at least hardware timer, but I don't have the time to try these out and I know timers work :/
+	 */
+
+	if (~HAL_GPIO_ReadPin(BMS_FLT_GPIO_Port, BMS_FLT_Pin)){ //If pin is low, need to engage safe state
+		xQueueSend(relayCtrl, 1, 10); //Send 1 to open relays
+		TIM7->ARR = round(TIM7->ARR/4); //Blink 4x faster
+		HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED
+
+		uint8_t buf[4];
+		buf[0] = BBMB_RELAY_STATE_ID;
+		buf[1] = FAULTED;
+		buf[2] = 0x0; //Relays open
+		buf[3] = 0x0; //PPTMB relays --> Don't care
+		B_tcpSend(btcp_main, buf, sizeof(buf));
+
+	}
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

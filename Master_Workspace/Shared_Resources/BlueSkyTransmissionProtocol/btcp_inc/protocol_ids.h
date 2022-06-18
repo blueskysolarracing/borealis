@@ -92,5 +92,9 @@ enum RELAY_STATE_ID {
 	CLOSED
 };
 
+enum BATTERY_STATE {
+	HEALTHY,
+	FAULTED
+};
 
 #endif

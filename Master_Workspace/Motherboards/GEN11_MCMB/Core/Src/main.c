@@ -266,7 +266,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  arm_boot();
+  //arm_boot();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -325,18 +325,8 @@ int main(void)
 
   //Gen11 accel write below:
   MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-
-//while(1) {
-//	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-//
-//		//MCP4161_Pot_Write(255, GPIOG, GPIO_PIN_2, &hspi3);
-//		//currentRegenValue = 0;
-//	  MCP4161_Pot_Write(255, GPIOK, GPIO_PIN_2, &hspi3);
-//
-//
-//}
-
-
+  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 
 //  //temp
 //  while(1) {
