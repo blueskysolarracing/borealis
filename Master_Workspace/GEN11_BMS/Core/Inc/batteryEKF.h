@@ -14,6 +14,7 @@
 
 #include "blueskyOCVData.h"
 #include <math.h>
+#include <stdlib.h>
 
 #endif //OFFLINE_TEST
 
