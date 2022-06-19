@@ -116,7 +116,8 @@ typedef enum {
 	OFF,
 	PEDAL,
 	CRUISE,
-	REGEN
+	REGEN,
+	STANDBY
 } MOTORSTATE;
 
 MOTORSTATE motorState; //see below for description
@@ -325,13 +326,21 @@ int main(void)
 
   //Gen11 accel write below:
   MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 
-//  //temp
+
+  //temp
 //  while(1) {
 //	  //HAL_SPI_Transmit()
-//	  MCP4161_Pot_Write(45, GPIOK, GPIO_PIN_2, &hspi3);
+//	  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET); // set motor on
+//	  HAL_Delay(5000);
+//	  //HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
+//
+//
+//	  //regen
+//	 //MCP4161_Pot_Write(100, GPIOG, GPIO_PIN_2, &hspi3);
+//
+//
+//	  MCP4161_Pot_Write(120, GPIOK, GPIO_PIN_2, &hspi3);
 //		//uint8_t fullCommand[2] = {20, 35};
 //
 //	  //HAL_SPI_Transmit(&hspi3, fullCommand, sizeof(fullCommand), 100);
@@ -1971,11 +1980,16 @@ static void motorTmr(TimerHandle_t xTimer){
 				currentMotorOn = 0;
 			//}
 			return; //return instead of break here, since no need for VFM gear change
-		case PEDAL:
-			//if (!currentMotorOn) {
+		case STANDBY:
+			if (!currentMotorOn) {
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 				currentMotorOn = 1;
-			//}
+			}
+		case PEDAL:
+			if (!currentMotorOn) {
+				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
+				currentMotorOn = 1;
+			}
 
 			if(currentFwdRevState != fwdRevState){
 				if(fwdRevState){
@@ -1986,10 +2000,10 @@ static void motorTmr(TimerHandle_t xTimer){
 					currentFwdRevState = 0;
 				}
 			}
-			//if (currentRegenValue > 0) { // turn off regen
+			if (currentRegenValue > 0) { // turn off regen
 				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 				currentRegenValue = 0;
-			//}
+			}
 			// drive accel pots
 			uint16_t localAccValue = targetPower;
 			if(currentAccValue != localAccValue){
@@ -2015,10 +2029,10 @@ static void motorTmr(TimerHandle_t xTimer){
 			break;
 
 		case REGEN:
-			//if (!currentMotorOn) {
+			if (!currentMotorOn) {
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 				currentMotorOn = 1;
-			//}
+			}
 			if(currentFwdRevState != fwdRevState){
 				if(fwdRevState){
 					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
@@ -2029,10 +2043,10 @@ static void motorTmr(TimerHandle_t xTimer){
 				}
 			}
 
-			//if (currentAccValue > 0) { // turn off accel
+			if (currentAccValue > 0) { // turn off accel
 				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 				currentAccValue = 0;
-			//}
+			}
 
 
 			// drive regen pots
