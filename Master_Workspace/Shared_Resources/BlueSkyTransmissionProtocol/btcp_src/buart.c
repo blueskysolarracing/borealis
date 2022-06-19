@@ -144,7 +144,7 @@ static void rxTask(void* pv){
 //			for (int i = 0; i < e.len; i++) {
 //				tmp[i] = e.buf[i];
 //			}
-			/* ======== Testing end ========= */
+//			/* ======== Testing end ========= */
 			buart->tail += e.len;
 			buart->tail %= RX_CIRC_BUF_SIZE;
 			int sent = xQueueSendToBack(buart->rxQ, &e, 0);

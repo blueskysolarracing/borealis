@@ -1586,9 +1586,12 @@ static void pedalTask(const void* p) {
 				default_data.P2_motor_state = PEDAL;
 			}
 		} else {
-			motorTargetPower = (uint16_t) 0;
-			motorState = OFF;
-			default_data.P2_motor_state = OFF;
+			if (ignitionState == IGNITION_ON) {
+				motorTargetPower = (uint16_t) 0;
+				motorState = STANDBY;
+				default_data.P2_motor_state = STANDBY;
+			}
+
 		}
 
 		//Turn off motor if needed

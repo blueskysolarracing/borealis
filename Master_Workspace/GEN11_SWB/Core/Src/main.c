@@ -191,7 +191,11 @@ int main(void)
 		//do { //Keep sending data until acknowledge is received from DCMB
 			HAL_UART_Transmit(&huart2, buf, sizeof(buf), 1000); //To DCMB
 			HAL_UART_Transmit(&huart4, buf, sizeof(buf), 1000); //To debug
-			HAL_UART_Receive(&huart2, rx_buf, sizeof(rx_buf), 100);
+
+
+//			char ary[20] = "hello world";
+//			HAL_UART_Transmit(&huart2, ary, strlen(ary), 1000);
+//			HAL_UART_Receive(&huart2, rx_buf, sizeof(rx_buf), 100);
 			HAL_Delay(1);
 		//} while (rx_buf[1] != BSSR_SPB_SWB_ACK);
 	}
