@@ -139,6 +139,12 @@ static void rxTask(void* pv){
 		if(e.len){
 			e.buf = pvPortMalloc(e.len);
 			memcpy(e.buf, buart->rxBuf+buart->tail, e.len);
+			/* ======= Testing begin ======= */
+//			uint8_t tmp[e.len];
+//			for (int i = 0; i < e.len; i++) {
+//				tmp[i] = e.buf[i];
+//			}
+			/* ======== Testing end ========= */
 			buart->tail += e.len;
 			buart->tail %= RX_CIRC_BUF_SIZE;
 			int sent = xQueueSendToBack(buart->rxQ, &e, 0);

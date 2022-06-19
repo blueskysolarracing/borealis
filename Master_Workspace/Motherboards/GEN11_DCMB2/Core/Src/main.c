@@ -1706,13 +1706,14 @@ void steeringWheelTask(const void *pv){
 	//Update global data
 	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x03){
 		for (int i = 0; i < 3; i++){
-			if (steeringData[i] != e->buf[2 + i]){ steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
+			if (steeringData[i] != e->buf[2 + i]){
+				steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
 		}
 	}
 
 	//------- Send acknowledge -------//
 	uint8_t buf_to_swb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
-	HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
+	//HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
 
 	//------- Send to RS485 bus -------//
     uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
