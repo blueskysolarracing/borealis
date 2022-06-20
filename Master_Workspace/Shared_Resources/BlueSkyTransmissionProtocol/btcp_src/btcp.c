@@ -217,8 +217,8 @@ static void tcpRxTask(void *pv){
     for(;;){
         e = B_uartRead(btcp->rxBuart);
         for(int i = 0; i < e->len; i++){
-            raw_input_buffer[raw_buf_pos] = e->buf[i];
-            raw_buf_pos++;
+//            raw_input_buffer[raw_buf_pos] = e->buf[i]; unnecessary
+//            raw_buf_pos++;
 
 			// First, check if there is an escape character and act accordingly
             if(e->buf[i] == BSSR_SERIAL_ESCAPE && !escaped){ 
