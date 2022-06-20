@@ -31,13 +31,16 @@ static UART_HandleTypeDef* huarts[NUM_UARTS];
 // ##        ##       ##
 // ##        ##       ##
 
-//B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
+B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
 int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
 B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart);
 void B_uartDoneRead(B_bufQEntry_t* e);
+
 static void txTask(void* pv);
 static void rxTask(void* pv);
 static void processCriticalFrame(B_bufQEntry_t* e);
+static void mBuf_init(MsgBuf* m);
+
 
 void HAL_UART_TxCpltCallback (UART_HandleTypeDef * huart);
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef * huart);
@@ -71,6 +74,8 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	taskcreate = xTaskCreate(rxTask, "uartRxTask", TRX_TASK_STACK_SIZE, buart, RX_TASK_PRIORITY, &buart->rxTask);
 	configASSERT(taskcreate);
 	buart->topFlag = buart->head = buart->tail = 0;
+	
+	mBuf_init(
 	return buart;
 }
 
@@ -91,48 +96,60 @@ B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart){
 
 
 // Helpers for B_uartReadFullMessage()
-//int mBufEmpty(MsgBuf* m) {
-//    return (m->in == m->out);
-//}
-//
-//int mBufFull(MsgBuf* m) {
-//    return ((m->in - m->out + m->len) % (m->len) == m->len - 1);
-//}
-//
-//
-//// TODO: There is a more robust way. Can change later.
-//void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID) {
-//
-//	B_bufQEntry_t *e;
-//    uint8_t* input_buffer = rxBuf;
-//    uint8_t raw_input_buffer[MAX_BUART_MESSAGE_LENGTH];
-//    uint16_t buf_pos = 0;
-//    uint8_t started = 0;
-//
-//	while (1) {
-//        e = B_uartRead(btcp->rxBuart);
-//        for(int i =  0; i < e->len; i++){
-//			if(!started){
-//				if(e->buf[i] == startByteID){
-//					started = 1;
-//					input_buffer[buf_pos] = e->buf[i];
-//					buf_pos++;
-//				}
-//			} else if(buf_pos < expectedLen) {
-//				input_buffer[buf_pos] = e->buf[i];
-//				buf_pos++;
-//				if (buf_pos == expectedLen) {
-//					started = 0;
-//					buf_pos = 0;
-//					B_uartDoneRead(e);
-//					return;
-//				}
-//			}
-//        }
-//
-//        B_uartDoneRead(e);
-//	}
-//}
+int mBufEmpty(MsgBuf* m) {
+    return (m->in == m->out);
+}
+
+int mBufFull(MsgBuf* m) {
+    return ((m->in - m->out + m->len) % (m->len) == m->len - 1);
+}
+
+void mBuf_init(MsgBuf* m) {
+	m->len = MAX_BUART_MESSAGE_LENGTH;
+	m->in = 0;
+	m->out = 0;
+
+}
+	
+
+// TODO: There is a more robust way. Can change later.
+void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID) {
+
+	//B_bufQEntry_t *e;
+    //uint8_t* input_buffer = rxBuf;
+    //uint8_t raw_input_buffer[MAX_BUART_MESSAGE_LENGTH];
+    //uint16_t buf_pos = 0;
+    //uint8_t started = 0;
+
+	//while (1) {
+    //    e = B_uartRead(btcp->rxBuart);
+    //    for(int i =  0; i < e->len; i++){
+	//		if(!started){
+	//			if(e->buf[i] == startByteID){
+	//				started = 1;
+	//				input_buffer[buf_pos] = e->buf[i];
+	//				buf_pos++;
+	//			}
+	//		} else if(buf_pos < expectedLen) {
+	//			input_buffer[buf_pos] = e->buf[i];
+	//			buf_pos++;
+	//			if (buf_pos == expectedLen) {
+	//				started = 0;
+	//				buf_pos = 0;
+	//				B_uartDoneRead(e);
+	//				return;
+	//			}
+	//		}
+    //    }
+
+    //    B_uartDoneRead(e);
+	//}
+	
+	
+	
+	//MsgBuf* mbuf = &(buart->mbuf);
+	
+}
 
 void B_uartDoneRead(B_bufQEntry_t* e){
 	vPortFree(e->buf);
