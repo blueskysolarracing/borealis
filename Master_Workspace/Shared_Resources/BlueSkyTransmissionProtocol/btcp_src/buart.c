@@ -31,19 +31,25 @@ static UART_HandleTypeDef* huarts[NUM_UARTS];
 // ##        ##       ##
 // ##        ##       ##
 
-B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
-int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
-B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart);
-void B_uartDoneRead(B_bufQEntry_t* e);
+//B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
+//int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
+//B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart);
+//void B_uartDoneRead(B_bufQEntry_t* e);
+//
+
+static int mBuf_isEmpty(MsgBuf* m);
+static int mBuf_isFull(MsgBuf* m);
+static void mBuf_init(MsgBuf* m);
+static int mBuf_getSize(MsgBuf* m );
+
 
 static void txTask(void* pv);
 static void rxTask(void* pv);
 static void processCriticalFrame(B_bufQEntry_t* e);
-static void mBuf_init(MsgBuf* m);
 
-
-void HAL_UART_TxCpltCallback (UART_HandleTypeDef * huart);
-void HAL_UART_RxCpltCallback (UART_HandleTypeDef * huart);
+//
+//void HAL_UART_TxCpltCallback (UART_HandleTypeDef * huart);
+//void HAL_UART_RxCpltCallback (UART_HandleTypeDef * huart);
 
 // ######## ##     ## ##    ##  ######
 // ##       ##     ## ###   ## ##    ##
@@ -75,7 +81,7 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	configASSERT(taskcreate);
 	buart->topFlag = buart->head = buart->tail = 0;
 	
-	//mBuf_init(
+	mBuf_init(&buart->mBuf);
 	return buart;
 }
 
@@ -96,24 +102,92 @@ B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart){
 
 
 // Helpers for B_uartReadFullMessage()
-int mBufEmpty(MsgBuf* m) {
+static int mBuf_isEmpty(MsgBuf* m) {
     return (m->in == m->out);
 }
 
-int mBufFull(MsgBuf* m) {
-    return ((m->in - m->out + m->len) % (m->len) == m->len - 1);
+static int mBuf_isFull(MsgBuf* m) {
+    return ((m->in - m->out + m->maxLen) % (m->maxLen) == m->maxLen - 1);
 }
 
-void mBuf_init(MsgBuf* m) {
-	m->len = MAX_BUART_MESSAGE_LENGTH;
+
+static void mBuf_init(MsgBuf* m) {
+	m->maxLen = MAX_BUART_MESSAGE_LENGTH;
 	m->in = 0;
 	m->out = 0;
 
 }
+
+static int mBuf_getSize(MsgBuf* m ){
+	return (m->in - m->out + m->maxLen) % (m->maxLen);
+}
 	
 
-// TODO: There is a more robust way. Can change later.
-void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID) {
+// returns 1 if expectedLen is read
+// returns 0 if expectedLen is too large (rxBuf will not be filled up)
+int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID) {
+
+	MsgBuf* mBuf = &(buart->mBuf);
+	//size_t nbytes = 0;
+	uint8_t startFound = 0;
+	uint8_t read = 0;
+	B_bufQEntry_t *e;
+	do {
+	        while (!mBuf_isEmpty(mBuf)) {
+	        	// search for start byte in mBuf
+	        	uint8_t s = mBuf->buf[mBuf->out];
+	            if (s == startByteID) {
+	                startFound = 1;
+	                break; // Note we don't update 'out'. So, 'out' will index start
+	            }
+	            mBuf->out = (mBuf->out + 1) % mBuf->maxLen;
+	        }
+	        if (!startFound) {
+	        	if (read) {
+	        		B_uartDoneRead(e);
+	        		read = 0;
+	        	}
+	        	e = B_uartRead(buart);
+	        	read = 1;
+	            for (int i = 0; i < e->len; i++) {
+	                if (mBuf_isFull(mBuf)) break;
+	                // put e->buf into mBuf
+	                mBuf->buf[mBuf->in] = e->buf[i];
+	                mBuf->in = (mBuf->in + 1) % mBuf->maxLen;
+	            }
+	        }
+	    } while (!startFound);
+
+	// fill up mBuf to expectedLen
+	while (mBuf_getSize(mBuf) < expectedLen) {
+		if (read) {
+			B_uartDoneRead(e);
+			read = 0;
+		}
+		e = B_uartRead(buart);
+		read = 1;
+		for (int i = 0; i < e->len; i++) {
+			if (mBuf_isFull(mBuf)) {
+		        B_uartDoneRead(e);
+				return 0;
+			}
+			// put e->buf into mBuf
+			mBuf->buf[mBuf->in] = e->buf[i];
+			mBuf->in = (mBuf->in + 1) % mBuf->maxLen;
+		}
+	}
+
+	// fill up rxBuf using mBuf
+	for (int i = 0; i < expectedLen; i++) {
+		rxBuf[i] = mBuf->buf[mBuf->out];
+		mBuf->out = (mBuf->out + 1) % mBuf->maxLen;
+	}
+
+	if (read) {
+		B_uartDoneRead(e);
+		read = 0;
+	}
+	return 1;
 
 	//B_bufQEntry_t *e;
     //uint8_t* input_buffer = rxBuf;
@@ -144,10 +218,7 @@ void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expect
 
     //    B_uartDoneRead(e);
 	//}
-	
-	
-	
-	//MsgBuf* mbuf = &(buart->mbuf);
+
 	
 }
 

@@ -13,7 +13,7 @@ typedef struct{
 #define MAX_BUART_MESSAGE_LENGTH 100
 typedef struct MsgBuf {
    uint8_t buf[MAX_BUART_MESSAGE_LENGTH];
-   int len;   // due to circular buffer, full when len - 1
+   int maxLen;   // due to circular buffer, full when len - 1
    int in;
    int out;
 
@@ -39,17 +39,19 @@ typedef struct{
 int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
 B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart);
 void B_uartDoneRead(B_bufQEntry_t* e);
-void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID);
+int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID);
+B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
 
 
-void HAL_UART_TxCpltCallback (UART_HandleTypeDef * huart);
-void HAL_UART_RxCpltCallback (UART_HandleTypeDef * huart);
 //#endif
 
 //#ifndef __BUART_START_H
 //#define __BUART_START_H
-B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
 
 
+
+
+void HAL_UART_TxCpltCallback (UART_HandleTypeDef * huart);
+void HAL_UART_RxCpltCallback (UART_HandleTypeDef * huart);
 
 #endif
