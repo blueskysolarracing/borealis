@@ -10,13 +10,14 @@ typedef struct{
 }B_bufQEntry_t;
 
 
-//typedef struct MsgBuf {
-//    uint8_t buf[MAX_BUART_MESSAGE_LENGTH];
-//    int len;   // due to circular buffer, full when len - 1
-//    int in;
-//    int out;
-//
-//}MsgBuf;
+#define MAX_BUART_MESSAGE_LENGTH 100
+typedef struct MsgBuf {
+   uint8_t buf[MAX_BUART_MESSAGE_LENGTH];
+   int len;   // due to circular buffer, full when len - 1
+   int in;
+   int out;
+
+}MsgBuf;
 
 // not __attribute__((__packed__))
 typedef struct{
@@ -32,6 +33,7 @@ typedef struct{
 	size_t					tail;
 	uint8_t					topFlag;
 	//uint8_t 				messageBuffer[MAX_BUART_MESSAGE_LENGTH]; //for B_uartReadFullMessage()
+	MsgBuf 				msgBuf
 }B_uartHandle_t;
 
 int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
