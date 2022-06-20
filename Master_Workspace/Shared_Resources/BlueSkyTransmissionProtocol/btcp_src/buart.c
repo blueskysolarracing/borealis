@@ -75,7 +75,7 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	configASSERT(taskcreate);
 	buart->topFlag = buart->head = buart->tail = 0;
 	
-	mBuf_init(
+	//mBuf_init(
 	return buart;
 }
 
