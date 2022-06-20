@@ -40,7 +40,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define HV_BATT_OVERCURRENT_DISCHARGE 40.0 //Overcurrent threshold on HV battery (discharge; A)
+#define HV_BATT_OVERCURRENT_DISCHARGE 10.0 //Overcurrent threshold on HV battery (discharge; A)
 #define NUM_BATT_CELLS 29 //Number of series parallel groups in battery pack
 #define NUM_BATT_TEMP_SENSORS 3 * 6 //Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 1000//(Other intervals defined in psm.h and btcp.h)
@@ -168,12 +168,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-//  MX_TIM5_Init();
-//  MX_TIM1_Init();
-  MX_DMA_Init();
-  MX_TIM2_Init();
   MX_TIM5_Init();
   MX_TIM1_Init();
+  MX_DMA_Init();
+  MX_TIM2_Init();
   MX_SPI2_Init();
   MX_SPI5_Init();
   MX_CRC_Init();
@@ -244,46 +242,32 @@ int main(void)
   lightsPeriph.FLT_CH = TIM_CHANNEL_1;
 
   //Initial state of lights: all off
-//  turn_off_indicators(&lightsPeriph, 0);
-//  turn_off_indicators(&lightsPeriph, 1);
-//  turn_off_DRL(&lightsPeriph);
-//  turn_off_brake_lights(&lightsPeriph);
-//  turn_off_fault_indicator(&lightsPeriph);
-//  turn_off_hazard_lights(&lightsPeriph);
-
-  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-
-
-  HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Stop(&htim5, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
-
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_10, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_11, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_10, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_11, GPIO_PIN_RESET);
+  turn_off_indicators(&lightsPeriph, 1);
+  turn_off_indicators(&lightsPeriph, 0);
+  turn_off_DRL(&lightsPeriph);
+  turn_off_brake_lights(&lightsPeriph);
+  turn_off_fault_indicator(&lightsPeriph);
+  turn_off_hazard_lights(&lightsPeriph);
 
   //--- COMMS ---//
   buart_main = B_uartStart(&huart8);
- // btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
-  //buart_bms = B_uartStart(&huart8);
-  //btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
+  btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
+  buart_bms = B_uartStart(&huart8);
+  btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
   //--- FREERTOS ---//
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
   relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
 
-//  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL));
-//  configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
+  configASSERT(xTaskCreate(lightsTask, "LightsTask", 1024, ( void * ) 1, 4, NULL));
+  configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
 
-//  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  //configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
-//  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
-//  configASSERT(xTimerStart(xTimerCreate("BMS_Flt_Handler",  pdMS_TO_TICKS(BMS_FLT_CHECK_INTERVAL), pdTRUE, (void *)0, BMS_Flt_Check), 0)); //Check BMS_FLT pin periodically for
+  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
+  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
+
+  //--- RELAYS ---//
+  close_relays(&relay);
 
   /* USER CODE END 2 */
 
@@ -992,6 +976,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(RELAY_PRECHARGE_GPIO_Port, RELAY_PRECHARGE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1108,11 +1095,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PJ0 PJ1 PJ2 PJ3
-                           PJ5 PJ12 PJ13 PJ14
-                           PJ15 */
+                           PJ12 PJ13 PJ14 PJ15 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_5|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14
-                          |GPIO_PIN_15;
+                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
@@ -1134,6 +1119,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BMS_WKUP_Pin */
+  GPIO_InitStruct.Pin = BMS_WKUP_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(BMS_WKUP_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED0_Pin LED1_Pin */
   GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin;
@@ -1276,7 +1268,7 @@ void relayTask(void * argument){
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
 			if (buf_relay[0] == 1){
-				open_relays(&relay);
+//				open_relays(&relay);
 			} else if (buf_relay[0] == 2){
 				close_relays(&relay);
 			}
@@ -1441,26 +1433,6 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	taskEXIT_CRITICAL();
 }
 
-void BMS_Flt_Check(TimerHandle_t xTimer){
-	/*
-	 * Periodically read the BMS_FLT pin, which is de-asserted by BMS on overtemp, over/undervoltage and overcurrent faults.
-	 * This should really by an EXTI interrupt, or at least hardware timer, but I don't have the time to try these out and I know timers work :/
-	 */
-
-	if (~HAL_GPIO_ReadPin(BMS_FLT_GPIO_Port, BMS_FLT_Pin)){ //If pin is low, need to engage safe state
-		xQueueSend(relayCtrl, 1, 10); //Send 1 to open relays
-		TIM7->ARR = round(TIM7->ARR/4); //Blink 4x faster
-		HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED
-
-		uint8_t buf[4];
-		buf[0] = BBMB_RELAY_STATE_ID;
-		buf[1] = FAULTED;
-		buf[2] = 0x0; //Relays open
-		buf[3] = 0x0; //PPTMB relays --> Don't care
-		B_tcpSend(btcp_main, buf, sizeof(buf));
-
-	}
-}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

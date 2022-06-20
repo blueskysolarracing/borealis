@@ -50,5 +50,5 @@ void close_relays(struct relay_periph* relay){
 	osDelay(PRECHARGE_TIME);
 
 	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_SET); //Close high-side relay
-	osDelay(ACTUATION_DELAY);
+	osDelay(ACTUATION_DELAY + 500); //500ms added to prevent inrush current from tripping PSM measurements
 }

@@ -49,7 +49,7 @@
 
 #define OV_THRESHOLD 4.2
 #define UV_THRESHOLD 2.5
-#define OT_THRESHOLD 60
+#define OT_THRESHOLD 40 //Should be set to 60C
 
 #define TEMP_CORRECTION_MULTIPLIER 1.0
 #define TEMP_CORRECTION_OFFSET 0.0
@@ -160,6 +160,13 @@ int main(void)
 
   //--- BMS_FLT ---//
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Signal is active-high (high when no fault)
+
+
+  char buf[5] = "test\n";
+  while(1){
+	  HAL_UART_Transmit(&huart1, buf, sizeof(buf), 100);
+	  HAL_Delay(50);
+  }
 
   /* USER CODE END 2 */
 
@@ -548,7 +555,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
 			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 
-//			send_temp_volt(); //Also, send temp and volt
+			//Also, send temp and volt
+			send_temp_volt();
 		}
 		break;
 	}
@@ -619,13 +627,13 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
 	convert_to_temp(local_temp_array, local_temp_array);
 
-//	while (1){
-//		uint8_t junk[3] = {3,2,5};
-//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-//		B_tcpSend(btcp, junk, sizeof(junk));
-//		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-//		HAL_Delay(100);
-//	}
+	while (1){
+		uint8_t junk[3] = {3,2,5};
+		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+		B_tcpSend(btcp, junk, sizeof(junk));
+		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+		HAL_Delay(100);
+	}
 
 	//---- BATTERY FAULT CHECK----//
 	//Check for UV, OV faults

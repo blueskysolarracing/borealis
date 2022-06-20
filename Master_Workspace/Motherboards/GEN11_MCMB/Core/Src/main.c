@@ -325,19 +325,16 @@ int main(void)
 
   //Gen11 accel write below:
   MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
 
-//  //temp
-//  while(1) {
-//	  //HAL_SPI_Transmit()
-//	  MCP4161_Pot_Write(45, GPIOK, GPIO_PIN_2, &hspi3);
-//		//uint8_t fullCommand[2] = {20, 35};
-//
-//	  //HAL_SPI_Transmit(&hspi3, fullCommand, sizeof(fullCommand), 100);
-//
-//	  //vTaskDelay(100);
-//  }
+  //temp
+  while(1) {
+		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET); // turn motor on
+		HAL_Delay(5000);
+
+		//HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+		MCP4161_Pot_Write(150, GPIOG, GPIO_PIN_2, &hspi3); // regen
+		//MCP4161_Pot_Write(70, GPIOK, GPIO_PIN_2, &hspi3); // acce
+  }
 
   //Initialize PSM
   psmPeriph.CSPin0 = PSM_CS_0_Pin;

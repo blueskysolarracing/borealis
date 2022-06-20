@@ -1591,7 +1591,7 @@ static void pedalTask(const void* p) {
 			default_data.P2_motor_state = OFF;
 		}
 
-		//Turn off motor if needed
+		//Turn off motor if needed. Overrides original motorState
 		if (ignitionState != IGNITION_ON){
 			motorState = OFF;
 			default_data.P2_motor_state = OFF;

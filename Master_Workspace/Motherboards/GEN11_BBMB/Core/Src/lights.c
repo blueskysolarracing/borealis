@@ -52,12 +52,12 @@ void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right){
 	lights->master_TIM->Instance->CCR1 = 0;
 
 	if (left_or_right == 0){ //left
-		lights->left_ind_TIM->Instance->CCR1 = 0;
+		HAL_TIM_PWM_Stop(lights->left_ind_TIM, lights->left_ind_CH);
 		rotate(1, 0, lights->TMC5160_SPI); // clockwise: in for left
 	}
 
 	else{ //right
-		lights->right_ind_TIM->Instance->CCR2 = 0;
+		HAL_TIM_PWM_Stop(lights->right_ind_TIM, lights->right_ind_CH);
 		rotate(0, 1, lights->TMC5160_SPI); // anti-clockwise: in for right
 	}
 }
@@ -79,11 +79,10 @@ void turn_on_DRL(struct lights_stepper_ctrl* lights, double pwm_duty_cycle)
 }
 
 void turn_off_DRL(struct lights_stepper_ctrl* lights){
-	lights->DRL_TIM->Instance->CCR1 = 0;
-
 	HAL_GPIO_WritePin(lights->PWR_EN_Port, lights->PWR_EN_Pin, 1); // write to power board
 	rotate(0, 1, lights->TMC5160_SPI); // clockwise: in for right
 	rotate(1, 0, lights->TMC5160_SPI); // anti-clockwise: in for left
+	HAL_TIM_PWM_Stop(lights->DRL_TIM, lights->DRL_CH); // Channel 1 is DRL
 }
 
 void turn_on_brake_lights(struct lights_stepper_ctrl* lights, double pwm_duty_cycle)
@@ -94,7 +93,7 @@ void turn_on_brake_lights(struct lights_stepper_ctrl* lights, double pwm_duty_cy
 }
 
 void turn_off_brake_lights(struct lights_stepper_ctrl* lights){
-	lights->BRK_TIM->Instance->CCR2 = 0;
+	HAL_TIM_PWM_Stop(lights->BRK_TIM, lights->BRK_CH); // Channel 2 is brake lights
 }
 
 void turn_on_hazard_lights(struct lights_stepper_ctrl* lights, double pwm_duty_cycle, double blink_rate)
@@ -121,9 +120,9 @@ void turn_on_hazard_lights(struct lights_stepper_ctrl* lights, double pwm_duty_c
 
 void turn_off_hazard_lights(struct lights_stepper_ctrl* lights)
 {
-	lights->master_TIM->Instance->CCR1 = 0;
-	lights->left_ind_TIM->Instance->CCR1 = 0;
-	lights->right_ind_TIM->Instance->CCR1 = 0;
+	HAL_TIM_PWM_Stop(lights->BRK_TIM, lights->BRK_CH);
+	HAL_TIM_PWM_Stop(lights->left_ind_TIM, lights->left_ind_CH);
+	HAL_TIM_PWM_Stop(lights->right_ind_TIM, lights->right_ind_CH);
 }
 
 void turn_on_fault_indicator(struct lights_stepper_ctrl* lights)
