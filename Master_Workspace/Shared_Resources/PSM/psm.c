@@ -14,12 +14,13 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 	//Load in calibrated parameters
 	switch (PSM_ID){
 		case 1: //PSM in battery box
+			//PHub out
 			PSM->VDCOS_CH1 = 1.026454 / (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //1.026454;
 			PSM->CDCOS_CH1 = 0.597499 / ((1.2) / 8388607 / 4); //0.597499;
 			PSM->VM_CH1 = 1 * (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //24kR; 19.195782
 			PSM->CM_CH1 = 40.576234 * (1.2) / 8388607 / 4; //40.576234
 
-			// PSM->VDCOS_CH2 = 354159;
+			//HV battery
 			PSM->VDCOS_CH2 = 14.8 / ((1.2) / 8388607.0 * (1.0 + 664.0*(1.0/2.2 + 1.0/480.0))); //14.8
 			PSM->CDCOS_CH2 = 0.0969 / ((1.2) / 8388607.0 / 0.5); //0.0969
 			PSM->VM_CH2 = 0.64935 * (1.2) / 8388607.0 * (1.0 + 664.0*(1.0/2.2 + 1.0/480.0)); //2.2kR; 0.6493506494
@@ -28,10 +29,17 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 			break;
 
 		case 2: //PSM in motor box
+			//Motor (to be calibrated)
 			PSM->VDCOS_CH1 = 10.979409 / ((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480))); //10.979409;
-			PSM->CDCOS_CH1 = 0.573845 / ((1.2) / 8388607 / 0.5); //0.573845;
+			PSM->CDCOS_CH1 = 0.01 / ((1.2) / 8388607 / 0.5); //0.573845;
 			PSM->VM_CH1 = 0.649339 * (1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)); //2.2kR; 0.649339
-			PSM->CM_CH1 = 5.066971 * (1.2) / 8388607 / 0.5; //0.5mR; 5.066971
+			PSM->CM_CH1 = 40.9836 * (1.2) / 8388607 / 0.5; //0.5mR; 5.066971
+
+			//Supp battery voltage (to be calibrated)
+			PSM->VDCOS_CH2 = 14.8 / ((1.2) / 8388607.0 * (1.0 + 664.0*(1.0/2.2 + 1.0/480.0)));
+			PSM->CDCOS_CH2 = 0.0969 / ((1.2) / 8388607.0 / 0.5); //0.0969
+			PSM->VM_CH2 = 0.64935 * (1.2) / 8388607.0 * (1.0 + 664.0*(1.0/2.2 + 1.0/480.0));
+			PSM->CM_CH2 = 40.9836065574 * (1.2) / 8388607.0 / 0.5;
 
 			break;
 
@@ -228,7 +236,6 @@ void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 int configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, char* channels, uint32_t timeout){
 	//enable LVDS by outputting logic high at LVDS EN pin
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
-//	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
     uint8_t BW, SWRST, ADC_FREQ, PWRDWN_EN, CLKOUT_EN; //control bits in configCommand
@@ -399,8 +406,7 @@ int configPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_
 void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t CLKOUT, uint8_t masterPSM, uint8_t channelNumber, double dataOut[], uint8_t dataOutLen){
 	//enable LVDS by outputting logic high at pin PB13
 
-	// HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
 	uint8_t dataIn[6] = {0};//data received from ade7912

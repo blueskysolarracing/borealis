@@ -99,6 +99,7 @@ osThreadId defaultTaskHandle;
 //--- PSM ---//
 struct PSM_Peripheral psmPeriph;
 double voltageCurrent_Motor[2] = {0, 0};
+double voltageCurrent_Supp[2] = {0, 0};
 uint8_t busMetrics[20] = {0};
 
 //--- COMMS ---//
@@ -127,6 +128,7 @@ MOTORSTATE motorState; //see below for description
 //	[3] REGEN (When regen pedal is pressed; has priority over others). DCMB controls motor state
 uint16_t targetPower = 0; // Note: this is not in watts, it is from 0 - 256, for POT
 float targetSpeed = 0;
+float batteryVoltage = 0;
 
 // These are values from 5 digital buttons
 //uint8_t motorOnOff = 0; // 1 means motor is on, 0 means off (deprecated)
@@ -139,8 +141,6 @@ long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 uint8_t speedTarget;
 globalKmPerHour = 0;
-
-int16_t batteryVoltage = 0;
 
 // Struct for reading PWM input (in this case: speed pulse from motor)
 typedef struct {
@@ -319,33 +319,33 @@ int main(void)
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
 
 
-  // Note both regenValue and accValue are zero at the moment
+//  // Note both regenValue and accValue are zero at the moment
+//
+//  //Gen11 regen write below:
+//  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+//
+//  //Gen11 accel write below:
+//  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+//
+//  while(1) {
+//		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET); // turn motor on
+//		HAL_Delay(5000);
+//
+//		//HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+//		MCP4161_Pot_Write(150, GPIOG, GPIO_PIN_2, &hspi3); // regen
+//		//MCP4161_Pot_Write(70, GPIOK, GPIO_PIN_2, &hspi3); // acce
+//  }
 
-  //Gen11 regen write below:
-  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
-
-  //Gen11 accel write below:
-  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-
-  while(1) {
-		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET); // turn motor on
-		HAL_Delay(5000);
-
-		//HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-		MCP4161_Pot_Write(150, GPIOG, GPIO_PIN_2, &hspi3); // regen
-		//MCP4161_Pot_Write(70, GPIOK, GPIO_PIN_2, &hspi3); // acce
-  }
-
-  //Initialize PSM
+  //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
   psmPeriph.CSPin1 = PSM_CS_1_Pin;
   psmPeriph.CSPin2 = PSM_CS_2_Pin;
   psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  psmPeriph.CSPort0 = GPIOI;
-  psmPeriph.CSPort1 = GPIOG;
-  psmPeriph.CSPort2 = GPIOG;
-  psmPeriph.CSPort3 = GPIOG;
+  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
+  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
+  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
+  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
 
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
@@ -353,8 +353,8 @@ int main(void)
   psmPeriph.DreadyPin = PSM_DReady_Pin;
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
-  PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID (2 for MCMB)
-  if (configPSM(&psmPeriph, &hspi2, &huart2, "1", 2000) == -1){ //2000ms timeout
+  PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
+  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
 
@@ -362,7 +362,6 @@ int main(void)
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
   //MX_TIM5_Init(); //CubeMX fails to generate this line, thus call manually
@@ -2047,7 +2046,7 @@ static void motorTmr(TimerHandle_t xTimer){
 
 			// drive regen pots
 			uint16_t localRegenValue = targetPower;
-			if (batteryVoltage > 110 || batteryVoltage < -110) {
+			if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
 				localRegenValue = 0; // for safety
 			}
 			if(currentRegenValue != localRegenValue){
@@ -2131,7 +2130,7 @@ static void spdTmr(TimerHandle_t xTimer){
 	// Send motor speed to DCMB
 	buf[1] = kmPerHour;
 	globalKmPerHour = kmPerHour; // used for debugger live expression
-	B_tcpSend(btcp, buf, 4);
+//	B_tcpSend(btcp, buf, 4);
 }
 
 void tempSenseTaskHandler(void* parameters) {
@@ -2141,7 +2140,7 @@ void tempSenseTaskHandler(void* parameters) {
 		vTaskDelay(pdMS_TO_TICKS(1000));
 
 		buf[1] = temperature;
-		B_tcpSend(btcp, buf, 4);
+//		B_tcpSend(btcp, buf, 4);
 	}
 }
 
@@ -2161,19 +2160,24 @@ void cruiseControlTaskHandler(void* parameters){
 
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
-		  case DCMB_ID:
-			if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
-				motorState = pkt->data[1];
-				targetPower = unpacku16(&pkt->data[4]);
-				targetSpeed = arrayToFloat(&pkt->data[6]);
+	  case DCMB_ID:
+		if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
+			motorState = pkt->data[1];
+			targetPower = unpacku16(&pkt->data[4]);
+			targetSpeed = arrayToFloat(&pkt->data[6]);
 
-				//for 5 digital buttons (4 now):
-				// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
-			    fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
-			    vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
-			    vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
-			    lastDcmbPacket = xTaskGetTickCount();
-		  }
+			//for 5 digital buttons (4 now):
+			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
+			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
+			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
+			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
+			lastDcmbPacket = xTaskGetTickCount();
+	  }
+
+	  case BBMB_ID:
+		if(pkt->data[0] == BBMB_BUS_METRICS_ID){ //Get battery voltage to determine whether regen may be used
+			batteryVoltage = arrayToFloat(&pkt->data[4]);
+	  }
 	}
 
 	// New way (deprecated)
@@ -2259,23 +2263,41 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 
 void PSMTaskHandler(void* parameters){
 	uint8_t busMetrics[3 * 4] = {0};
-	double voltageCurrent[2] = {0, 0};
+	uint8_t suppBatteryMetrics[2 * 4] = {0};
+	double voltageCurrent_Motor_local[2] = {0, 0};
+	double voltageCurrent_Supp_local[2] = {0, 0};
+
 	busMetrics[0] = MCMB_BUS_METRICS_ID;
+	suppBatteryMetrics[0] = MCMB_SUPP_BATT_VOLTAGE_ID;
 
 	while (1) {
-		PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 2, busMetrics, 2); //Hack because argument 6 should be 1 for MCMB
-		floatToArray((float) voltageCurrent[0], busMetrics + 4); // fills 4 - 7 of busMetrics
-		floatToArray((float) voltageCurrent[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+		//Motor on channel #1
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_Motor_local, 2);
+		floatToArray((float) voltageCurrent_Motor_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+		floatToArray((float) voltageCurrent_Motor_local[1], busMetrics + 8); // fills 8 - 11 of busMetrics
 
-		batteryVoltage = (float) voltageCurrent[0]; //Set global value, to disable regen when necessary
-		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		//Supplemental battery on channel #2
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
+		floatToArray((float) voltageCurrent_Supp_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+
+		//Send to bus
+//		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+//		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
+
+		//Place in global variables
+		taskENTER_CRITICAL();
+		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
+		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
+		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
+		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
+		taskEXIT_CRITICAL();
 		vTaskDelay(1000);
 	}
 }
 
 void HeartbeatHandler(TimerHandle_t xTimer){
 	//Send periodic heartbeat so we know the board is still running
-	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+//	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 

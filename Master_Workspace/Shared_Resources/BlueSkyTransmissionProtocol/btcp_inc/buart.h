@@ -37,7 +37,7 @@ typedef struct{
 int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
 B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart);
 void B_uartDoneRead(B_bufQEntry_t* e);
-void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t rxBuf);
+void B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID);
 
 
 void HAL_UART_TxCpltCallback (UART_HandleTypeDef * huart);
