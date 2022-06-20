@@ -84,6 +84,7 @@ uint8_t getSwitchState(uint8_t whichByte){
 		//	switchState[0] = (switchState[0] & ~0b00100000) | ((HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5) & 0b00100000); //Bit 5 - OK
 		//	switchState[0] = (switchState[0] & ~0b01000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6) & 0b01000000); //Bit 6 - OK
 		//	switchState[0] = (switchState[0] & ~0b10000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7) & 0b10000000); //Bit 7 - OK
+		switchState[0] = ~switchState[0];
 		return switchState[0];
 
 	case 1:
@@ -107,7 +108,7 @@ uint8_t getSwitchState(uint8_t whichByte){
 		switchState[1] |= HAL_GPIO_ReadPin(GPIOB, CRUISE_SIGNAL_Pin) << 4;
 	//	switchState[1] = (switchState[1] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, CRUISE_SIGNAL_Pin) << 4) & 0b00010000); //Bit 4 - OK
 
-		switchState[1] = switchState[1] & 0b00011111; //Make sure other bits are 0
+		switchState[1] = ~switchState[1] & 0b00011111; //Make sure other bits are 0
 		return switchState[1];
 
 	case 2:
@@ -125,7 +126,7 @@ uint8_t getSwitchState(uint8_t whichByte){
 	//	switchState[2] = (switchState[2] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOB, RIGHT_Pin) << 3) & 0b00001000); //Bit 3 - OK
 	//	switchState[2] = (switchState[2] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOB, SELECT_Pin) << 4) & 0b00010000); //Bit 4 - OK
 
-		switchState[2] = switchState[2] & 0b00011111; //Make sure other bits are 0
+		switchState[2] = ~switchState[2] & 0b00011111; //Make sure other bits are 0
 		return switchState[2];
 	}
 }
@@ -184,15 +185,19 @@ int main(void)
 	newSwitchState[2] = getSwitchState(2);
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2])){ //If any bit has changed, send data
-		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00}; //Last byte is CRC, optional
+		uint8_t buf[8] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00, 0x00, 0x00};
 		uint8_t rx_buf[2];
 
-		do { //Keep sending data until acknowledge is received from DCMB
-			HAL_UART_Transmit(&huart2, buf, sizeof(buf), 10); //To DCMB
-			HAL_UART_Transmit(&huart4, buf, sizeof(buf), 10); //To debug
-			HAL_UART_Receive(&huart2, rx_buf, sizeof(rx_buf), 100);
+		//do { //Keep sending data until acknowledge is received from DCMB
+			HAL_UART_Transmit(&huart2, buf, sizeof(buf), 1000); //To DCMB
+			HAL_UART_Transmit(&huart4, buf, sizeof(buf), 1000); //To debug
+
+
+//			char ary[20] = "hello world";
+//			HAL_UART_Transmit(&huart2, ary, strlen(ary), 1000);
+//			HAL_UART_Receive(&huart2, rx_buf, sizeof(rx_buf), 100);
 			HAL_Delay(1);
-		} while (rx_buf[1] != BSSR_SPB_SWB_ACK);
+		//} while (rx_buf[1] != BSSR_SPB_SWB_ACK);
 	}
 
 	//Update switch state
