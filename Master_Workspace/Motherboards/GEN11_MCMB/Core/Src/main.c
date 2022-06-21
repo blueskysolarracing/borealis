@@ -384,7 +384,7 @@ int main(void)
 //		HAL_Delay(100);
 //		MCP4161_Pot_Write(130, GPIOK, GPIO_PIN_2, &hspi3); // acce
 //		HAL_Delay(100);
-  }
+//  }
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
