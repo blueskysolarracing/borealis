@@ -1782,10 +1782,10 @@ void steeringWheelTask(const void *pv){
 
     //Up button pressed
 	if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-    	vfmUpState = 1;
-    	default_data.P2_VFM++;
+    		vfmUpState = 1;
+    		default_data.P2_VFM++;
 	} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
-    	vfmUpState = 0;
+    		//vfmUpState = 0; //reset this in motorDataTimer
 	}
 	oldUpButton = (steeringData[2] & (1 << 0));
 
@@ -1794,7 +1794,7 @@ void steeringWheelTask(const void *pv){
 		vfmDownState = 1;
     	default_data.P2_VFM--;
 	} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
-		vfmDownState = 0;
+		//vfmDownState = 0;  //reset this in motorDataTimer
 	}
 	oldDownButton = (steeringData[2] & (1 << 1));
 
