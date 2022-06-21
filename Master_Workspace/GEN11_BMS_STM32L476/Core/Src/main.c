@@ -25,7 +25,7 @@
 #include "buart.h"
 #include "btcp.h"
 #include "protocol_ids.h"
-//#include "batteryEKF.h"
+#include "batteryEKF.h"
 #include "LTC6810.h"
 #include "timers.h"
 
@@ -79,6 +79,10 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
+
+//--- SOC ---//
+EKF_Model_14p* inBattery;
+long tickLastMeasurement[5]; //Contains the tick value of the last measurement sent for every cell
 
 uint8_t dataToSend[16]; //data organized by function [LTC6810CommandGenerate]
 int messageInBinary; //write this in binary. This goes into [LTC6810CommandGenerate]
@@ -161,7 +165,14 @@ int main(void)
   //--- BMS_FLT ---//
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Signal is active-high (high when no fault)
 
+  //--- SOC algorithm ---//
+  float local_voltage_array[6]; //Initial voltage of each cell
+  readVolt(local_voltage_array); //Places voltage in temp 1, temp
 
+  tickLastMeasurement = HAL_GetTick();
+  initEKFModel(inBattery, local_voltage_array[0]);
+
+//--- TESTING ---//
   char buf[5] = "test\n";
   while(1){
 	  HAL_UART_Transmit(&huart1, buf, sizeof(buf), 100);
@@ -525,9 +536,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			float current;
 			current = arrayToFloat(pkt->data + 2);
 
-			//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough
+			//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough)
 			for (int i = 0; i < NUM_CELLS; i++){
-//					SoC_array[i] = run_EKF(&battery.batteryPack[i], current, voltage_array[i]);
+				long currentTick = HAL_GetTick();
+				SoC_array[i] = run_EKF(&battery.batteryPack[i], currentTick - tickLastMeasurement[i], current, voltage_array[i]);
+				tickLastMeasurement[i] = currentTick;
 			}
 
 			//Send back SoC for all cells
@@ -542,7 +555,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				} else {
 					uint8_t floatArray[4];
-//					floatToArray(SoC_array[i], floatArray); //Convert float into array
+					floatToArray(SoC_array[i], floatArray); //Convert float into array
 
 					//Pack into buffer
 					for (int j = 0; j < sizeof(float); j++){
@@ -620,7 +633,6 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	//This callback is called periodically to update voltage and temperature measurements
 	float local_voltage_array[6]; //Voltage of each cell
 	float local_temp_array[3]; //Temperature readings
-	uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
 
 	//---- LTC6810 MEASUREMENTS ----//
 	readVolt(local_voltage_array); //Places voltage in temp 1, temp
@@ -803,7 +815,6 @@ while(cycle<3){
 	LTC6810Init(0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
 //cycle are 0,1,2
 
-
 	messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
 	LTC6810CommandGenerate(messageInBinary, dataToSend);
 	HAL_Delay(1);
@@ -866,11 +877,11 @@ int readVolt(float*voltArray){
 	  voltArray[1] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	  voltArray[2] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
 
-/*
+	  /*
 	  v1 = voltageDataConversion(dataToReceive[0], dataToReceive[1]) ;
 	  v2 = voltageDataConversion(dataToReceive[2], dataToReceive[3]) ;
 	  v3 = voltageDataConversion(dataToReceive[4], dataToReceive[5]);
-*/
+	   */
 	  VmessageInBinary = 0b110; //read cell voltage reg group 2;
 	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
@@ -884,11 +895,11 @@ int readVolt(float*voltArray){
 	  voltArray[3] = voltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	  voltArray[4] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	  voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
-		/*
+	  /*
 	  v4 = voltageDataConversion(dataToReceive[0], dataToReceive[1]) ;
 	  v5 = voltageDataConversion(dataToReceive[2], dataToReceive[3]) ;
 	  v6 = voltageDataConversion(dataToReceive[4], dataToReceive[5]) ;
-		*/
+	   */
 }
 
 void convert_to_temp(float input_voltage[3], float output_temperature[3]){

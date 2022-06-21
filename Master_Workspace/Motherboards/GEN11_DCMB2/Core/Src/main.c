@@ -1538,6 +1538,31 @@ static void pedalTask(const void* p) {
 	float pedals_angles_temp[2] = {0};
 
 	while (1) {
+		//GENERATE RANDOM DATA TO DISPLAY - FOR TESTING//
+		common_data.solar_power = (rand() % (999 + 1));
+		common_data.motor_power = (rand() % (999 + 1));
+		common_data.battery_power = (rand() % (999 + 999 + 1)) - 999;
+		common_data.LV_power = (rand() % (50 + 1));
+		common_data.LV_voltage = (rand() % (20 + 1));
+		common_data.battery_soc = (rand() % (100 + 1));
+
+		default_data.P1_speed_kph = (rand() % (150 + 1));
+		default_data.P1_left_indicator_status = 1;
+		default_data.P2_DRL_state = 1;
+		default_data.P2_motor_state = REGEN;
+		default_data.P2_VFM = (rand() % (8 - 1 + 1)) + 1;
+		default_data.P2_right_indicator_status = 1;
+
+		detailed_data.P1_solar_voltage = (rand() % (150 + 1));
+		detailed_data.P1_solar_current = (rand() % (7 + 1));
+		detailed_data.P1_motor_voltage = (rand() % (150 + 1));
+		detailed_data.P1_motor_current = (rand() % (50 + 1));
+		detailed_data.P1_battery_voltage = (rand() % (150 + 1));
+		detailed_data.P1_battery_current = (rand() % (50 + 1));
+		detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
+		detailed_data.P2_LV_current = (rand() % (8 + 1));
+		detailed_data.P2_max_batt_temp = (rand() % (69 - 15 + 1)) - 15;
+
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
 			HAL_ADC_Start(&hadc1);

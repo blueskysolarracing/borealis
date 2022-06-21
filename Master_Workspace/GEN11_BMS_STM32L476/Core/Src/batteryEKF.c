@@ -1,5 +1,4 @@
 #include "batteryEKF.h"
-#include "blueskyOCVData.h"
 
 #if _WINDOWS
 void printMatrix(float* input, uint8_t* size){
@@ -14,10 +13,10 @@ void printMatrix(float* input, uint8_t* size){
 }
 #endif
 
-void initBatteryAlgo(EKF_Battery* inBatteryPack){
+void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v){
 
     for(uint8_t unit = 0; unit < NUM_14P_UNITS; unit++){  
-        initEKFModel(&inBatteryPack->batteryPack[unit]);
+        initEKFModel(&inBatteryPack->batteryPack[unit], initial_v[unit]);
     }
 
     init_A_Matrix();
@@ -26,7 +25,7 @@ void initBatteryAlgo(EKF_Battery* inBatteryPack){
     return;
 }
 
-void initEKFModel(EKF_Model_14p* inBattery){
+void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
 
     uint8_t i = 0;  
     uint8_t j = 0;
@@ -49,7 +48,6 @@ void initEKFModel(EKF_Model_14p* inBattery){
             } else {
                 inBattery->covP[i*STATE_NUM + j] = 0.0f;
             }
-
         }
     }
 
@@ -179,12 +177,10 @@ uint8_t inverse_EKF(float* in, float* out, uint8_t* dim){
     uint8_t rows = dim[0];
     uint8_t cols = dim[1];
 
-    if(rows != cols){
-
+    if(rows != cols){       
 #if _WINDOWS
         printf("Matrix is not square - cannot compute inverse with this method... \n");
 #endif
-
         return 0;
     }
 
@@ -251,24 +247,32 @@ uint8_t inverse_EKF(float* in, float* out, uint8_t* dim){
 }
 
 float OCV(float soc){
+
     float dv = 0.0f;
-    float dsoc = BSSR_SOC[1] - BSSR_SOC[0];
+    float dsoc = BSSR_SOC[1]- BSSR_SOC[0];
     float ocv = 0.0f;
+
     //using method of linear interpolation
-    if (soc <= BSSR_SOC[0]){ //doesnt make sense for soc to be smaller than 0 but matlab still has this code
+    if(soc <= BSSR_SOC[0]){
+
         dv = BSSR_OCV[1]-BSSR_OCV[0];
         ocv = (soc - BSSR_SOC[0])*(dv/dsoc)+BSSR_OCV[0];
         return ocv;
-    } else if (soc >= BSSR_SOC[BSSR_OCV_DATA_SIZE-1]){
-        dv = BSSR_OCV[BSSR_OCV_DATA_SIZE-1]-BSSR_OCV[BSSR_OCV_DATA_SIZE-2];
-        ocv = (soc - BSSR_SOC[BSSR_OCV_DATA_SIZE-1])*(dv/dsoc)+BSSR_OCV[BSSR_OCV_DATA_SIZE-1];
+
+    }else if(soc >= BSSR_SOC[LUT_SIZE-1]){
+
+        dv = BSSR_OCV[LUT_SIZE-1]-BSSR_OCV[LUT_SIZE-2];
+        ocv = (soc - BSSR_SOC[LUT_SIZE-1])*(dv/dsoc)+BSSR_OCV[LUT_SIZE-1];
         return ocv;
-    } else if ((soc>BSSR_SOC[0])&&(soc<BSSR_SOC[BSSR_OCV_DATA_SIZE-1])){
+
+    }else if((soc>BSSR_SOC[0])&&(soc<BSSR_SOC[LUT_SIZE-1])){
+
         int lowerIndex = (soc - BSSR_SOC[0])/dsoc;
         dv = BSSR_OCV[lowerIndex+1]-BSSR_OCV[lowerIndex];
         ocv = BSSR_OCV[lowerIndex] + ((soc - BSSR_SOC[lowerIndex])*(dv/dsoc));
         return ocv;
-    } else {
+
+    }else{
         return 0;
     }
 }
@@ -288,9 +292,11 @@ void run_EKF(EKF_Model_14p* inputBatt, uint32_t testDataID){
 
     float I_Input = current[testDataID]; // current reading
     float I_InSign = 0.0f;
+    
     if (I_Input != 0){
         I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
     }
+
     U[0] = I_Input;
     U[1] = I_InSign;
 
@@ -313,20 +319,19 @@ void run_EKF(EKF_Model_14p* inputBatt, uint32_t testDataID){
 
 #else
 
-void run_EKF(EKF_Model_14p* inputBatt, float dt){
+void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measuredV){
 
     // insert code for using APIs
     compute_A_B_dt(dt);
 
-    float I_Input = 0.0f; // to be inserted current reading
+    float I_Input = currentIn; // current reading
     float I_InSign = 0.0f;
-    if (I_Input != 0){
-    	I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
-    }
-    U[0] = I_Input;
-    U[1] = I_InSign;
 
-    V_Measured[0] = 0.0f; // to be inserted voltage reading
+    if (I_Input != 0){
+        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
+    }
+
+    V_Measured[0] = measuredV; // voltage reading
     V_OCV[0] = OCV(inputBatt->stateX[0]);
 
 #endif // OFFLINE_TEST
