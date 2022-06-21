@@ -38,12 +38,20 @@
 		<link>
 			<name>btcp_inc</name>
 			<type>2</type>
+<<<<<<< HEAD
 			<location>/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
+=======
+			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
+>>>>>>> 9acc4a1bae177605b0969a5dab0d449fd3dab22c
 		</link>
 		<link>
 			<name>btcp_src</name>
 			<type>2</type>
+<<<<<<< HEAD
 			<location>/Users/tristan/Desktop/BSSR_Stuff/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+=======
+			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+>>>>>>> 9acc4a1bae177605b0969a5dab0d449fd3dab22c
 		</link>
 	</linkedResources>
 </projectDescription>

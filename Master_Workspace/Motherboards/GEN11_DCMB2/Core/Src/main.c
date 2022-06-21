@@ -1721,26 +1721,30 @@ void steeringWheelTask(const void *pv){
 // DATA_1: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
 // DATA_2  : [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
 
-  B_bufQEntry_t *e;
   uint8_t oldSteeringData[3] = {0, 0, 0};
 
+  uint8_t expectedLen = 6; //must be same length as sent from SWB
+  uint8_t rxBuf[expectedLen];
   for(;;){
-	e = B_uartRead(swBuart);
+	//e = B_uartRead(swBuart); // not good
 
-	taskENTER_CRITICAL();
+	  B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
+
+
+	  taskENTER_CRITICAL();
 	//Save old data
 	for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
 
-	//Update global data
-	if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x03){
+	//Update global data, and check value after start byte for integrity
+	if (rxBuf[0] == BSSR_SERIAL_START && rxBuf[1] == 0x03){
 		for (int i = 0; i < 3; i++){
-			if (steeringData[i] != e->buf[2 + i]){
-				steeringData[i] = e->buf[2 + i]; } //Only update if different (it should be different)
+			if (steeringData[i] != rxBuf[2 + i]){
+				steeringData[i] = rxBuf[2 + i]; } //Only update if different (it should be different)
 		}
 	}
 
 	//------- Send acknowledge -------//
-	uint8_t buf_to_swb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
+	//uint8_t buf_to_swb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
 	//HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
 
 	//------- Send to RS485 bus -------//
@@ -1803,10 +1807,10 @@ void steeringWheelTask(const void *pv){
 
     //Up button pressed
 	if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-    	vfmUpState = 1;
-    	default_data.P2_VFM++;
+    		vfmUpState = 1;
+    		default_data.P2_VFM++;
 	} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
-    	vfmUpState = 0;
+    		//vfmUpState = 0; //reset this in motorDataTimer
 	}
 	oldUpButton = (steeringData[2] & (1 << 0));
 
@@ -1815,7 +1819,7 @@ void steeringWheelTask(const void *pv){
 		vfmDownState = 1;
     	default_data.P2_VFM--;
 	} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
-		vfmDownState = 0;
+		//vfmDownState = 0;  //reset this in motorDataTimer
 	}
 	oldDownButton = (steeringData[2] & (1 << 1));
 
@@ -1834,7 +1838,6 @@ void steeringWheelTask(const void *pv){
 	}
 	oldRightButton = (steeringData[2] & (1 << 3));
 
-	B_uartDoneRead(e);
 	taskEXIT_CRITICAL(); // exit critical section
     }
 }
@@ -1843,15 +1846,17 @@ void sidePanelTask(const void *pv){
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
-	B_bufQEntry_t *e;
-
+	//B_bufQEntry_t *e;
+    uint8_t expectedLen = 4; //must be same length as sent from SPB
+    uint8_t rxBuf[expectedLen];
 	for(;;){
-		e = B_uartRead(spbBuart);
+		//e = B_uartRead(spbBuart);
+		B_uartReadFullMessage(spbBuart,  rxBuf, expectedLen, BSSR_SERIAL_START);
 		taskENTER_CRITICAL(); // data into global variable -> enter critical section
 
-		if (e->buf[0] == BSSR_SERIAL_START && e->buf[1] == 0x04){
-			if (sidePanelData != e->buf[2]){
-				sidePanelData = e->buf[2];
+		if (rxBuf[0] == BSSR_SERIAL_START && rxBuf[1] == 0x04){
+			if (sidePanelData != rxBuf[2]){
+				sidePanelData = rxBuf[2];
 				//Only update if different (it should be different)
 
 				//------- Send acknowledge -------//
@@ -1931,7 +1936,6 @@ void sidePanelTask(const void *pv){
 					default_data.P2_motor_state = OFF;
 				}
 			}
-		B_uartDoneRead(e);
 		taskEXIT_CRITICAL(); // exit critical section
 	}
 }

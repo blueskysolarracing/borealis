@@ -185,18 +185,17 @@ int main(void)
 	newSwitchState[2] = getSwitchState(2);
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2])){ //If any bit has changed, send data
-		uint8_t buf[8] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00, 0x00, 0x00};
+		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00}; //last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
-			HAL_UART_Transmit(&huart2, buf, sizeof(buf), 1000); //To DCMB
-			HAL_UART_Transmit(&huart4, buf, sizeof(buf), 1000); //To debug
-
-
-//			char ary[20] = "hello world";
-//			HAL_UART_Transmit(&huart2, ary, strlen(ary), 1000);
+			HAL_UART_Transmit(&huart2, buf, sizeof(buf), 100); //To DCMB
+			HAL_UART_Transmit(&huart4, buf, sizeof(buf), 100); //To debug
 //			HAL_UART_Receive(&huart2, rx_buf, sizeof(rx_buf), 100);
 			HAL_Delay(1);
+			// Test ==============
+//			char ary[20] = "hello world";
+//			HAL_UART_Transmit(&huart2, ary, strlen(ary), 1000);
 		//} while (rx_buf[1] != BSSR_SPB_SWB_ACK);
 	}
 
