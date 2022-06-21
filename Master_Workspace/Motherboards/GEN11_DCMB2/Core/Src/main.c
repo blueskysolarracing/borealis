@@ -211,7 +211,6 @@ static void MX_QUADSPI_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-static void displayTask(const void *pv);
 static void sidePanelTask(const void *pv);
 static void displayTask(const void *pv);
 static void steeringWheelTask(const void *pv);
@@ -1527,7 +1526,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
-	float accel_reading_upper_bound = 42000.0; //ADC reading corresponding to 100% power request
+	float accel_reading_upper_bound = 40000.0; //ADC reading corresponding to 100% power request
 	float accel_reading_lower_bound = 17000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_threshold = 15.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
@@ -1538,31 +1537,6 @@ static void pedalTask(const void* p) {
 	float pedals_angles_temp[2] = {0};
 
 	while (1) {
-		//GENERATE RANDOM DATA TO DISPLAY - FOR TESTING//
-		common_data.solar_power = (rand() % (999 + 1));
-		common_data.motor_power = (rand() % (999 + 1));
-		common_data.battery_power = (rand() % (999 + 999 + 1)) - 999;
-		common_data.LV_power = (rand() % (50 + 1));
-		common_data.LV_voltage = (rand() % (20 + 1));
-		common_data.battery_soc = (rand() % (100 + 1));
-
-		default_data.P1_speed_kph = (rand() % (150 + 1));
-		default_data.P1_left_indicator_status = 1;
-		default_data.P2_DRL_state = 1;
-		default_data.P2_motor_state = REGEN;
-		default_data.P2_VFM = (rand() % (8 - 1 + 1)) + 1;
-		default_data.P2_right_indicator_status = 1;
-
-		detailed_data.P1_solar_voltage = (rand() % (150 + 1));
-		detailed_data.P1_solar_current = (rand() % (7 + 1));
-		detailed_data.P1_motor_voltage = (rand() % (150 + 1));
-		detailed_data.P1_motor_current = (rand() % (50 + 1));
-		detailed_data.P1_battery_voltage = (rand() % (150 + 1));
-		detailed_data.P1_battery_current = (rand() % (50 + 1));
-		detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
-		detailed_data.P2_LV_current = (rand() % (8 + 1));
-		detailed_data.P2_max_batt_temp = (rand() % (69 - 15 + 1)) - 15;
-
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
 			HAL_ADC_Start(&hadc1);
@@ -1582,13 +1556,17 @@ static void pedalTask(const void* p) {
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
+		} else if (accelValue > (256 + accel_reading_threshold)){
+			accelValue = (256 + accel_reading_threshold);
 		}
+
 		//Bound regen value
 		if(regenValue < 0){
 			regenValue = 0;
-		} else if (regenValue > 256){
-			regenValue = 256;
+		} else if (regenValue > (256 + regen_reading_threshold)){
+			regenValue = (256 + regen_reading_threshold);
 		}
+
 		//Check if we need to turn on braking lights
 		if (regenValue >= 10){ //If braking power is >= 10/255%, turn on break lights (higher threshold)
 			uint8_t bufh[2] = {0x03, 0b01001000}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1622,6 +1600,7 @@ static void pedalTask(const void* p) {
 		//Turn off motor if needed. Overrides original motorState
 		if (ignitionState != IGNITION_ON){
 			motorState = OFF;
+			motorTargetPower = (uint16_t) 0;
 			default_data.P2_motor_state = OFF;
 		}
 
@@ -1954,50 +1933,14 @@ void displayTask(const void *pv){
 	 * 4: Ignition off (car is sleeping)
 	 * 5: BMS fault
 	 */
-	uint8_t prev_display_sel = 0xFF;
-
-	// test values
-    default_data.P1_speed_kph = 69;
-    default_data.P2_VFM = 5;
-    default_data.P2_motor_state = 2;
-    default_data.P2_DRL_state = 0;
-
-    common_data.LV_power = -11;
-    common_data.LV_voltage = 100;	// write x10 value
-    common_data.battery_power = -454;
-    common_data.battery_soc = 87;
-    common_data.motor_power = 874;
-    common_data.solar_power = 420;
-
-    detailed_data.P1_battery_current = 4;
-    detailed_data.P1_battery_voltage = 116;
-    detailed_data.P1_motor_current = 7;
-    detailed_data.P1_motor_voltage = 124;
-    detailed_data.P1_solar_current = 4;
-    detailed_data.P1_solar_voltage = 105;
-    detailed_data.P2_HV_voltage = 89;
-    detailed_data.P2_LV_current = 1;
-    detailed_data.P2_max_batt_temp = 462; // write x10 value
-
-    uint8_t dis_sel = 0;
-    uint8_t force = 1;
 
 	while(1){
 		taskENTER_CRITICAL();
 		uint8_t local_display_sel = display_selection;
 		taskEXIT_CRITICAL();
-		if(force){
-			local_display_sel = dis_sel;
-		}
-
-		if(prev_display_sel != local_display_sel){
-			drawP1(local_display_sel);
-			drawP2(local_display_sel);
-			prev_display_sel = local_display_sel;
-		}
-		dis_sel = (dis_sel + 1) % 6;
-
-		vTaskDelay(1000);
+		drawP1(local_display_sel);
+		drawP2(local_display_sel);
+		vTaskDelay(100);
 	}
 }
 
