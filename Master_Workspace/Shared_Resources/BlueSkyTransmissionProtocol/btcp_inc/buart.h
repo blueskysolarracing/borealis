@@ -10,7 +10,7 @@ typedef struct{
 }B_bufQEntry_t;
 
 
-#define MAX_BUART_MESSAGE_LENGTH 100
+#define MAX_BUART_MESSAGE_LENGTH 100 // Note must be greater than RX_QUEUE_SIZE in buart.c
 typedef struct MsgBuf {
    uint8_t buf[MAX_BUART_MESSAGE_LENGTH];
    int maxLen;   // due to circular buffer, full when len - 1

@@ -9,7 +9,6 @@
 #define TX_TASK_PRIORITY 5
 #define RX_TASK_PRIORITY 6
 #define TRX_TASK_STACK_SIZE 256
-#define MAX_BUART_MESSAGE_LENGTH 100 // Note must be greater than RX_QUEUE_SIZE
 
 
 // ########  ##     ##
@@ -188,38 +187,6 @@ int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expecte
 		read = 0;
 	}
 	return 1;
-
-	//B_bufQEntry_t *e;
-    //uint8_t* input_buffer = rxBuf;
-    //uint8_t raw_input_buffer[MAX_BUART_MESSAGE_LENGTH];
-    //uint16_t buf_pos = 0;
-    //uint8_t started = 0;
-
-	//while (1) {
-    //    e = B_uartRead(btcp->rxBuart);
-    //    for(int i =  0; i < e->len; i++){
-	//		if(!started){
-	//			if(e->buf[i] == startByteID){
-	//				started = 1;
-	//				input_buffer[buf_pos] = e->buf[i];
-	//				buf_pos++;
-	//			}
-	//		} else if(buf_pos < expectedLen) {
-	//			input_buffer[buf_pos] = e->buf[i];
-	//			buf_pos++;
-	//			if (buf_pos == expectedLen) {
-	//				started = 0;
-	//				buf_pos = 0;
-	//				B_uartDoneRead(e);
-	//				return;
-	//			}
-	//		}
-    //    }
-
-    //    B_uartDoneRead(e);
-	//}
-
-	
 }
 
 void B_uartDoneRead(B_bufQEntry_t* e){
@@ -280,7 +247,7 @@ static void rxTask(void* pv){
 //			for (int i = 0; i < e.len; i++) {
 //				tmp[i] = e.buf[i];
 //			}
-//			/* ======== Testing end ========= */
+			/* ======== Testing end ========= */
 			buart->tail += e.len;
 			buart->tail %= RX_CIRC_BUF_SIZE;
 			int sent = xQueueSendToBack(buart->rxQ, &e, 0);
