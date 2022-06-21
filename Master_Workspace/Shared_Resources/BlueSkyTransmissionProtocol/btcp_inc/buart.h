@@ -32,8 +32,7 @@ typedef struct{
 	size_t					head;
 	size_t					tail;
 	uint8_t					topFlag;
-	//uint8_t 				messageBuffer[MAX_BUART_MESSAGE_LENGTH]; //for B_uartReadFullMessage()
-	MsgBuf 				mBuf;
+	MsgBuf 					mBuf;
 }B_uartHandle_t;
 
 int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);

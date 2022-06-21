@@ -53,7 +53,6 @@
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Device/ST/STM32H7xx/Include"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_BBMB/btcp_inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_BBMB/btcp_src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_BBMB/Miscellaneous}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_BBMB/PSM}&quot;"/>
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/include"/>

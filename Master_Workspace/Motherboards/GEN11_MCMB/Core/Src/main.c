@@ -1860,7 +1860,9 @@ static void MX_GPIO_Init(void)
  * 		And, configure SPI to send MSB first, and send 8 bits at a time
 */
 void MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr) {
-
+	if (wiperValue > 256) {
+		wiperValue = 256; // Since the highest wiperValue is 256
+	}
 	uint8_t ninethDataBit = (wiperValue >> 8) & 0b1;
 	uint8_t potAddress = 0b0000;
 	uint8_t writeCommand = 0b00;
@@ -2180,7 +2182,7 @@ static void spdTmr(TimerHandle_t xTimer){
 	// Send motor speed to DCMB
 	buf[1] = kmPerHour;
 	globalKmPerHour = kmPerHour; // used for debugger live expression
-//	B_tcpSend(btcp, buf, 4);
+	B_tcpSend(btcp, buf, 4);
 }
 
 void tempSenseTaskHandler(void* parameters) {
@@ -2331,8 +2333,8 @@ void PSMTaskHandler(void* parameters){
 		floatToArray((float) voltageCurrent_Supp_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
 
 		//Send to bus
-//		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
-//		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
+		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
 
 		//Place in global variables
 		taskENTER_CRITICAL();
@@ -2340,6 +2342,7 @@ void PSMTaskHandler(void* parameters){
 		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
 		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
 		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
+		batteryVoltage = (float) voltageCurrent_Motor_local[0];
 		taskEXIT_CRITICAL();
 		vTaskDelay(1000);
 	}
@@ -2347,7 +2350,7 @@ void PSMTaskHandler(void* parameters){
 
 void HeartbeatHandler(TimerHandle_t xTimer){
 	//Send periodic heartbeat so we know the board is still running
-//	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 
