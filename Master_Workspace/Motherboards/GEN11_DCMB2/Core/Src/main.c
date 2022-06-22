@@ -289,7 +289,7 @@ int main(void)
 
   //--- FREERTOS ---//
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
-//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
@@ -1652,8 +1652,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_motor_current = arrayToFloat(&pkt->payload[12]); //Motor current
 
 		} else if (pkt->payload[4] == MCMB_CAR_SPEED_ID){ //Car speed
-			default_data.P1_speed_kph = arrayToFloat(&pkt->payload[5]); //Car speed
+			default_data.P1_speed_kph = pkt->payload[5]; //Car speed
 		}
+		break;
 
 	case BBMB_ID:
 		 if (pkt->payload[4] == BBMB_BUS_METRICS_ID){ //HV bus
@@ -1689,6 +1690,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			common_data.battery_soc = minSoC;
 		}
+		 break;
 	}
 
 	taskEXIT_CRITICAL();
