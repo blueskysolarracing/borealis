@@ -133,8 +133,10 @@ float batteryVoltage = 0;
 // These are values from 5 digital buttons
 //uint8_t motorOnOff = 0; // 1 means motor is on, 0 means off (deprecated)
 uint8_t vfmUpState = 0;
+uint8_t gearUp = 0;
 uint8_t fwdRevState = 0;
 uint8_t vfmDownState = 0;
+uint8_t gearDown = 0;
 uint8_t vfmResetState = 0;
 
 long lastDcmbPacket = 0;
@@ -263,7 +265,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Resevt of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -1989,17 +1991,26 @@ static void motorTmr(TimerHandle_t xTimer){
 	static uint8_t currentVfmDownState = 0;
 	static uint8_t vfm_up_count = 0;
 	static uint8_t vfm_down_count = 0;
-	static uint8_t vfmCount = 0;
+	//static int vfmCount = 0;
 
 
-	if(xTaskGetTickCount() >= (lastDcmbPacket + 500)){  //if serialParse stops being called (this means uart connection is lost)
+	if(xTaskGetTickCount() >= (lastDcmbPacket + 2000)){  //if serialParse stops being called (this means uart connection is lost)
 		MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 		currentAccValue = 0;
 		MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 		currentRegenValue = 0;
 
-		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
-		currentMotorOn = 0;
+//		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
+//		currentMotorOn = 0;
+
+		currentVfmUpState = 0;
+		currentVfmDownState = 0;
+		vfm_up_count = 0;
+		vfm_down_count = 0;
+		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); //vfmup off
+		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); //vfmdown off
+		gearUp = 0;
+		gearDown = 0;
 		return;
 	}
 
@@ -2114,8 +2125,9 @@ static void motorTmr(TimerHandle_t xTimer){
 	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
 	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
 	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-	if(currentVfmUpState != vfmUpState){
-		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount < 8){
+	//if(currentVfmUpState != vfmUpState){
+	if (gearUp && !gearDown) {
+		if(vfm_up_count == 0 /*&& vfm_down_count == 0 && vfmCount < 8*/){
 			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
 			vfm_up_count++;
 			currentVfmUpState = 1;
@@ -2129,12 +2141,14 @@ static void motorTmr(TimerHandle_t xTimer){
 		} else if(vfm_up_count == 40){
 			vfm_up_count = 0;
 			currentVfmUpState = 0;
-			vfmCount++;
+			//vfmCount++;
+			gearUp = 0;
 		}
 	}
 
-	if(currentVfmDownState != vfmDownState){
-		if(vfm_up_count == 0 && vfm_down_count == 0 && vfmCount > 0){
+	//if(currentVfmDownState != vfmDownState){
+	if (gearDown && !gearUp) {
+		if(vfm_down_count == 0 /*&& vfm_up_count == 0 && vfmCount > 0*/){
 			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
 			vfm_down_count++;
 			currentVfmDownState = 1;
@@ -2148,8 +2162,18 @@ static void motorTmr(TimerHandle_t xTimer){
 		} else if(vfm_down_count == 40){
 			vfm_down_count = 0;
 			currentVfmDownState = 0;
-			vfmCount--;
+			//vfmCount--;
+			gearDown = 0;
+
 		}
+	}
+	if (gearDown != 0 && gearUp!= 0) {
+		gearDown = 0;
+		gearUp = 0;
+		vfm_down_count = 0;
+		currentVfmDownState = 0;
+		vfm_up_count = 0;
+		currentVfmUpState = 0;
 	}
 }
 
@@ -2222,6 +2246,12 @@ void serialParse(B_tcpPacket_t *pkt){
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
 			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
+			if (vfmDownState != 0) {
+				gearDown = 1;
+			}
+			else if (vfmUpState != 0) {
+				gearUp = 1;
+			}
 			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 			lastDcmbPacket = xTaskGetTickCount();
 	  }
