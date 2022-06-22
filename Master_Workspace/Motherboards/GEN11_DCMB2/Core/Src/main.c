@@ -56,6 +56,7 @@
 
 //--- MOTOR ---//
 #define MOTOR_DATA_PERIOD 20 //Send motor data every MOTOR_DATA_PERIOD ms
+#define MAX_VFM 8 //Maximum VFM setting
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
@@ -288,7 +289,7 @@ int main(void)
 
   //--- FREERTOS ---//
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
+//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
@@ -317,7 +318,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 5000);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -1786,8 +1787,11 @@ void steeringWheelTask(const void *pv){
 
     //Up button pressed
 	if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-    		vfmUpState = 1;
-    		default_data.P2_VFM++;
+		if (default_data.P2_VFM < MAX_VFM){ //Bound VFM setting
+			default_data.P2_VFM++;
+		}
+		vfmUpState = 1;
+
 	} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
     		//vfmUpState = 0; //reset this in motorDataTimer
 	}
@@ -1795,8 +1799,11 @@ void steeringWheelTask(const void *pv){
 
     //Down button pressed
 	if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
+		if (default_data.P2_VFM > 0){ //Bound VFM setting
+    		default_data.P2_VFM--;
+		}
 		vfmDownState = 1;
-    	default_data.P2_VFM--;
+
 	} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
 		//vfmDownState = 0;  //reset this in motorDataTimer
 	}

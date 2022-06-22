@@ -6,6 +6,7 @@
  *  Created on: May 28, 2022
  *      Author: tristan
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "bglcd.h"
@@ -20,18 +21,25 @@
 #include "fonts/Liberation_Sans27x36_Numbers.h"
 #include "fonts/Liberation_Sans20x28_Numbers.h"
 #include "fonts/Bebas_Neue20x36_Bold_Numbers.h"
-//#include "fonts/Earthbound_12x19_48to57.h"
+#include "fonts/JetBrains_Mono13x20.h"
+#include "fonts/JetBrains_Mono13x21_Symbol.h"
 #include "fonts/font5x7.h"
 
 uint8_t correct_Y(uint8_t y){
 	if(pToggle)
-		return y;
-	return (y+16)%64;
+		return y;	// change this if P2 fuck up
+//	return (y+16)%64;
+	return y;	// change this if P1 fuck up
 }
 
 // p1 stuff start
 
-void drawP1Default(int value[4]){
+void drawP1Default(/*int value[4]*/){
+	short value[4] = {	common_data.solar_power,
+						common_data.motor_power,
+						common_data.battery_power,
+						(short)(default_data.P1_speed_kph)};
+
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
 	char* labelspeed = "km/h";
@@ -72,7 +80,7 @@ void drawP1Default(int value[4]){
 	// get it in strings
 	for(int i = 0; i < 4; i++){
 		// sign
-		int v = value[i];
+		short v = value[i];
 		if(v<0){
 			valueS[i][0] = '-';
 			v *= -1;
@@ -109,15 +117,21 @@ void drawP1Default(int value[4]){
 
 	// now write the big speed
 	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-	glcd_draw_char_xy(85, correct_Y(16), valueS[3][2]);
+	if(valueS[3][2] != ' ')glcd_draw_char_xy(85, correct_Y(16), valueS[3][2]);
 	glcd_draw_char_xy(105, correct_Y(16), valueS[3][3]);
 
 	glcd_write();
 }
 
-void drawP1Detailed(int value[9]){
+void drawP1Detailed(/*int value[9]*/){
 	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
 	int labelsP1L = 3;
+	short value[9] = {	common_data.solar_power,
+						common_data.motor_power,
+						common_data.battery_power,
+						detailed_data.P1_solar_voltage, detailed_data.P1_solar_current,
+						detailed_data.P1_motor_voltage, detailed_data.P1_motor_current,
+						detailed_data.P1_battery_voltage, detailed_data.P1_battery_current};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -134,7 +148,7 @@ void drawP1Detailed(int value[9]){
 			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
 			j++;
 		}
-		glcd_tiny_draw_char_xy(68, correct_Y(y), 'w');
+		glcd_tiny_draw_char_xy(69, correct_Y(y), 'w');
 		// go next rows, these value are just what I think will look good
 		y+=23;
 	}
@@ -147,7 +161,7 @@ void drawP1Detailed(int value[9]){
 	// get it in strings
 	for(int i = 0; i < 9; i++){
 		// sign
-		int v = value[i];
+		short v = value[i];
 		if(v<0){
 			valueS[i][0] = '-';
 			v *= -1;
@@ -185,16 +199,16 @@ void drawP1Detailed(int value[9]){
 	// write the 6 small values
 	y = 5;
 	for(int i = 3; i < 9; i+=2){
-		uint8_t x = 73;
+		uint8_t x = 74;
         glcd_tiny_draw_char_xy(x, correct_Y(y), '(');
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i][1]);
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i][2]);
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i][3]);
-        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'V');
+        glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ',');
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i+1][2]);
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[i+1][3]);
-        glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'A');
+        glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'A');
         glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ')');
 		y+=23;
 	}
@@ -345,15 +359,21 @@ void drawP1BMSFault(){
 // draw p1
 void drawP1(uint8_t sel){
 	pToggle = 0;
-	int defaultTest[4] = {420, 874, -454, 69};
-	int defaultDetailed[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	/* Display selection (sel):
+	 * 0: Default
+	 * 1: Detailed
+	 * 2: Cruise control activated
+	 * 3: Cruise control deactivated
+	 * 4: Ignition off (car is sleeping)
+	 * 5: BMS fault
+	 */
 
 	switch(sel){
 	case 0:
-		drawP1Default(defaultTest);
+		drawP1Default(/*defaultTest*/);
 		break;
 	case 1:
-		drawP1Detailed(defaultDetailed);
+		drawP1Detailed(/*defaultDetailed*/);
 		break;
 	case 2:
 		drawP1Activate();
@@ -368,20 +388,35 @@ void drawP1(uint8_t sel){
 		drawP1BMSFault();
 		break;
 	default:
-		drawP1Default(defaultTest);
+		drawP1Default(/*defaultTest*/);
 		break;
 	}
-
-	glcd_bbox_refresh();
-	pToggle = 1;
-	glcd_write();
-	pToggle = 0;
 }
 
 // p2 stuff start
-void drawP2Default(int value[4]){
-	char* labelsP2[] = {"Cruise:", "DRL:"};
-	int labelsP2L = 2;
+void testAlpha(){
+	glcd_clear_buffer();
+	uint8_t y = 0;
+	glcd_set_font(JetBrains_Mono13x20, 13, 22, 'A', 'Z');
+	int offset = 0;
+	for(int j = 0; j < 3; j++){
+		for(int i = 0; i < 8; i++){
+			glcd_draw_char_xy(0+(i*15), correct_Y(y), 'A' + offset);
+			offset++;
+		}
+		y+=20;
+	}
+	glcd_write();
+}
+void drawP2Default(/*int value[4]*/){
+	uint8_t value[4] = {default_data.P2_DRL_state,
+						default_data.P2_motor_state,
+						default_data.P2_VFM,
+						common_data.battery_soc};
+	char* labelsP2[] = {"DRL:"};
+	int labelsP2L = 1;
+
+	if(value[3] > 99) value[3] = 99;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -391,7 +426,7 @@ void drawP2Default(int value[4]){
 		char* label = labelsP2[i];
 		int j = 0;
 		while(label[j] != 0){
-			glcd_tiny_draw_char_xy(50+j*6, correct_Y(y), label[j]);
+			glcd_tiny_draw_char_xy(49+j*6, correct_Y(y), label[j]);
 			j++;
 		}
 		y+=23;
@@ -403,33 +438,65 @@ void drawP2Default(int value[4]){
     glcd_tiny_set_font(Font5x7,5,7,32,127);
 
 	// write the 2 on off
-	y = 5;
-	for(int i = 0; i < 2; i++){
-		char* status = "OFF";
-		if(value[i]) status = " ON";
-		for(int j = 0; j < 3; j++){
-			glcd_tiny_draw_char_xy(95+(j*6), correct_Y(y), status[j]);
-		}
-		y+=23;
+	y = 3;
+	glcd_set_font(JetBrains_Mono13x20, 13, 20, 'A', 'Z');
+	char* status = "OFF";
+	if(value[0]) status = " ON";
+	for(int j = 0; j < 3; j++){
+		if(value[0] && j == 0) continue;
+		glcd_draw_char_xy(75+(j*13), correct_Y(y), status[j]);
 	}
 
-	char* regen = "     ";
-	if(value[2]) regen = "REGEN";
+	char* state;
+	uint8_t stateL;
 
-	glcd_set_font(Liberation_Sans17x17_Alpha, 17, 17, 'A', 'Z');
-	for(int i = 0; i < 5; i++){
-		glcd_draw_char_xy(49+i*15, 45, regen[i]);
+	switch(value[1]){
+	case 1:
+		state = "PEDAL";
+		stateL = 5;
+		break;
+	case 2:
+		state = "CRUISE";
+		stateL = 6;
+		break;
+	case 3:
+		state = "REGEN";
+		stateL = 5;
+		break;
+	default:
+		state = "OFF";
+		stateL = 3;
+		break;
 	}
+
+	for(int i = 0; i < stateL; i++){
+		glcd_draw_char_xy(49+i*13, 25, state[i]);
+	}
+
+	glcd_draw_char_xy(49, correct_Y(45), 'V');
+	glcd_draw_char_xy(62, correct_Y(45), 'F');
+	glcd_draw_char_xy(75, correct_Y(45), 'M');
+	glcd_fill_rect(90, correct_Y(48), 2, 3, 1);
+	glcd_fill_rect(90, correct_Y(54), 2, 3, 1);
+
+	// write VFM stat
+	glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
+	glcd_draw_char_xy(98, correct_Y(44), '0' + value[2]);
 
 	// now write the big battery
 	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-	glcd_draw_char_xy(0, 16, '0' + value[3]/10);
+	if((value[3]/10) != 0) glcd_draw_char_xy(0, 16, '0' + value[3]/10);
 	glcd_draw_char_xy(21, 16, '0' + value[3]%10);
 
 	glcd_write();
 }
 
-void drawP2Detailed(int value[5]){
+void drawP2Detailed(/*int value[5]*/){
+	short value[5] = {	common_data.LV_power,
+						(common_data.LV_voltage)/10,
+						detailed_data.P2_LV_current,
+						detailed_data.P2_max_batt_temp,
+						default_data.P2_VFM};
 	char* labelsP2[] = {"Lo Voltage:", "Max pack temp:", "VFM:"};
 	int labelsP2L = 3;
 
@@ -453,7 +520,7 @@ void drawP2Detailed(int value[5]){
 	// get it in strings
 	for(int i = 0; i < 5; i++){
 		// sign
-		int v = value[i];
+		short v = value[i];
 		if(v<0){
 			valueS[i][0] = '-';
 			v *= -1;
@@ -482,21 +549,20 @@ void drawP2Detailed(int value[5]){
     // write the 5 small values
 	y = 5;
     // the watt and V and A
-	uint8_t x = 55;
+	uint8_t x = 54;
 	glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
-	glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][1]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][2]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][3]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'W');
+    glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'W');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '(');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][1]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][2]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][3]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'V');
+    glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ',');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][2]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][3]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'A');
+    glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'A');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ')');
     // the temp
     y+=23;
@@ -506,7 +572,7 @@ void drawP2Detailed(int value[5]){
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][2]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][3]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'C');
+    glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'C');
     // VFM
     y+=23;
     x = 20;
@@ -581,7 +647,11 @@ void drawP2Deactivate(){
 	glcd_write();
 }
 
-void drawP2IgnitionOff(int value[4]){
+void drawP2IgnitionOff(/*int value[4]*/){
+	short value[4] = {	detailed_data.P2_HV_voltage,
+						common_data.LV_voltage,
+						common_data.LV_power,
+						(short)(common_data.battery_soc)};
 	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
 	int labelsP2L = 3;
 
@@ -605,7 +675,7 @@ void drawP2IgnitionOff(int value[4]){
 	// get it in strings
 	for(int i = 0; i < 4; i++){
 		// sign
-		int v = value[i];
+		short v = value[i];
 		if(v<0){
 			valueS[i][0] = '-';
 			v *= -1;
@@ -671,7 +741,11 @@ void drawP2IgnitionOff(int value[4]){
 	glcd_write();
 }
 
-void drawP2BMSFault(int value[4]){
+void drawP2BMSFault(/*int value[4]*/){
+	short value[4] = {	detailed_data.P2_HV_voltage,
+						common_data.LV_voltage,
+						common_data.LV_power,
+						(short)(common_data.battery_soc)};
 	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
 	int labelsP2L = 3;
 
@@ -695,7 +769,7 @@ void drawP2BMSFault(int value[4]){
 	// get it in strings
 	for(int i = 0; i < 4; i++){
 		// sign
-		int v = value[i];
+		short v = value[i];
 		if(v<0){
 			valueS[i][0] = '-';
 			v *= -1;
@@ -763,16 +837,17 @@ void drawP2BMSFault(int value[4]){
 
 void drawP2(uint8_t sel){
 	pToggle = 1;
-	int defaultTest[4] = {1, 0, 1, 87};
-	int defaultDetailed[5] = {1, 2, 3, 4, 5};
-	int defaultBMSFault[4] = {89, 132, 13, 49};
+//	int defaultTest[4] = {1, 0, 1, 87};
+//	int defaultDetailed[5] = {1, 2, 3, 4, 5};
+//	int defaultBMSFault[4] = {89, 132, 13, 49};
 
 	switch(sel){
 	case 0:
-		drawP2Default(defaultTest);
+		drawP2Default(/*defaultTest*/);
+//		testAlpha();
 		break;
 	case 1:
-		drawP2Detailed(defaultDetailed);
+		drawP2Detailed(/*defaultDetailed*/);
 		break;
 	case 2:
 		drawP2Activate();
@@ -781,13 +856,13 @@ void drawP2(uint8_t sel){
 		drawP2Deactivate();
 		break;
 	case 4:
-		drawP2IgnitionOff(defaultBMSFault);
+		drawP2IgnitionOff(/*defaultBMSFault*/);
 		break;
 	case 5:
-		drawP2BMSFault(defaultBMSFault);
+		drawP2BMSFault(/*defaultBMSFault*/);
 		break;
 	default:
-		drawP2Default(defaultTest);
+		drawP2Default(/*defaultTest*/);
 		break;
 	}
 }
