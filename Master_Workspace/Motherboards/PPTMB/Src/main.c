@@ -1658,6 +1658,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
 			  }*/
 		  }
+		  break;
 	}
 }
 

@@ -142,7 +142,7 @@ uint8_t vfmResetState = 0;
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 uint8_t speedTarget;
-globalKmPerHour = 0;
+uint8_t globalKmPerHour = 0;
 
 // Struct for reading PWM input (in this case: speed pulse from motor)
 typedef struct {
@@ -2205,7 +2205,13 @@ static void spdTmr(TimerHandle_t xTimer){
 	//buf[1] = pwm_in.frequency;
 	// Send motor speed to DCMB
 	buf[1] = kmPerHour;
+	//temp for testing
+//	static i = 0; i++;
+//	if (i > 99) i = 0;
+//	buf[1] = i;
+
 	globalKmPerHour = kmPerHour; // used for debugger live expression
+
 	B_tcpSend(btcp, buf, 4);
 }
 
@@ -2254,12 +2260,13 @@ void serialParse(B_tcpPacket_t *pkt){
 			}
 			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 			lastDcmbPacket = xTaskGetTickCount();
-	  }
-
+		}
+		break;
 	  case BBMB_ID:
 		if(pkt->data[0] == BBMB_BUS_METRICS_ID){ //Get battery voltage to determine whether regen may be used
 			batteryVoltage = arrayToFloat(&pkt->data[4]);
-	  }
+		}
+		break;
 	}
 
 	// New way (deprecated)
