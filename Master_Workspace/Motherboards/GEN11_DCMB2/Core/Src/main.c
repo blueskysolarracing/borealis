@@ -1789,22 +1789,32 @@ void steeringWheelTask(const void *pv){
 
     //Up button pressed
 	if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-		if (default_data.P2_VFM < MAX_VFM){ //Bound VFM setting
-			default_data.P2_VFM++;
-		}
-		vfmUpState = 1;
+//		if (default_data.P2_VFM < MAX_VFM){ //Bound VFM setting
+//			default_data.P2_VFM++;
+//		}
+//		vfmUpState = 1;
+		/*
+		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
+		 */
 
 	} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
-    		//vfmUpState = 0; //reset this in motorDataTimer
+    	//vfmUpState = 0; //reset this in motorDataTimer
+		/*
+		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
+		 */
 	}
 	oldUpButton = (steeringData[2] & (1 << 0));
 
     //Down button pressed
 	if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
-		if (default_data.P2_VFM > 0){ //Bound VFM setting
-    		default_data.P2_VFM--;
-		}
-		vfmDownState = 1;
+//		if (default_data.P2_VFM > 0){ //Bound VFM setting
+//    		default_data.P2_VFM--;
+//		}
+//		vfmDownState = 1;
+
+		/*
+		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
+		 */
 
 	} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
 		//vfmDownState = 0;  //reset this in motorDataTimer
@@ -1961,12 +1971,12 @@ void motorDataTimer(TimerHandle_t xTimer){
 	digitalButtons |= fwdRevState << 3;
 	digitalButtons |= vfmUpState << 2;
 	digitalButtons |= vfmDownState << 1;
-	if(vfmUpState == 1){
-		vfmUpState = 0;
-	}
-	if(vfmDownState == 1){
-		vfmDownState = 0;
-	}
+//	if(vfmUpState == 1){
+//		vfmUpState = 0;
+//	}
+//	if(vfmDownState == 1){
+//		vfmDownState = 0;
+//	}
 
 	// -------- SEND -------- //
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;

@@ -2003,14 +2003,14 @@ static void motorTmr(TimerHandle_t xTimer){
 //		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
 //		currentMotorOn = 0;
 
-		currentVfmUpState = 0;
-		currentVfmDownState = 0;
-		vfm_up_count = 0;
-		vfm_down_count = 0;
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); //vfmup off
-		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); //vfmdown off
-		gearUp = 0;
-		gearDown = 0;
+//		currentVfmUpState = 0;
+//		currentVfmDownState = 0;
+//		vfm_up_count = 0;
+//		vfm_down_count = 0;
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); //vfmup off
+//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); //vfmdown off
+//		gearUp = 0;
+//		gearDown = 0;
 		return;
 	}
 
@@ -2106,7 +2106,6 @@ static void motorTmr(TimerHandle_t xTimer){
 				currentAccValue = 0;
 			}
 
-
 			// drive regen pots
 			uint16_t localRegenValue = targetPower;
 			if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
@@ -2119,62 +2118,63 @@ static void motorTmr(TimerHandle_t xTimer){
 			break;
 	}
 
-
 	// The VFMUpState comes from the DCMB
 	// Normally it is zero
 	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
 	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
 	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
 	//if(currentVfmUpState != vfmUpState){
-	if (gearUp && !gearDown) {
-		if(vfm_up_count == 0 /*&& vfm_down_count == 0 && vfmCount < 8*/){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-			vfm_up_count++;
-			currentVfmUpState = 1;
-		} else if (vfm_up_count < 20){
-			vfm_up_count++;
-		} else if(vfm_up_count == 20){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
-				vfm_up_count++;
-		} else if(vfm_up_count < 40){
-			vfm_up_count++;
-		} else if(vfm_up_count == 40){
-			vfm_up_count = 0;
-			currentVfmUpState = 0;
-			//vfmCount++;
-			gearUp = 0;
-		}
-	}
 
-	//if(currentVfmDownState != vfmDownState){
-	if (gearDown && !gearUp) {
-		if(vfm_down_count == 0 /*&& vfm_up_count == 0 && vfmCount > 0*/){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-			vfm_down_count++;
-			currentVfmDownState = 1;
-		} else if (vfm_down_count < 20){
-			vfm_down_count++;
-		} else if(vfm_down_count == 20){
-			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-				vfm_down_count++;
-		} else if(vfm_down_count < 40){
-			vfm_down_count++;
-		} else if(vfm_down_count == 40){
-			vfm_down_count = 0;
-			currentVfmDownState = 0;
-			//vfmCount--;
-			gearDown = 0;
 
-		}
-	}
-	if (gearDown != 0 && gearUp!= 0) {
-		gearDown = 0;
-		gearUp = 0;
-		vfm_down_count = 0;
-		currentVfmDownState = 0;
-		vfm_up_count = 0;
-		currentVfmUpState = 0;
-	}
+//	if (gearUp && !gearDown) {
+//		if(vfm_up_count == 0 /*&& vfm_down_count == 0 && vfmCount < 8*/){
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
+//			vfm_up_count++;
+//			currentVfmUpState = 1;
+//		} else if (vfm_up_count < 20){
+//			vfm_up_count++;
+//		} else if(vfm_up_count == 20){
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
+//				vfm_up_count++;
+//		} else if(vfm_up_count < 40){
+//			vfm_up_count++;
+//		} else if(vfm_up_count == 40){
+//			vfm_up_count = 0;
+//			currentVfmUpState = 0;
+//			//vfmCount++;
+//			gearUp = 0;
+//		}
+//	}
+//
+//	//if(currentVfmDownState != vfmDownState){
+//	if (gearDown && !gearUp) {
+//		if(vfm_down_count == 0 /*&& vfm_up_count == 0 && vfmCount > 0*/){
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
+//			vfm_down_count++;
+//			currentVfmDownState = 1;
+//		} else if (vfm_down_count < 20){
+//			vfm_down_count++;
+//		} else if(vfm_down_count == 20){
+//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
+//				vfm_down_count++;
+//		} else if(vfm_down_count < 40){
+//			vfm_down_count++;
+//		} else if(vfm_down_count == 40){
+//			vfm_down_count = 0;
+//			currentVfmDownState = 0;
+//			//vfmCount--;
+//			gearDown = 0;
+//
+//		}
+//	}
+//	if (gearDown != 0 && gearUp!= 0) {
+//		gearDown = 0;
+//		gearUp = 0;
+//		vfm_down_count = 0;
+//		currentVfmDownState = 0;
+//		vfm_up_count = 0;
+//		currentVfmUpState = 0;
+//	}
 }
 
 // New implementation GEN11
@@ -2251,14 +2251,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			//for 5 digital buttons (4 now):
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
-			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
-			if (vfmDownState != 0) {
-				gearDown = 1;
-			}
-			else if (vfmUpState != 0) {
-				gearUp = 1;
-			}
-			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
+//			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
+//			if (vfmDownState != 0) {
+//				gearDown = 1;
+//			}
+//			else if (vfmUpState != 0) {
+//				gearUp = 1;
+//			}
+//			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 			lastDcmbPacket = xTaskGetTickCount();
 		}
 		break;
