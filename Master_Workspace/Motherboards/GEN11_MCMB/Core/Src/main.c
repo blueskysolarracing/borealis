@@ -2043,6 +2043,16 @@ static void motorTmr(TimerHandle_t xTimer){
 				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 				currentRegenValue = 0;
 			}
+			if(currentFwdRevState != fwdRevState){
+				if(fwdRevState){
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
+					currentFwdRevState = 1;
+				} else {
+					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
+					currentFwdRevState = 0;
+				}
+			}
+			break;
 		case PEDAL:
 			if (!currentMotorOn) {
 				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);

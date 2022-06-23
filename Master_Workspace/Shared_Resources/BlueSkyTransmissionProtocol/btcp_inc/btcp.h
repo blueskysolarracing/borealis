@@ -17,7 +17,20 @@
 
 #define HEARTBEAT_INTERVAL 1000 //Delay between sending heartbeats
 
-typedef struct {
+typedef struct B_tcpHandle_t{
+	uint8_t senderID;
+    B_uartHandle_t**    transmitBuarts;
+    uint8_t             numTransmitBuarts;
+    B_uartHandle_t*     rxBuart;
+    uint8_t             tcpSeqNum;
+    QueueHandle_t       txQ;
+    TaskHandle_t        rxTask;
+    CRC_HandleTypeDef*  crc;
+} B_tcpHandle_t;
+
+
+
+typedef struct B_tcpPacket_t{
 	uint8_t sender;
 	uint8_t senderID;
 	// Note sender and senderID are equivalent
@@ -29,18 +42,12 @@ typedef struct {
     uint8_t *payload; // Header + CRC
     uint8_t *data;  // will point to payload+4
     uint32_t crc;
+    B_tcpHandle_t * btcp;
+    uint16_t raw_buf_length;
+    uint8_t* raw_input_buffer; // pointer to raw_input (with escape characters, etc)
+
 } B_tcpPacket_t;
 
-typedef struct {
-	uint8_t senderID;
-    B_uartHandle_t**    transmitBuarts;
-    uint8_t             numTransmitBuarts;
-    B_uartHandle_t*     rxBuart;
-    uint8_t             tcpSeqNum;
-    QueueHandle_t       txQ;
-    TaskHandle_t        rxTask;
-    CRC_HandleTypeDef*  crc;
-} B_tcpHandle_t;
 
 
 B_tcpHandle_t* B_tcpStart(uint8_t sender, B_uartHandle_t** transmitBuarts,

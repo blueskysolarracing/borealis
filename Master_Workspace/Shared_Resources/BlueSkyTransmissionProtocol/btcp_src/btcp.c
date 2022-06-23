@@ -222,6 +222,19 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 // ##    ##    ##    ##     ##    ##     ##  ##    ##
 //  ######     ##    ##     ##    ##    ####  ######
 
+// helper macro function
+#define resetCounters() \
+	raw_buf_pos = 0;\
+	crc = 0;\
+	seqNum = 0xffff;\
+	crcAcc = 0;\
+	crcExpected = 0;\
+	sender = 0;\
+	buf_pos = 0;\
+	expected_length = 0;\
+	started = 0;
+
+
 static void tcpRxTask(void *pv){
     B_tcpHandle_t* btcp = pv;
     B_bufQEntry_t *e;
@@ -241,8 +254,14 @@ static void tcpRxTask(void *pv){
     for(;;){
         e = B_uartRead(btcp->rxBuart);
         for(int i = 0; i < e->len; i++){
-//            raw_input_buffer[raw_buf_pos] = e->buf[i]; unnecessary
-//            raw_buf_pos++;
+
+        	// to avoid overflow
+        	if (raw_buf_pos >= sizeof(raw_input_buffer) || buf_pos >= sizeof(input_buffer)) {
+        		resetCounters();
+        	}
+
+            raw_input_buffer[raw_buf_pos] = e->buf[i];
+            raw_buf_pos++;
 
 			// First, check if there is an escape character and act accordingly
             if(e->buf[i] == BSSR_SERIAL_ESCAPE && !escaped){ 
@@ -280,11 +299,14 @@ static void tcpRxTask(void *pv){
                 	//crcExpected = ~HAL_CRC_Calculate(btcp->crc, input_buffer, buf_pos);
                 	//GEN11 change:
                 	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos);
-                		//crcExpected == crc && sender != TCP_ID
-					if(crcExpected == crc && sender != TCP_ID){ // If CRC correct and the sender is not this motherboard
-						/*for(int i = 0; i < btcp->numTransmitBuarts; i++){
-							B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);
-						}*/  //Commented out since this is for Daisy Chain, and we are not doing Daisy Chain this cycle
+
+					if(crcExpected == crc && sender != btcp->senderID){ // If CRC correct and the sender is not this motherboard
+						for(int i = 0; i < btcp->numTransmitBuarts; i++){
+							if (btcp->transmitBuarts[i] != btcp->rxBuart) { // to not transmit back to sender
+								B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);
+							}
+						}
+						//Commented out since this is for Daisy Chain, and we are not doing Daisy Chain this cycle
 						pkt.length = expected_length;
 						pkt.sender = sender;
 						pkt.senderID = sender;
@@ -292,6 +314,9 @@ static void tcpRxTask(void *pv){
 						pkt.payload = input_buffer;
 						pkt.data = pkt.payload + 4; //points to element containing DataID
 						pkt.crc = crc;
+						pkt.btcp = btcp;
+						pkt.raw_buf_length = raw_buf_pos;
+						pkt.raw_input_buffer = raw_input_buffer;
 						serialParse(&pkt);
 					}
 					raw_buf_pos = 0;
@@ -310,6 +335,8 @@ static void tcpRxTask(void *pv){
     }
 }
 
+
+// for testing
 static void tcpRxTask_BBMB_BMS(void *pv){
     B_tcpHandle_t* btcp = pv;
     B_bufQEntry_t *e;
@@ -368,8 +395,8 @@ static void tcpRxTask_BBMB_BMS(void *pv){
                 	//crcExpected = ~HAL_CRC_Calculate(btcp->crc, input_buffer, buf_pos);
                 	//GEN11 change:
                 	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos);
-                		//crcExpected == crc && sender != TCP_ID
-					if(crcExpected == crc && sender != TCP_ID){ // If CRC correct and the sender is not this motherboard
+
+					if(crcExpected == crc && sender != btcp->senderID){ // If CRC correct and the sender is not this motherboard
 						/*for(int i = 0; i < btcp->numTransmitBuarts; i++){
 							B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);
 						}*/  //Commented out since this is for Daisy Chain, and we are not doing Daisy Chain this cycle
@@ -400,18 +427,7 @@ static void tcpRxTask_BBMB_BMS(void *pv){
 
 
 
+__weak void serialParse(B_tcpPacket_t *pkt){
+	// to be implemented in main
+}
 
-//__weak void serialParse(B_tcpPacket_t *pkt){
-//	switch(pkt->sender){
-//	case 0x04:
-//		  if(pkt->payload[4] == 0x01){
-//			  xQueueSend(hpQ, pkt->payload+5, 0);
-//		  } else if(pkt->payload[4] == 0x04){
-//			  if(pkt->payload[5]){
-//				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
-//			  } else {
-//				  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
-//			  }
-//		  }
-//	}
-//}
