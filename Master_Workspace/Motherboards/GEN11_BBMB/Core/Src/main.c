@@ -45,6 +45,7 @@
 #define NUM_BATT_TEMP_SENSORS 3 * 6 //Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 1000//(Other intervals defined in psm.h and btcp.h)
 #define BMS_FLT_CHECK_INTERVAL 10 //Interval at which to read the BMS_FLT pin
+#define PROTECTION_ENABLE 0 //Flag to enable (1) or disable (0) relay control
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -268,6 +269,9 @@ int main(void)
 
   //--- RELAYS ---//
   close_relays(&relay);
+
+  //--- ENABLE 12V FROM VICOR ---//
+  HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, 1);
 
   /* USER CODE END 2 */
 
@@ -1479,7 +1483,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 
 		B_tcpSend(btcp_main, car_state_error, sizeof(car_state_error));
 
-		open_relays(&relay);
+//		if (PROTECTION_ENABLE){	open_relays(&relay);	}
 	}
 
 	floatToArray((float) voltageCurrent_HV[0], busMetrics_HV + 4); // fills 4 - 7 of busMetrics

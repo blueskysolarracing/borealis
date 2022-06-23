@@ -34,7 +34,7 @@
 
 #define PWR_DWN_ENABLE 0 //Set to 1 to shutdown ADE7912s between measurements (WILL ADD ~100ms DELAY AS THE ISOLATED CONVERTERS NEED TO TURN ON). Saves ~10mA @ 3.3V
 
-#define PSM_INTERVAL 200 //200ms between measurements
+#define PSM_INTERVAL 500 //500ms between measurements
 
 /*constants for calibrating voltage and current measurements
 These belong to the PSM in different boxes. IDs are written on the PSM.
