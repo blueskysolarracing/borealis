@@ -1844,8 +1844,7 @@ void sidePanelTask(const void *pv){
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
-	//B_bufQEntry_t *e;
-    uint8_t expectedLen = 4; //must be same length as sent from SPB
+	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
 	for(;;){
 		//e = B_uartRead(spbBuart);
@@ -1857,11 +1856,11 @@ void sidePanelTask(const void *pv){
 				sidePanelData = rxBuf[2];
 				//Only update if different (it should be different)
 
-				//------- Send acknowledge -------//
+			//------- Send acknowledge -------//
 				uint8_t buf_to_spb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
 				HAL_UART_Transmit(&huart3, buf_to_spb, sizeof(buf_to_spb), 100);
 
-				//---------- Process data ----------//
+			//---------- Process data ----------//
 			//REAR CAMERA AND SCREEN
 				if (sidePanelData & (1 << 6)){
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
