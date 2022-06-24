@@ -127,7 +127,6 @@ static int mBuf_getSize(MsgBuf* m ){
 int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID) {
 
 	MsgBuf* mBuf = &(buart->mBuf);
-	//size_t nbytes = 0;
 	uint8_t startFound = 0;
 	uint8_t read = 0;
 	B_bufQEntry_t *e;

@@ -306,7 +306,6 @@ static void tcpRxTask(void *pv){
 								B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);
 							}
 						}
-						//Commented out since this is for Daisy Chain, and we are not doing Daisy Chain this cycle
 						pkt.length = expected_length;
 						pkt.sender = sender;
 						pkt.senderID = sender;
