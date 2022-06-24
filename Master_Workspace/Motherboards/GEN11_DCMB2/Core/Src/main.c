@@ -1893,7 +1893,6 @@ void sidePanelTask(const void *pv){
 			//AUX1 (not implemented in GEN11)
 				if (sidePanelData & (1 << 2)){
 					// pass
-				}
 				} else { //Turn off horn
 					// pass
 				}
@@ -1934,6 +1933,7 @@ void sidePanelTask(const void *pv){
 					default_data.P2_motor_state = OFF;
 				}
 			}
+		}
 		taskEXIT_CRITICAL(); // exit critical section
 	}
 }
