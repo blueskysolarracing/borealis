@@ -289,8 +289,8 @@ int main(void)
 
   //--- FREERTOS ---//
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
-  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 1024, 1, 4, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 4, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
@@ -1893,7 +1893,7 @@ void sidePanelTask(const void *pv){
 			//AUX1 (not implemented in GEN11)
 				if (sidePanelData & (1 << 2)){
 					// pass
-				} else { //Turn off horn
+				}else { //Turn off horn
 					// pass
 				}
 
@@ -1926,10 +1926,10 @@ void sidePanelTask(const void *pv){
 			//IGNITION
 				if (sidePanelData & (1 << 7)){ //Ignition ON
 					ignitionState = IGNITION_ON;
-					motorState = STANDBY;
+					//motorState = STANDBY; Will set motorState in pedal task instead
 				} else { //Ignition OFF
 					ignitionState = IGNITION_OFF;
-					motorState = OFF; //Turn off motor if ignition is OFF
+					//motorState = OFF; Will set motorState in pedal task instead
 					default_data.P2_motor_state = OFF;
 				}
 			}
@@ -1964,6 +1964,15 @@ void displayTask(const void *pv){
 }
 
 void motorDataTimer(TimerHandle_t xTimer){
+	// Just in case pedalTask stops running (for safety)
+	if (ignitionState != IGNITION_ON){ //overrides original motor state if IGNITION is not on
+		motorState = OFF;
+		motorTargetPower = (uint16_t) 0;
+		default_data.P2_motor_state = OFF;
+	}
+
+
+
 	static uint8_t buf[10] = {0};
 
 	// -------- BUTTONS -------- //
