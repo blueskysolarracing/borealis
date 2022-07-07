@@ -1,3 +1,4 @@
+/*
 #include <stdio.h>
 #include "batteryEKF.h"
 
@@ -45,3 +46,4 @@ void main_test(){
    //printTime();
    //printOCV();
 }
+*/

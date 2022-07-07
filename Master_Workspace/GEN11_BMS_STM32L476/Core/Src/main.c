@@ -42,7 +42,7 @@
 #define MY_ID 1 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS)
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
-#define NUM_CELLS 6
+#define NUM_CELLS 5 //except one bms which is 4
 #define NUM_TEMP_SENSE 3
 #define SEND_PERIOD 200
 #define MEAS_PERIOD 200
@@ -81,8 +81,8 @@ B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
 
 //--- SOC ---//
-EKF_Model_14p* inBattery;
-long tickLastMeasurement[5]; //Contains the tick value of the last measurement sent for every cell
+EKF_Battery inBattery;
+long tickLastMeasurement[NUM_CELLS]; //Contains the tick value of the last measurement sent for every cell
 
 uint8_t dataToSend[16]; //data organized by function [LTC6810CommandGenerate]
 int messageInBinary; //write this in binary. This goes into [LTC6810CommandGenerate]
@@ -169,8 +169,10 @@ int main(void)
   float local_voltage_array[6]; //Initial voltage of each cell
   readVolt(local_voltage_array); //Places voltage in temp 1, temp
 
-  tickLastMeasurement = HAL_GetTick();
-  initEKFModel(inBattery, local_voltage_array[0]);
+  for(int i=0; i<NUM_CELLS; i++){
+	  tickLastMeasurement[i] = HAL_GetTick();
+  }
+  initEKFModel(&inBattery.batteryPack[0], &local_voltage_array[0]);
 
 //--- TESTING ---//
   char buf[5] = "test\n";
@@ -534,12 +536,14 @@ void serialParse(B_tcpPacket_t *pkt){
 		  /* BBMB will receive SoC packet, voltage packet and temperature packet*/
 		if((pkt->data[0] == BBMB_STATE_OF_CHARGE_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
 			float current;
+			float SoC_array[NUM_CELLS];
 			current = arrayToFloat(pkt->data + 2);
 
 			//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough)
 			for (int i = 0; i < NUM_CELLS; i++){
 				long currentTick = HAL_GetTick();
-				SoC_array[i] = run_EKF(&battery.batteryPack[i], currentTick - tickLastMeasurement[i], current, voltage_array[i]);
+				run_EKF(&inBattery.batteryPack[i], currentTick - tickLastMeasurement[i], current, voltage_array[i]);
+				SoC_array[i]=inBattery.batteryPack[i].stateX[0];
 				tickLastMeasurement[i] = currentTick;
 			}
 
