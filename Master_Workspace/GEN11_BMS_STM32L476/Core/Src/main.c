@@ -42,7 +42,7 @@
 #define MY_ID 1 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS)
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
-#define NUM_CELLS 5 //except one bms which is 4
+#define NUM_CELLS 5 //have to make sure is the same as NUM_14P_UNITS in batteryEKF.h
 #define NUM_TEMP_SENSE 3
 #define SEND_PERIOD 200
 #define MEAS_PERIOD 200
@@ -169,10 +169,11 @@ int main(void)
   float local_voltage_array[6]; //Initial voltage of each cell
   readVolt(local_voltage_array); //Places voltage in temp 1, temp
 
+  float tickNow = HAL_GetTick();
   for(int i=0; i<NUM_CELLS; i++){
-	  tickLastMeasurement[i] = HAL_GetTick();
+	  tickLastMeasurement[i] = tickNow;
   }
-  initEKFModel(&inBattery.batteryPack[0], &local_voltage_array[0]);
+  initBatteryAlgo(&inBattery, &local_voltage_array[0], tickNow);
 
 //--- TESTING ---//
   char buf[5] = "test\n";

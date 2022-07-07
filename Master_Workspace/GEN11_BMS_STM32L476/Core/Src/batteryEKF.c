@@ -50,19 +50,18 @@ float SOC(float ocv){
     }
 }
 
-void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v){
+void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v, float initial_deltaT){
 
     for(uint8_t unit = 0; unit < NUM_14P_UNITS; unit++){  
         initEKFModel(&inBatteryPack->batteryPack[unit], initial_v[unit]);
     }
 
-    init_A_Matrix();
-    init_B_Matrix();
+    compute_A_B_dt(initial_deltaT);
 
     return;
 }
 
-void initEKFModel(EKF_Model_14p* inBattery, float * initial_v){
+void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
 
     uint8_t i = 0;  
     uint8_t j = 0;
@@ -70,7 +69,7 @@ void initEKFModel(EKF_Model_14p* inBattery, float * initial_v){
     // initialize state variables
     for (i = 0; i < STATE_NUM; i++){
         if(i == 0U){
-            inBattery->stateX[i] = SOC(*(initial_v+i));
+            inBattery->stateX[i] = SOC(initial_v);
         } else {
             inBattery->stateX[i] = 0.0f;
         }
