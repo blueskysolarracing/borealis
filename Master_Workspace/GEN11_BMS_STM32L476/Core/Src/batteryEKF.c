@@ -13,14 +13,50 @@ void printMatrix(float* input, uint8_t* size){
 }
 #endif
 
-void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v){
+float SOC(float ocv){
+    float dsoc = 0.0f;
+    float docv = 0.0f;
+    float soc = 0.0f;
+    //using method of linear interpolation
+    if(ocv <= BSSR_OCV[0]){
+        soc = 0;
+        return soc;
+    }else if(ocv >= BSSR_OCV[LUT_SIZE-1]){
+        soc = 1;
+        return soc;
+    }else if((ocv > BSSR_OCV[0])&&(ocv < BSSR_OCV[LUT_SIZE-1])){
+    //binary search
+    int lowerIndex = 0;
+    int low = 0;
+    int high = LUT_SIZE-1;
+    int mid = 0;
+    while(low <= high){
+        mid = (low+high)/2;
+        if(ocv>=BSSR_OCV[mid] && ocv<BSSR_OCV[mid+1]){
+            lowerIndex = mid;
+            break;
+        } else if(ocv<BSSR_OCV[mid]){
+            high = mid-1;
+        } else {
+            low = mid+1;
+        }
+    }
+    dsoc = BSSR_SOC[lowerIndex+1]-BSSR_SOC[lowerIndex];
+    docv = BSSR_OCV[lowerIndex+1]-BSSR_OCV[lowerIndex];
+    soc = (ocv - BSSR_OCV[lowerIndex])*(dsoc/docv)+BSSR_SOC[lowerIndex];
+    return soc;
+    }else{
+        return 0;
+    }
+}
+
+void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v, float initial_deltaT){
 
     for(uint8_t unit = 0; unit < NUM_14P_UNITS; unit++){  
         initEKFModel(&inBatteryPack->batteryPack[unit], initial_v[unit]);
     }
 
-    init_A_Matrix();
-    init_B_Matrix();
+    compute_A_B_dt(initial_deltaT);
 
     return;
 }
@@ -33,7 +69,7 @@ void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
     // initialize state variables
     for (i = 0; i < STATE_NUM; i++){
         if(i == 0U){
-            inBattery->stateX[i] = 1.0f;
+            inBattery->stateX[i] = SOC(initial_v);
         } else {
             inBattery->stateX[i] = 0.0f;
         }

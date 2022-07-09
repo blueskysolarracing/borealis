@@ -75,8 +75,6 @@ void Error_Handler(void);
 #define RS485_EN_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 #define TCP_ID BMS_ID
-#define MY_ID 1
-#define NUM_CELLS 5
 #define NUM_TEMP_SENSORS 3
 /* USER CODE END Private defines */
 

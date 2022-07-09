@@ -251,10 +251,10 @@ int main(void)
   turn_off_hazard_lights(&lightsPeriph);
 
   //--- COMMS ---//
-  buart_main = B_uartStart(&huart8);
+  buart_main = B_uartStart(&huart4);
   btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
   buart_bms = B_uartStart(&huart8);
-  btcp_bms = B_tcpStart_BBMB_BMS(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
+  btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
   //--- FREERTOS ---//
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
