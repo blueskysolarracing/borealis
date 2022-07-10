@@ -116,9 +116,19 @@ void drawP1Default(/*int value[4]*/){
 	}
 
 	// now write the big speed
-	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-	if(valueS[3][2] != ' ')glcd_draw_char_xy(85, correct_Y(16), valueS[3][2]);
-	glcd_draw_char_xy(105, correct_Y(16), valueS[3][3]);
+	if(value[3] < 100){
+		glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
+		if(valueS[3][2] != ' ')glcd_draw_char_xy(85, correct_Y(16), valueS[3][2]);
+		glcd_draw_char_xy(105, correct_Y(16), valueS[3][3]);
+	}
+	else{
+		glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
+		for(int i = 1; i < 4; i++){
+			glcd_draw_char_xy(85+(i*13), correct_Y(19), valueS[3][i]);
+		}
+		// speed >= 100, case for three digits
+	}
+
 
 	glcd_write();
 }

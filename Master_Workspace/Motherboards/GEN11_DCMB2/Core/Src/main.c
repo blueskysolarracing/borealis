@@ -1527,15 +1527,14 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
-	float accel_reading_upper_bound = 40000.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 17000.0; //ADC reading corresponding to 0% power request
-	float accel_reading_threshold = 15.0; //Threshold at which the pedal won't respond (on 0-256 scale)
-	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
-	float regen_reading_lower_bound = 1000.0; //ADC reading corresponding to 0% regen request
-	float regen_reading_threshold = 15.0; //Threshold at which the regen engages (overides acceleration)
-
+	float accel_r_0 = 0.3494; //Resistance when pedal is unpressed (kR)
+	float accel_reading_upper_bound = 57000.0; //ADC reading corresponding to 100% power request
+	float accel_reading_lower_bound = 27000.0; //ADC reading corresponding to 0% power request
+	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float regen_reading_upper_bound = 48000.0; //ADC reading corresponding to 100% regen request
+	float regen_reading_lower_bound = 0.0; //ADC reading corresponding to 0% regen request
+	float regen_reading_threshold = 25.0; //Threshold at which the regen engages (overides acceleration)
 	float pedalsReading[2] = {0, 0};
-	float pedals_angles_temp[2] = {0};
 
 	while (1) {
 		//--- PEDALS ADC READINGS ---//
@@ -1551,27 +1550,32 @@ static void pedalTask(const void* p) {
 		}
 
 		//Compute value on 0-256 scale
-		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue = 256 - round(((pedalsReading[1]/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
 
 		//Bound acceleration value
 		if (accelValue < 0){
 			accelValue = 0;
-		} else if (accelValue > (256 + accel_reading_threshold)){
-			accelValue = (256 + accel_reading_threshold);
+		} else if (accelValue > 256 ){
+			accelValue = 256;
 		}
 
 		//Bound regen value
 		if(regenValue < 0){
 			regenValue = 0;
-		} else if (regenValue > (256 + regen_reading_threshold)){
-			regenValue = (256 + regen_reading_threshold);
+		} else if (regenValue > 256){
+			regenValue = 256;
 		}
 
 		//Check if we need to turn on braking lights
 		if (regenValue >= 10){ //If braking power is >= 10/255%, turn on break lights (higher threshold)
 			uint8_t bufh[2] = {0x03, 0b01001000}; //[DATA ID, LIGHT INSTRUCTION]
 			B_tcpSend(btcp, bufh, 2);
+		}
+
+		//Try to catch if accel pedal cable is cut
+		//Since pedal pot is pull-up, if the cable is cut, the ADC reading will be very low
+		if ((pedalsReading[1]/ADC_NUM_AVG) < 5000){
+			accelValue = 0;
 		}
 
 		// setting global motorTargetPower, motorState
@@ -1605,8 +1609,6 @@ static void pedalTask(const void* p) {
 			default_data.P2_motor_state = OFF;
 		}
 
-		pedals_angle[0] = pedals_angles_temp[0];
-		pedals_angle[1] = pedals_angles_temp[1];
 		taskEXIT_CRITICAL();
 
 		//Reset variables for next averaging

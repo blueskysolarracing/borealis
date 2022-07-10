@@ -289,8 +289,8 @@ int main(void)
 
   //--- FREERTOS ---//
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
-//  xTaskCreate(displayTask, "displayTask", 1024, 1, 5, NULL);
-  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 5, NULL);
+  xTaskCreate(displayTask, "displayTask", 1024, 1, 4, NULL);
+  xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 4, NULL);
   xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
   xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
@@ -1527,21 +1527,18 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
-	float accel_reading_upper_bound = 40000.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 17000.0; //ADC reading corresponding to 0% power request
-	float accel_reading_threshold = 15.0; //Threshold at which the pedal won't respond (on 0-256 scale)
-	float regen_reading_upper_bound = 65000.0; //ADC reading corresponding to 100% regen request
-	float regen_reading_lower_bound = 1000.0; //ADC reading corresponding to 0% regen request
-	float regen_reading_threshold = 15.0; //Threshold at which the regen engages (overides acceleration)
-
+	float accel_r_0 = 0.3494; //Resistance when pedal is unpressed (kR)
+	float accel_reading_upper_bound = 48000.0; //ADC reading corresponding to 100% power request
+	float accel_reading_lower_bound = 0.0; //ADC reading corresponding to 0% power request
+	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float regen_reading_upper_bound = 48000.0; //ADC reading corresponding to 100% regen request
+	float regen_reading_lower_bound = 0.0; //ADC reading corresponding to 0% regen request
+	float regen_reading_threshold = 25.0; //Threshold at which the regen engages (overides acceleration)
 	float pedalsReading[2] = {0, 0};
-	float pedals_angles_temp[2] = {0};
 
 	while (1) {
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
-			taskENTER_CRITICAL();
-
 			HAL_ADC_Start(&hadc1);
 			HAL_ADC_PollForConversion(&hadc1, 10);
 			pedalsReading[0] += HAL_ADC_GetValue(&hadc1);
@@ -1550,13 +1547,13 @@ static void pedalTask(const void* p) {
 			HAL_ADC_PollForConversion(&hadc1, 10);
 			pedalsReading[1] += HAL_ADC_GetValue(&hadc1);
 			HAL_ADC_Stop(&hadc1);
-			taskEXIT_CRITICAL();
-
 		}
 
 		//Compute value on 0-256 scale
-		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
-		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+		accelValue = round( (65536.0/(pedalsReading[1]/ADC_NUM_AVG) - 1.0 - accel_r_0) * (accel_reading_upper_bound - accel_reading_lower_bound) / 256.0 );
+
+//		accelValue = round((pedalsReading[1] / ADC_NUM_AVG - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
+//		regenValue = round((pedalsReading[0] / ADC_NUM_AVG - regen_reading_lower_bound) / (regen_reading_upper_bound - regen_reading_lower_bound) * 256); //Grab latest ADC reading of pedal position and map it to 0-255 scale by dividing by 2^8 (16 bit ADC)
 
 		//Bound acceleration value
 		if (accelValue < 0){
@@ -1609,8 +1606,6 @@ static void pedalTask(const void* p) {
 			default_data.P2_motor_state = OFF;
 		}
 
-		pedals_angle[0] = pedals_angles_temp[0];
-		pedals_angle[1] = pedals_angles_temp[1];
 		taskEXIT_CRITICAL();
 
 		//Reset variables for next averaging
@@ -1656,8 +1651,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_motor_current = arrayToFloat(&pkt->payload[12]); //Motor current
 
 		} else if (pkt->payload[4] == MCMB_CAR_SPEED_ID){ //Car speed
-			default_data.P1_speed_kph = arrayToFloat(&pkt->payload[5]); //Car speed
+			default_data.P1_speed_kph = pkt->payload[5]; //Car speed
 		}
+		break;
 
 	case BBMB_ID:
 		 if (pkt->payload[4] == BBMB_BUS_METRICS_ID){ //HV bus
@@ -1693,6 +1689,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			common_data.battery_soc = minSoC;
 		}
+		 break;
 	}
 
 	taskEXIT_CRITICAL();
@@ -1791,22 +1788,32 @@ void steeringWheelTask(const void *pv){
 
     //Up button pressed
 	if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-		if (default_data.P2_VFM < MAX_VFM){ //Bound VFM setting
-			default_data.P2_VFM++;
-		}
-		vfmUpState = 1;
+//		if (default_data.P2_VFM < MAX_VFM){ //Bound VFM setting
+//			default_data.P2_VFM++;
+//		}
+//		vfmUpState = 1;
+		/*
+		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
+		 */
 
 	} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
-    		//vfmUpState = 0; //reset this in motorDataTimer
+    	//vfmUpState = 0; //reset this in motorDataTimer
+		/*
+		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
+		 */
 	}
 	oldUpButton = (steeringData[2] & (1 << 0));
 
     //Down button pressed
 	if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
-		if (default_data.P2_VFM > 0){ //Bound VFM setting
-    		default_data.P2_VFM--;
-		}
-		vfmDownState = 1;
+//		if (default_data.P2_VFM > 0){ //Bound VFM setting
+//    		default_data.P2_VFM--;
+//		}
+//		vfmDownState = 1;
+
+		/*
+		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
+		 */
 
 	} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
 		//vfmDownState = 0;  //reset this in motorDataTimer
@@ -1836,8 +1843,7 @@ void sidePanelTask(const void *pv){
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
-	//B_bufQEntry_t *e;
-    uint8_t expectedLen = 4; //must be same length as sent from SPB
+	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
 	for(;;){
 		//e = B_uartRead(spbBuart);
@@ -1849,11 +1855,11 @@ void sidePanelTask(const void *pv){
 				sidePanelData = rxBuf[2];
 				//Only update if different (it should be different)
 
-				//------- Send acknowledge -------//
+			//------- Send acknowledge -------//
 				uint8_t buf_to_spb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
 				HAL_UART_Transmit(&huart3, buf_to_spb, sizeof(buf_to_spb), 100);
 
-				//---------- Process data ----------//
+			//---------- Process data ----------//
 			//REAR CAMERA AND SCREEN
 				if (sidePanelData & (1 << 6)){
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
@@ -1885,8 +1891,7 @@ void sidePanelTask(const void *pv){
 			//AUX1 (not implemented in GEN11)
 				if (sidePanelData & (1 << 2)){
 					// pass
-				}
-				} else { //Turn off horn
+				}else { //Turn off horn
 					// pass
 				}
 
@@ -1919,13 +1924,14 @@ void sidePanelTask(const void *pv){
 			//IGNITION
 				if (sidePanelData & (1 << 7)){ //Ignition ON
 					ignitionState = IGNITION_ON;
-					motorState = STANDBY;
+					//motorState = STANDBY; Will set motorState in pedal task instead
 				} else { //Ignition OFF
 					ignitionState = IGNITION_OFF;
-					motorState = OFF; //Turn off motor if ignition is OFF
+					//motorState = OFF; Will set motorState in pedal task instead
 					default_data.P2_motor_state = OFF;
 				}
 			}
+		}
 		taskEXIT_CRITICAL(); // exit critical section
 	}
 }
@@ -1956,6 +1962,15 @@ void displayTask(const void *pv){
 }
 
 void motorDataTimer(TimerHandle_t xTimer){
+	// Just in case pedalTask stops running (for safety)
+	if (ignitionState != IGNITION_ON){ //overrides original motor state if IGNITION is not on
+		motorState = OFF;
+		motorTargetPower = (uint16_t) 0;
+		default_data.P2_motor_state = OFF;
+	}
+
+
+
 	static uint8_t buf[10] = {0};
 
 	// -------- BUTTONS -------- //
@@ -1963,12 +1978,12 @@ void motorDataTimer(TimerHandle_t xTimer){
 	digitalButtons |= fwdRevState << 3;
 	digitalButtons |= vfmUpState << 2;
 	digitalButtons |= vfmDownState << 1;
-	if(vfmUpState == 1){
-		vfmUpState = 0;
-	}
-	if(vfmDownState == 1){
-		vfmDownState = 0;
-	}
+//	if(vfmUpState == 1){
+//		vfmUpState = 0;
+//	}
+//	if(vfmDownState == 1){
+//		vfmDownState = 0;
+//	}
 
 	// -------- SEND -------- //
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;

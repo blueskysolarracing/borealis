@@ -10,7 +10,7 @@ from threading import Thread
 import time as time_mod
 
 #Serial communication setup
-serial = serial.Serial('COM8', 115200, timeout=0.002)
+# serial = serial.Serial('COM8', 115200, timeout=0.002)
 
 #Commands
 #Generic command encoding is command_name::umppt_id,,value
@@ -249,14 +249,14 @@ def send_and_receive(cmd, receive, uMPPT_num = 1, newVal = 1.0):
     #Prepare and send data
     string = cmd + str(uMPPT_num) + ',,{:.4f}'.format(float(newVal))
     string = pad_message(string, length_message)
-    serial.write(string.encode('utf-8'))
+    # serial.write(string.encode('utf-8'))
     time1 = time_mod.time()
     
     if receive:
         data_received = ''
-        while data_received == '':
-            data_received = serial.readline() #Read 1 line from serial port
-            data_received = data_received.decode('utf-8')
+        # while data_received == '':
+        #     data_received = serial.readline() #Read 1 line from serial port
+        #     data_received = data_received.decode('utf-8')
 
         #Return the data
         return data_received[9:len(data_received)]
