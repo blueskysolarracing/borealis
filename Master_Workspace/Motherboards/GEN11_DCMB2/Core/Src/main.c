@@ -1906,7 +1906,7 @@ void sidePanelTask(const void *pv){
 				}
 
 			//--- Update states ---//
-				//ARRAY
+			//ARRAY
 				if (sidePanelData & (1 << 0)){ //Array switch is ON (try to close relays)
 					if (batteryState != BATTERY_FAULTED){
 						arrayRelayState = RELAY_CLOSED;
