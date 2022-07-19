@@ -30,6 +30,7 @@
 #include "psm.h"
 #include "protocol_ids.h"
 #include "math.h"
+#include "mitsuba_motor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -142,6 +143,9 @@ long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 uint8_t speedTarget;
 uint8_t globalKmPerHour = 0;
+
+MotorInterface* motor;
+MitsubaMotor mitsuba;
 
 // Struct for reading PWM input (in this case: speed pulse from motor)
 typedef struct {
@@ -305,85 +309,60 @@ int main(void)
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
   btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
 
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
-  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // ECO
-  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2, GPIO_PIN_SET); // CS0
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET); // CS1
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); // VFM RESET
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET); // MT3
-  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET); // MT2
-  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET); // MT1
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
+  mitsuba.mainPort = GPIOJ;
+  mitsuba.mainPin = GPIO_PIN_5;
 
+  mitsuba.fwdRevPort = GPIOG;
+  mitsuba.fwdRevPin = GPIO_PIN_1;
 
-  // Note both regenValue and accValue are zero at the moment
+  mitsuba.vfmUpPort = GPIOI;
+  mitsuba.vfmUpPin = GPIO_PIN_15;
 
-  //Gen11 regen write below:
-  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+  mitsuba.vfmDownPort = GPIOI;
+  mitsuba.vfmDownPin = GPIO_PIN_14;
 
-  //Gen11 accel write below:
-  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+  mitsuba.ecoPort = GPIOG;
+  mitsuba.ecoPin = GPIO_PIN_0;
 
-//  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET); // turn motor on
-//  		HAL_Delay(5000);
-//  	int i = 0;
-//  while(1) {
+  mitsuba.vfmResetPort = GPIOI;
+  mitsuba.vfmResetPin = GPIO_PIN_13;
+
+  mitsuba.MT3Port = GPIOI;
+  mitsuba.MT3Pin = GPIO_PIN_12;
+
+  mitsuba.MT2Port = GPIOF;
+  mitsuba.MT2Pin = GPIO_PIN_2;
+
+  mitsuba.MT1Port = GPIOI;
+  mitsuba.MT1Pin = GPIO_PIN_9;
+
+  mitsuba.MT0Port = GPIOE;
+  mitsuba.MT0Pin = GPIO_PIN_3;
+
+  motor = mitsubaMotor_init(&mitsuba);
+//  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
+//  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
+//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
+//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
+//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
+//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // ECO
+//  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2, GPIO_PIN_SET); // CS0
+//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET); // CS1
+//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); // VFM RESET
+//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET); // MT3
+//  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET); // MT2
+//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET); // MT1
+//  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
 //
-//	  if (i < 5) {
-//		  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET); // VFM UP
-//		  HAL_Delay(400);
-//		  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
-//		  HAL_Delay(400);
 //
+//  // Note both regenValue and accValue are zero at the moment
 //
+//  //Gen11 regen write below:
+//  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //
-//	  }
-//	  else if ( i >= 5) {
-//		  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET); // VFM Down
-//		  		  HAL_Delay(400);
-//		  		  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
-//
-//		  		  HAL_Delay(400);
-//	  }
-//		  i++;
+//  //Gen11 accel write below:
+//  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 
-
-//		HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-////		MCP4161_Pot_Write(80, GPIOG, GPIO_PIN_2, &hspi3); // regen
-//		MCP4161_Pot_Write(10, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(20, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(30, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(40, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(50, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(60, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(70, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//
-//		MCP4161_Pot_Write(70, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(80, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(90, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(100, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(110, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(120, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//		MCP4161_Pot_Write(130, GPIOK, GPIO_PIN_2, &hspi3); // acce
-//		HAL_Delay(100);
-//  }
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;

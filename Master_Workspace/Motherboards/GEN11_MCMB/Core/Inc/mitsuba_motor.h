@@ -30,11 +30,11 @@ typedef struct MitsubaMotor {
 	GPIO_TypeDef* fwdRevPort;
 	uint16_t fwdRevPin;
 
-	GPIO_TypeDef* accelPort;
-	uint16_t accelPin;
+	GPIO_TypeDef* cs0AccelPort;
+	uint16_t cs0AccelPin;
 
-	GPIO_TypeDef* regenPort;
-	uint16_t regenPin;
+	GPIO_TypeDef* cs1RegenPort;
+	uint16_t cs1RegenPin;
 
 	SPI_HandleTypeDef* potSpiPtr;
 
@@ -43,6 +43,25 @@ typedef struct MitsubaMotor {
 
 	GPIO_TypeDef* vfmDownPort;
 	uint16_t vfmDownPin;
+
+	GPIO_TypeDef* vfmResetPort;
+	uint16_t vfmResetPin;
+
+	GPIO_TypeDef* ecoPort;
+	uint16_t ecoPin;
+
+	GPIO_TypeDef* MT3Port;
+	uint16_t MT3Pin;
+
+	GPIO_TypeDef* MT2Port;
+	uint16_t MT2Pin;
+
+	GPIO_TypeDef* MT1Port;
+	uint16_t MT1Pin;
+
+	GPIO_TypeDef* MT0Port;
+	uint16_t MT0Pin;
+
 
 	/* ==================== Private =============================*/
 	TimerHandle_t vfmDownTimerHandle;

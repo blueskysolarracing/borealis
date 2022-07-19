@@ -43,6 +43,8 @@ static void _MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16
 // This init function only sets up the rest.
 MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 {
+
+
 	mitsubaMotor_vfmTimersInit(&self->interface);
 	mitsubaMotor_turnOnTimerInit(&self->interface);
 	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
@@ -66,6 +68,20 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->isForward = mitsubaMotor_isForward;
 	interface->isAccel = mitsubaMotor_isAccel;
 	interface->isRegen = mitsubaMotor_isRegen;
+
+	HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_SET); // FwdRev (high is forward)
+	HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_SET); // VFM UP
+	HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET); // VFM Down
+	HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, GPIO_PIN_SET); // ECO
+	HAL_GPIO_WritePin(self->cs0AccelPort, self->cs0AccelPin, GPIO_PIN_SET); // CS0
+	HAL_GPIO_WritePin(self->cs1RegenPort, self->cs1RegenPin, GPIO_PIN_SET); // CS1
+	HAL_GPIO_WritePin(self->vfmResetPort, self->vfmResetPin, GPIO_PIN_SET); // VFM RESET
+	HAL_GPIO_WritePin(self->MT3Port, self->MT3Pin, GPIO_PIN_SET); // MT3
+	HAL_GPIO_WritePin(self->MT2Port, self->MT2Pin, GPIO_PIN_SET); // MT2
+	HAL_GPIO_WritePin(self->MT1Port, self->MT1Pin, GPIO_PIN_SET); // MT1
+	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
+
+	return interface;
 }
 
 
@@ -113,7 +129,7 @@ static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface)
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	self->turnOnTimerHandle = xTimerCreate("TurnOnTimer", pdMS_TO_TICKS(MITSUBA_MOTOR_TURN_ON_PERIOD), pdFALSE, self, mitsubaMotor_turnOnTimerCallback);
 	if (self->turnOnTimerHandle == NULL) {
-		configAssert(pdFAIL);
+		configASSERT(pdFAIL);
 	}
 
 }
@@ -123,6 +139,7 @@ static int mitsubaMotor_turnOff(MotorInterface* interface)
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	HAL_GPIO_WritePin(self->mainPort, self->mainPin, GPIO_PIN_SET);
 	self->isOn = 0;
+
 	return 1;
 }
 
@@ -162,7 +179,7 @@ static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t val)
 	} else {
 		wiperValue = val;
 	}
-	_MCP4161_Pot_Write(wiperValue, self->accelPort, self->accelPin, self->potSpiPtr);
+	_MCP4161_Pot_Write(wiperValue, self->cs0AccelPort, self->cs0AccelPin, self->potSpiPtr);
 	self->currentAccelValue = wiperValue;
 	return 1;
 }
@@ -180,7 +197,7 @@ static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val)
 	} else {
 		wiperValue = val;
 	}
-	_MCP4161_Pot_Write(wiperValue, self->regenPort, self->regenPin, self->potSpiPtr);
+	_MCP4161_Pot_Write(wiperValue, self->cs1RegenPort, self->cs1RegenPin, self->potSpiPtr);
 	self->currentAccelValue = wiperValue;
 	return 1;
 }
@@ -231,12 +248,11 @@ static void mitsubaMotor_vfmTimersInit(MotorInterface* interface)
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	self->vfmUpTimerHandle = xTimerCreate("vfmUpTimer", pdMS_TO_TICKS(200), pdFALSE, self, mitsubaMotor_vfmUpCallback);
 	if (self->vfmUpTimerHandle == NULL) {
-		configAssert(pdFAIL);
-
+		configASSERT(pdFAIL);
 	}
 	self->vfmDownTimerHandle = xTimerCreate("vfmDownTimer", pdMS_TO_TICKS(200), pdFALSE, self, mitsubaMotor_vfmDownCallback);
 	if (self->vfmDownTimerHandle == NULL) {
-		configAssert(pdFAIL);
+		configASSERT(pdFAIL);
 	}
 }
 
