@@ -85,6 +85,7 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
 
 	mitsubaMotor_setAccel(interface, 0);
+	mitsubaMotor_setRegen(interface, 0);
 	return interface;
 }
 
