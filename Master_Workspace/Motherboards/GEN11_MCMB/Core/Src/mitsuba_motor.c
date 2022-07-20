@@ -7,7 +7,7 @@
 
 #include "mitsuba_motor.h"
 
-/* ================== Private functions (static) =========================*/
+/* ================== Private function declaration (static) =========================*/
 static void mitsubaMotor_vfmTimersInit(MotorInterface* interface);
 static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface);
 static void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelInputUpperBound, uint32_t regenInputUpperBound);
@@ -39,19 +39,15 @@ static void _MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16
 /* =======================================================================*/
 
 
+
+/* ============================== Implementations ========================*/
+
 // Note, you will need to set up the hardware perepherals yourself.
 // This init function only sets up the rest.
 MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 {
 
-
-	mitsubaMotor_vfmTimersInit(&self->interface);
-	mitsubaMotor_turnOnTimerInit(&self->interface);
-	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
-	self->isForward = 1;
-	self->isOn = 0;
-
-	// set up interface
+	// set up interface function pointers to point to private functions
 	MotorInterface* interface = &self->interface;
 	interface->implementation = self;
 	interface->turnOn = mitsubaMotor_turnOn;
@@ -69,6 +65,13 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->isAccel = mitsubaMotor_isAccel;
 	interface->isRegen = mitsubaMotor_isRegen;
 
+	mitsubaMotor_vfmTimersInit(&self->interface);
+	mitsubaMotor_turnOnTimerInit(&self->interface);
+	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
+	self->isForward = 1;
+	self->isOn = 0;
+
+	// set motor pins to default state
 	HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_SET); // FwdRev (high is forward)
 	HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_SET); // VFM UP
 	HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET); // VFM Down
@@ -81,6 +84,7 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	HAL_GPIO_WritePin(self->MT1Port, self->MT1Pin, GPIO_PIN_SET); // MT1
 	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
 
+	mitsubaMotor_setAccel(interface, 0);
 	return interface;
 }
 
@@ -112,8 +116,12 @@ static int mitsubaMotor_turnOn(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	if (!mitsubaMotor_isOn(interface)) {
-		HAL_GPIO_WritePin(self->mainPort, self->mainPin, GPIO_PIN_RESET);
-		return (xTimerStart(self->turnOnTimerHandle, 0));
+		if (!xTimerIsTimerActive(self->turnOnTimerHandle)) {
+			HAL_GPIO_WritePin(self->mainPort, self->mainPin, GPIO_PIN_RESET);
+			return (xTimerStart(self->turnOnTimerHandle, 0));
+		} else {
+			return 0;
+		}
 	}
 	return 0;
 }
@@ -139,6 +147,9 @@ static int mitsubaMotor_turnOff(MotorInterface* interface)
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	HAL_GPIO_WritePin(self->mainPort, self->mainPin, GPIO_PIN_SET);
 	self->isOn = 0;
+
+	if (interface->isAccel(interface)) interface->setAccel(interface, 0);
+	if (interface->isRegen(interface)) interface->setRegen(interface, 0);
 
 	return 1;
 }
@@ -169,7 +180,7 @@ static int mitsubaMotor_setReverse(MotorInterface* interface)
 static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t val)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (!mitsubaMotor_isOn(interface) || mitsubaMotor_isRegen(interface)) {
+	if (val != 0 && (!mitsubaMotor_isOn(interface) || mitsubaMotor_isRegen(interface))) {
 		return 0;
 	}
 	uint16_t wiperValue;
@@ -187,7 +198,7 @@ static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t val)
 static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (!mitsubaMotor_isOn(interface) || mitsubaMotor_isAccel(interface)) {
+	if (val != 0 && (!mitsubaMotor_isOn(interface) || mitsubaMotor_isAccel(interface))) {
 		return 0;
 	}
 	uint16_t wiperValue;

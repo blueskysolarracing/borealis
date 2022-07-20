@@ -339,7 +339,15 @@ int main(void)
   mitsuba.MT0Port = GPIOE;
   mitsuba.MT0Pin = GPIO_PIN_3;
 
+  mitsuba.cs0AccelPort = GPIOK;
+  mitsuba.cs0AccelPin = GPIO_PIN_2;
+  mitsuba.cs1RegenPort = GPIOG;
+  mitsuba.cs1RegenPin = GPIO_PIN_2;
+  mitsuba.potSpiPtr = &hspi3;
+
   motor = mitsubaMotor_init(&mitsuba);
+
+
 //  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
 //  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
 //  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
@@ -1959,208 +1967,99 @@ float speedToFrequency(uint8_t targetSpeed){
 
 
 static void motorTmr(TimerHandle_t xTimer){
-	static uint8_t currentMotorOn = 0; //1 is on, 0 is off
-	static uint8_t currentFwdRevState = 0;
-	static uint16_t currentAccValue = 0;
-	static uint16_t currentRegenValue = 0;
-	static uint8_t currentVfmUpState = 0;
-	static uint8_t currentVfmDownState = 0;
-	static uint8_t vfm_up_count = 0;
-	static uint8_t vfm_down_count = 0;
-	//static int vfmCount = 0;
+	if(xTaskGetTickCount() >= (lastDcmbPacket + 4000)){  //if serialParse stops being called (this means uart connection is lost)
 
-
-	if(xTaskGetTickCount() >= (lastDcmbPacket + 2000)){  //if serialParse stops being called (this means uart connection is lost)
-		MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-		currentAccValue = 0;
-		MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
-		currentRegenValue = 0;
-
-//		HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
-//		currentMotorOn = 0;
-
-//		currentVfmUpState = 0;
-//		currentVfmDownState = 0;
-//		vfm_up_count = 0;
-//		vfm_down_count = 0;
-//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); //vfmup off
-//		HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); //vfmdown off
-//		gearUp = 0;
-//		gearDown = 0;
+		motor->turnOff(motor);
+		gearUp = 0;
+		gearDown = 0;
 		return;
 	}
 
 	switch (motorState) {
 		case OFF:
-			if (currentAccValue > 0) { // turn off accel
-				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-				currentAccValue = 0;
-			}
-			if (currentRegenValue > 0) { // turn off regen
-				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
-				currentRegenValue = 0;
-			}
-			if(currentMotorOn){
-				// if motor is on, turn it off by driving pin high
-				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET);
-				currentMotorOn = 0;
-			}
+			motor->turnOff(motor);
 			return; //return instead of break here, since no need for VFM gear change
 		case STANDBY:
-			if (!currentMotorOn) {
-				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-				currentMotorOn = 1;
+			if (!motor->isOn(motor)) {
+				motor->turnOn(motor);
 			}
-			if (currentAccValue > 0) { // turn off accel
-				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-				currentAccValue = 0;
-			}
-			if (currentRegenValue > 0) { // turn off regen
-				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
-				currentRegenValue = 0;
-			}
-			if(currentFwdRevState != fwdRevState){
-				if(fwdRevState){
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-					currentFwdRevState = 1;
+			if (motor->isOn(motor)) {
+				if (fwdRevState) {
+					motor->setReverse(motor);
 				} else {
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-					currentFwdRevState = 0;
+					motor->setForward(motor);
+				}
+
+				if (motor->isAccel(motor)) {
+					motor->setAccel(motor, 0); // turns of accel
+				}
+				if (motor->isRegen(motor)) {
+					motor->setRegen(motor, 0);
 				}
 			}
 			break;
+
 		case PEDAL:
-			if (!currentMotorOn) {
-				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-				currentMotorOn = 1;
+			if (!motor->isOn(motor)) {
+				motor->turnOn(motor);
+			}
+			if (motor->isOn(motor)) {
+				if (fwdRevState) {
+					motor->setReverse(motor);
+				} else {
+					motor->setForward(motor);
+				}
+				if (motor->isRegen(motor)) {
+					motor->setRegen(motor, 0);
+				}
+				motor->setAccel(motor, targetPower); // turns off accel
+			}
+			break;
+
+		case CRUISE:
+			if (!motor->isOn(motor)) {
+				motor->turnOn(motor);
+			}
+			if (motor->isOn(motor)) {
+				if (fwdRevState) {
+					motor->setReverse(motor);
+				} else {
+					motor->setForward(motor);
+				}
 			}
 
-			if(currentFwdRevState != fwdRevState){
-				if(fwdRevState){
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-					currentFwdRevState = 1;
-				} else {
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-					currentFwdRevState = 0;
-				}
-			}
-			if (currentRegenValue > 0) { // turn off regen
-				MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
-				currentRegenValue = 0;
-			}
-			// drive accel pots
-			uint16_t localAccValue = targetPower;
-			if(currentAccValue != localAccValue){
-				MCP4161_Pot_Write(localAccValue, GPIOK, GPIO_PIN_2, &hspi3);
-				currentAccValue = localAccValue;
-			}
-			break;
-		case CRUISE:
-			if (!currentMotorOn) {
-				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-				currentMotorOn = 1;
-			}
-			if(currentFwdRevState != fwdRevState){
-				if(fwdRevState){
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-					currentFwdRevState = 1;
-				} else {
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-					currentFwdRevState = 0;
-				}
-			}
 			// TODO: call pid controller update
 			break;
 
 		case REGEN:
-			if (!currentMotorOn) {
-				HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_RESET);
-				currentMotorOn = 1;
+			if (!motor->isOn(motor)) {
+				motor->turnOn(motor);
 			}
-			if(currentFwdRevState != fwdRevState){
-				if(fwdRevState){
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_RESET);
-					currentFwdRevState = 1;
+			if (motor->isOn(motor)) {
+				if (fwdRevState) {
+					motor->setReverse(motor);
 				} else {
-					HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET);
-					currentFwdRevState = 0;
+					motor->setForward(motor);
 				}
-			}
-
-			if (currentAccValue > 0) { // turn off accel
-				MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-				currentAccValue = 0;
-			}
-
-			// drive regen pots
-			uint16_t localRegenValue = targetPower;
-			if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
-				localRegenValue = 0; // for safety
-			}
-			if(currentRegenValue != localRegenValue){
-				MCP4161_Pot_Write(localRegenValue, GPIOG, GPIO_PIN_2, &hspi3);
-				currentRegenValue = localRegenValue;
+				if (motor->isAccel(motor)) {
+					motor->setAccel(motor, 0);
+				}
+				if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
+					motor->setRegen(motor, 0); // for safety
+				} else {
+					motor->setRegen(motor, targetPower); // turns off regen
+				}
 			}
 			break;
 	}
 
-	// The VFMUpState comes from the DCMB
-	// Normally it is zero
-	// When needed to increase VMF gears, DCMB will send a VFMUpState value of 1.
-	// The value of 1 is sent only once. DCMB will set VFMUPState back to 0 immediately after it sends 1.
-	//HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-	//if(currentVfmUpState != vfmUpState){
-
-
-//	if (gearUp && !gearDown) {
-//		if(vfm_up_count == 0 /*&& vfm_down_count == 0 && vfmCount < 8*/){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_RESET);
-//			vfm_up_count++;
-//			currentVfmUpState = 1;
-//		} else if (vfm_up_count < 20){
-//			vfm_up_count++;
-//		} else if(vfm_up_count == 20){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET);
-//				vfm_up_count++;
-//		} else if(vfm_up_count < 40){
-//			vfm_up_count++;
-//		} else if(vfm_up_count == 40){
-//			vfm_up_count = 0;
-//			currentVfmUpState = 0;
-//			//vfmCount++;
-//			gearUp = 0;
-//		}
-//	}
-//
-//	//if(currentVfmDownState != vfmDownState){
-//	if (gearDown && !gearUp) {
-//		if(vfm_down_count == 0 /*&& vfm_up_count == 0 && vfmCount > 0*/){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_RESET);
-//			vfm_down_count++;
-//			currentVfmDownState = 1;
-//		} else if (vfm_down_count < 20){
-//			vfm_down_count++;
-//		} else if(vfm_down_count == 20){
-//			HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET);
-//				vfm_down_count++;
-//		} else if(vfm_down_count < 40){
-//			vfm_down_count++;
-//		} else if(vfm_down_count == 40){
-//			vfm_down_count = 0;
-//			currentVfmDownState = 0;
-//			//vfmCount--;
-//			gearDown = 0;
-//
-//		}
-//	}
-//	if (gearDown != 0 && gearUp!= 0) {
-//		gearDown = 0;
-//		gearUp = 0;
-//		vfm_down_count = 0;
-//		currentVfmDownState = 0;
-//		vfm_up_count = 0;
-//		currentVfmUpState = 0;
-//	}
+	if (gearUp && !gearDown) {
+		motor->gearUp(motor);
+		gearUp = 0;
+	} else if (gearDown) {
+		motor->gearDown(motor);
+		gearDown = 0;
+	}
 }
 
 // New implementation GEN11
@@ -2238,13 +2137,13 @@ void serialParse(B_tcpPacket_t *pkt){
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
 //			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
+//			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 //			if (vfmDownState != 0) {
 //				gearDown = 1;
 //			}
 //			else if (vfmUpState != 0) {
 //				gearUp = 1;
 //			}
-//			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 			lastDcmbPacket = xTaskGetTickCount();
 		}
 		break;
@@ -2337,6 +2236,14 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 }
 
 void PSMTaskHandler(void* parameters){
+//	while (1) {
+//		if (!motor->isOn(motor)) {
+//			motor->turnOn(motor);
+//		}
+//		if (motor->isOn(motor)) {
+//			motor->setRegen(motor, 100);
+//		}
+//	} // for testing
 	uint8_t busMetrics[3 * 4] = {0};
 	uint8_t suppBatteryMetrics[2 * 4] = {0};
 	double voltageCurrent_Motor_local[2] = {0, 0};
