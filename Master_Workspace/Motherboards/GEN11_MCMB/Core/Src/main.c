@@ -1967,6 +1967,7 @@ float speedToFrequency(uint8_t targetSpeed){
 
 
 static void motorTmr(TimerHandle_t xTimer){
+	//TODO: use software timer to handle tickcount overflow
 	if(xTaskGetTickCount() >= (lastDcmbPacket + 4000)){  //if serialParse stops being called (this means uart connection is lost)
 
 		motor->turnOff(motor);
@@ -1991,10 +1992,10 @@ static void motorTmr(TimerHandle_t xTimer){
 				}
 
 				if (motor->isAccel(motor)) {
-					motor->setAccel(motor, 0); // turns of accel
+					motor->setAccel(motor, 0); // turns off accel
 				}
 				if (motor->isRegen(motor)) {
-					motor->setRegen(motor, 0);
+					motor->setRegen(motor, 0); // turns off regen
 				}
 			}
 			break;
@@ -2012,7 +2013,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				if (motor->isRegen(motor)) {
 					motor->setRegen(motor, 0);
 				}
-				motor->setAccel(motor, targetPower); // turns off accel
+				motor->setAccel(motor, targetPower); 
 			}
 			break;
 
@@ -2026,9 +2027,9 @@ static void motorTmr(TimerHandle_t xTimer){
 				} else {
 					motor->setForward(motor);
 				}
+				// TODO: call pid controller update
 			}
 
-			// TODO: call pid controller update
 			break;
 
 		case REGEN:
@@ -2045,21 +2046,22 @@ static void motorTmr(TimerHandle_t xTimer){
 					motor->setAccel(motor, 0);
 				}
 				if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
-					motor->setRegen(motor, 0); // for safety
+					motor->setRegen(motor, 0); // for safety, turn off regen
 				} else {
-					motor->setRegen(motor, targetPower); // turns off regen
+					motor->setRegen(motor, targetPower); 
 				}
 			}
 			break;
 	}
 
-	if (gearUp && !gearDown) {
+	// Commented out since mechnical side does not support gear changes for vfm
+	/*if (gearUp && !gearDown) {
 		motor->gearUp(motor);
 		gearUp = 0;
 	} else if (gearDown) {
 		motor->gearDown(motor);
 		gearDown = 0;
-	}
+	}*/
 }
 
 // New implementation GEN11
@@ -2236,14 +2238,27 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 }
 
 void PSMTaskHandler(void* parameters){
+//	int i = 0;
+//	int x = 0;
+//
 //	while (1) {
 //		if (!motor->isOn(motor)) {
 //			motor->turnOn(motor);
 //		}
 //		if (motor->isOn(motor)) {
-//			motor->setRegen(motor, 100);
+//			motor->setAccel(motor, x);
+//			x += 25;
+//		}
+//		//vTaskDelay(5000);
+//
+//		i++;
+//		if (x > 255){
+//			motor->setAccel(motor, 0);
+//			break;
 //		}
 //	} // for testing
+
+
 	uint8_t busMetrics[3 * 4] = {0};
 	uint8_t suppBatteryMetrics[2 * 4] = {0};
 	double voltageCurrent_Motor_local[2] = {0, 0};

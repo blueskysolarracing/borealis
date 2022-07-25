@@ -210,7 +210,7 @@ static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val)
 		wiperValue = val;
 	}
 	_MCP4161_Pot_Write(wiperValue, self->cs1RegenPort, self->cs1RegenPin, self->potSpiPtr);
-	self->currentAccelValue = wiperValue;
+	self->currentRegenValue = wiperValue;
 	return 1;
 }
 
