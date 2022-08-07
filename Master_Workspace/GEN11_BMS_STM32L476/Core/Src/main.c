@@ -92,10 +92,10 @@ uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC681
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_CRC_Init(void);
+static void MX_DMA_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void const * argument);
@@ -143,10 +143,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_TIM7_Init();
   MX_CRC_Init();
+  MX_DMA_Init();
   MX_SPI3_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -162,6 +162,7 @@ int main(void)
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("LTC6810Handler",  pdMS_TO_TICKS(LTC6810_INTERVAL), pdTRUE, (void *)0, LTC6810Handler), 0); //Temperature and voltage measurements
 
+
   //--- BMS_FLT ---//
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Signal is active-high (high when no fault)
 
@@ -176,11 +177,13 @@ int main(void)
   initBatteryAlgo(&inBattery, &local_voltage_array[0], tickNow);
 
 //--- TESTING ---//
-  char buf[5] = "test\n";
-  while(1){
-	  HAL_UART_Transmit(&huart1, buf, sizeof(buf), 100);
-	  HAL_Delay(50);
-  }
+//  char buf[5] = "test\n";
+//	char pData[100];
+//  while(1){
+//	  //HAL_UART_Transmit_DMA(&huart1, buf, sizeof(buf));
+//	  //HAL_UART_Receive(&huart1, pData, 100, 100);
+//	  HAL_Delay(50);
+//  }
 
   /* USER CODE END 2 */
 
@@ -198,6 +201,9 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+#define DEFAULT_TASK
+#ifdef DEFAULT_TASK
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -207,6 +213,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+#endif
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -570,7 +578,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			}
 			//Send
 			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-			B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+			B_tcpSendBlocking(btcp, buf_soc, sizeof(buf_soc));
 			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 
 			//Also, send temp and volt
@@ -604,7 +612,7 @@ void send_temp_volt(){
 
 		//Send
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-		B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+		B_tcpSendBlocking(btcp, buf_temp, sizeof(buf_temp));
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 
 	//--- SEND VOLTAGE ---//
@@ -629,7 +637,7 @@ void send_temp_volt(){
 
 		//Send
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-		B_tcpSend(btcp, buf_voltage, sizeof(buf_voltage));
+		B_tcpSendBlocking(btcp, buf_voltage, sizeof(buf_voltage));
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 	}
 }
@@ -644,13 +652,8 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
 	convert_to_temp(local_temp_array, local_temp_array);
 
-	while (1){
-		uint8_t junk[3] = {3,2,5};
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-		B_tcpSend(btcp, junk, sizeof(junk));
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-		HAL_Delay(100);
-	}
+
+
 
 	//---- BATTERY FAULT CHECK----//
 	//Check for UV, OV faults
@@ -688,8 +691,7 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	for (int i = 0; i < NUM_CELLS; i++){	voltage_array[i] = local_voltage_array[i];	}
 	for (int i = 0; i < 3; i++){			temperature_array[i] = local_temp_array[i];	}
 	taskEXIT_CRITICAL();
-	send_temp_volt();
-	osDelay(SEND_PERIOD);
+
 }
 
 void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send){
@@ -932,7 +934,15 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+		//TODO: remove this
+		//Testing begin
+
+		uint8_t junk[3] = {3,2,5};
+		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+		B_tcpSendBlocking(btcp, junk, sizeof(junk));
+		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }

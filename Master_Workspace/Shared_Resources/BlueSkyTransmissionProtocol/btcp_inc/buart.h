@@ -4,6 +4,10 @@
 #include "main.h"
 #include "cmsis_os.h"
 
+#ifdef BUART_INTERRUPT_MODE
+#define BUART_IT_RX_BUF_SIZE 30
+#endif
+
 typedef struct{
 	uint8_t* buf;
 	size_t len;
@@ -33,6 +37,10 @@ typedef struct{
 	size_t					tail;
 	uint8_t					topFlag;
 	MsgBuf 					mBuf;
+
+#ifdef BUART_INTERRUPT_MODE
+	uint8_t				    itBuf[BUART_IT_RX_BUF_SIZE];
+#endif
 }B_uartHandle_t;
 
 int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len);
@@ -40,12 +48,6 @@ B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart);
 void B_uartDoneRead(B_bufQEntry_t* e);
 int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expectedLen, uint8_t startByteID);
 B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart);
-
-
-//#endif
-
-//#ifndef __BUART_START_H
-//#define __BUART_START_H
 
 
 

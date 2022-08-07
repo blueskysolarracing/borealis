@@ -291,7 +291,7 @@ int main(void)
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
   xTaskCreate(displayTask, "displayTask", 1024, 1, 4, NULL);
   xTaskCreate(sidePanelTask, "SidePanelTask", 1024, spbBuart, 4, NULL);
-  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 5, NULL);
+  xTaskCreate(steeringWheelTask, "SteeringWheelTask", 1024, swBuart, 4, NULL);
   xTimerStart(xTimerCreate("motorDataTimer", pdMS_TO_TICKS(MOTOR_DATA_PERIOD), pdTRUE, NULL, motorDataTimer), 0); //Send data to MCMB periodically
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 

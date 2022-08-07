@@ -106,8 +106,8 @@ void Error_Handler(void);
 #define Light_ctrl_PWR_EN_Pin GPIO_PIN_5
 #define Light_ctrl_PWR_EN_GPIO_Port GPIOK
 /* USER CODE BEGIN Private defines */
-#define TCP_ID BBMB_ID
-
+//#define TCP_ID BBMB_ID
+#define TO_BMS
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

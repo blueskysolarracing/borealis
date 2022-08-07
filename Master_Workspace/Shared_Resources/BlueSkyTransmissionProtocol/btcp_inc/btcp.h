@@ -26,6 +26,7 @@ typedef struct B_tcpHandle_t{
     QueueHandle_t       txQ;
     TaskHandle_t        rxTask;
     CRC_HandleTypeDef*  crc;
+    uint8_t 			txBuf[MAX_PACKET_SIZE];
 } B_tcpHandle_t;
 
 
@@ -56,9 +57,9 @@ B_tcpHandle_t* B_tcpStart(uint8_t sender, B_uartHandle_t** transmitBuarts,
                             CRC_HandleTypeDef* crc);
 void serialParse(B_tcpPacket_t *pkt);  
 
-void serialParse_BBMB(B_tcpPacket_t *pkt);
 
 
 void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length);
+void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length);
 
 #endif

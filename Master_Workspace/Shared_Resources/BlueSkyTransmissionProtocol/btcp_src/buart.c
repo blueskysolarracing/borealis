@@ -11,6 +11,7 @@
 #define TRX_TASK_STACK_SIZE 256
 
 
+
 // ########  ##     ##
 // ##     ## ##     ##
 // ##     ## ##     ##
@@ -72,15 +73,23 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
     buart->txSem = xSemaphoreCreateBinary();
 	buart->txQ = xQueueCreate(TX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
 	// buart->rxBuf = pvPortMalloc(RX_CIRC_BUF_SIZE); // done in task
-	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
 	BaseType_t taskcreate;
 	taskcreate = xTaskCreate(txTask, "uartTxTask", TRX_TASK_STACK_SIZE, buart, TX_TASK_PRIORITY, &buart->txTask);
 	configASSERT(taskcreate);
+
+#ifdef BUART_INTERRUPT_MODE
+	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, BUART_IT_RX_BUF_SIZE);
+	while(huart->RxState != HAL_UART_STATE_READY) HAL_Delay(1);
+	HAL_UART_Receive_IT(huart, buart->itBuf, BUART_IT_RX_BUF_SIZE);
+
+#else
+	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
 	taskcreate = xTaskCreate(rxTask, "uartRxTask", TRX_TASK_STACK_SIZE, buart, RX_TASK_PRIORITY, &buart->rxTask);
 	configASSERT(taskcreate);
 	buart->topFlag = buart->head = buart->tail = 0;
+#endif
 	
-	mBuf_init(&buart->mBuf);
+	mBuf_init(&buart->mBuf); //For B_uartReadFullMessage
 	return buart;
 }
 
@@ -95,10 +104,21 @@ int B_uartSend(B_uartHandle_t* buart, uint8_t* buf, size_t len){
 
 B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart){
 	B_bufQEntry_t* e = pvPortMalloc(sizeof(B_bufQEntry_t));
+#ifdef BUART_INTERRUPT_MODE
+	e->buf = pvPortMalloc(BUART_IT_RX_BUF_SIZE);
+	xQueueReceive(buart->rxQ, e->buf, portMAX_DELAY);
+	e->len = sizeof(e->buf);
+#else
+
 	xQueueReceive(buart->rxQ, e, portMAX_DELAY);
+#endif
 	return e;
 }
 
+void B_uartDoneRead(B_bufQEntry_t* e){
+	vPortFree(e->buf);
+	vPortFree(e);
+}
 
 // Helpers for B_uartReadFullMessage()
 static int mBuf_isEmpty(MsgBuf* m) {
@@ -108,7 +128,6 @@ static int mBuf_isEmpty(MsgBuf* m) {
 static int mBuf_isFull(MsgBuf* m) {
     return ((m->in - m->out + m->maxLen) % (m->maxLen) == m->maxLen - 1);
 }
-
 
 static void mBuf_init(MsgBuf* m) {
 	m->maxLen = MAX_BUART_MESSAGE_LENGTH;
@@ -128,7 +147,7 @@ int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expecte
 
 	MsgBuf* mBuf = &(buart->mBuf);
 	uint8_t startFound = 0;
-	uint8_t read = 0;
+	uint8_t read = 0; //1 means has called B_uartRead, 0 means has not
 	B_bufQEntry_t *e;
 	do {
 	        while (!mBuf_isEmpty(mBuf)) {
@@ -188,26 +207,19 @@ int B_uartReadFullMessage(B_uartHandle_t* buart, uint8_t* rxBuf, uint8_t expecte
 	return 1;
 }
 
-void B_uartDoneRead(B_bufQEntry_t* e){
-	vPortFree(e->buf);
-	vPortFree(e);
-}
 
-//  ######  ########    ###    ######## ####  ######
-// ##    ##    ##      ## ##      ##     ##  ##    ##
-// ##          ##     ##   ##     ##     ##  ##
-//  ######     ##    ##     ##    ##     ##  ##
-//       ##    ##    #########    ##     ##  ##
-// ##    ##    ##    ##     ##    ##     ##  ##    ##
-//  ######     ##    ##     ##    ##    ####  ######
 
 static void txTask(void* pv){
 	B_uartHandle_t* buart = pv;
 	B_bufQEntry_t e;
 	for(;;){
 		xQueueReceive(buart->txQ, &e, portMAX_DELAY);
+#ifdef BUART_INTERRUPT_MODE
+		HAL_UART_Transmit_IT(buart->huart, e.buf, e.len);
+#else
 		HAL_UART_Transmit_DMA(buart->huart, e.buf, e.len);
-		
+#endif
+
 		//Waits until transmit is complete (happens when HAL_UART_TxCpltCallback is triggered)
 		xSemaphoreTake(buart->txSem, portMAX_DELAY); 
 		vPortFree(e.buf);
@@ -281,9 +293,15 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef * huart){
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart){
+
 	for(size_t i = 0; i < NUM_UARTS; i++){ //TODO linkedList
 		if(huart == huarts[i]){
+#ifdef BUART_INTERRUPT_MODE
+			xQueueSendToBackFromISR(buarts[i]->rxQ, buarts[i]->itBuf, 0);
+			HAL_UART_Receive_IT(huart, buarts[i]->itBuf, BUART_IT_RX_BUF_SIZE);
+#else
 			buarts[i]->topFlag = 1;
+#endif
 			return;
 		}
 	}

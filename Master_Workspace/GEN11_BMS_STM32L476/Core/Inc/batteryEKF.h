@@ -31,7 +31,7 @@ typedef struct {
 } EKF_Battery;
 
 void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v, float initial_deltaT);
-void initEKFModel(EKF_Model_14p* inModel, float * initial_v);
+void initEKFModel(EKF_Model_14p* inModel, float initial_v);
 void init_A_Matrix();
 void init_B_Matrix();
 void compute_A_B_dt(float dt);

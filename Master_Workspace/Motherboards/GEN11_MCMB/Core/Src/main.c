@@ -441,7 +441,7 @@ int main(void)
 //				"tempSenseTask", /* Text name for the task. */
 //				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
 //				"none", /* Parameter passed into the task. */
-//				4, /* Priority at which the task is created. */ //Note must be 4 since btcp is 4
+//				4, /* Priority at which the task is created. */
 //				&tempSense_handle /* Used to pass out the created task's handle. */
 //							  );
 //	configASSERT(status == pdPASS); // Error checking
@@ -452,7 +452,7 @@ int main(void)
 				"PSMTask",  //Text name for the task.
 				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
 				"none",  //Parameter passed into the task.
-				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
+				4,  //Priority at which the task is created.
 				&PSM_handle  //Used to pass out the created task's handle.
 							);
 	configASSERT(status == pdPASS);// Error checking
@@ -463,7 +463,7 @@ int main(void)
 //				"cruiseControlTask",  //Text name for the task.
 //				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
 //				"none",  //Parameter passed into the task.
-//				4,  //Priority at which the task is created.  //Note must be 4 since btcp is 4
+//				4,  //Priority at which the task is created.
 //				&cruiseControl_handle  //Used to pass out the created task's handle.
 //							);
 //	configASSERT(status == pdPASS);// Error checking

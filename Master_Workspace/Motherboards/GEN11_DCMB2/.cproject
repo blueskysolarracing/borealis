@@ -54,7 +54,6 @@
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_DCMB/btcp_inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_DCMB/Core/Inc/glcd}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/GEN11_DCMB/btcp_src}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1738604765" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -81,11 +80,10 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="btcp_inc"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="btcp_src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="btcp_src"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

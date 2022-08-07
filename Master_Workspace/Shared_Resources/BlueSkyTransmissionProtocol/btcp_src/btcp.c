@@ -1,6 +1,8 @@
 #include "btcp.h"
 //#define PAD
+#include "main.h"
 // Define pad if we need to pad buffer to multiple of 4
+// PAD is defined for BMS Receive, which is in interrupt mode and is designed to fire a callback every 4 bytes received
 
 // ########  ##     ##
 // ##     ## ##     ##
@@ -60,60 +62,9 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
     btcp->tcpSeqNum = 0;
     btcp->crc = crc;
     btcp->txQ = xQueueCreate(TCP_TX_QUEUE_SIZE, sizeof(B_tcpPacket_t));
-    //hpQ = xQueueCreate(10, sizeof(uint8_t));
-    //xTaskCreate(tcpTxTask, "tcpTxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->txTask);
-	configASSERT(xTaskCreate(tcpRxTask, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->rxTask));
-    //xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
+	configASSERT(xTaskCreate(tcpRxTask, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_RX_TASK_PRIORITY, &btcp->rxTask));
     return btcp;
 }
-
-B_tcpHandle_t* B_tcpStart_BBMB_BMS(uint8_t senderID, B_uartHandle_t** transmitBuarts,
-                            B_uartHandle_t* rxBuart,
-                            uint8_t numTransmitBuarts,
-                            CRC_HandleTypeDef* crc){
-    B_tcpHandle_t *btcp;
-    btcp = pvPortMalloc(sizeof(B_tcpHandle_t));
-    btcp->numTransmitBuarts = numTransmitBuarts;
-    btcp->transmitBuarts = pvPortMalloc(sizeof(B_tcpHandle_t*)*numTransmitBuarts);
-    for(int i = 0; i < numTransmitBuarts; i++){
-    	btcp->transmitBuarts[i] = transmitBuarts[i];
-    }
-    btcp->senderID = senderID;
-    btcp->rxBuart = rxBuart;
-    btcp->tcpSeqNum = 0;
-    btcp->crc = crc;
-    btcp->txQ = xQueueCreate(TCP_TX_QUEUE_SIZE, sizeof(B_tcpPacket_t));
-    //hpQ = xQueueCreate(10, sizeof(uint8_t));
-    //xTaskCreate(tcpTxTask, "tcpTxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->txTask);
-	configASSERT(xTaskCreate(tcpRxTask_BBMB_BMS, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->rxTask));
-    //xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
-    return btcp;
-}
-
-B_tcpHandle_t* B_tcpStart_bms(uint8_t senderID, B_uartHandle_t** transmitBuarts, B_tcpHandle_t *btcp,
-                            B_uartHandle_t* rxBuart,
-                            uint8_t numTransmitBuarts,
-                            CRC_HandleTypeDef* crc){
-
-//    B_tcpHandle_t *btcp;
-//    btcp = pvPortMalloc(sizeof(B_tcpHandle_t));
-    btcp->numTransmitBuarts = numTransmitBuarts;
-    btcp->transmitBuarts = pvPortMalloc(sizeof(B_tcpHandle_t*)*numTransmitBuarts);
-    for(int i = 0; i < numTransmitBuarts; i++){
-    	btcp->transmitBuarts[i] = transmitBuarts[i];
-    }
-    btcp->senderID = senderID;
-    btcp->rxBuart = rxBuart;
-    btcp->tcpSeqNum = 0;
-    btcp->crc = crc;
-    btcp->txQ = xQueueCreate(TCP_TX_QUEUE_SIZE, sizeof(B_tcpPacket_t));
-    //hpQ = xQueueCreate(10, sizeof(uint8_t));
-    //xTaskCreate(tcpTxTask, "tcpTxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->txTask);
-	configASSERT(xTaskCreate(tcpRxTask, "tcpRxTask", TCP_TRX_TASK_STACK_SIZE, btcp, TCP_TX_TASK_PRIORITY, &btcp->rxTask));
-    //xTaskCreate(highPowerTask, "highPowerTask", 1024, NULL, 5, NULL);
-    return btcp;
-}
-
 
 
 /** B_tcpSend
@@ -124,14 +75,14 @@ B_tcpHandle_t* B_tcpStart_bms(uint8_t senderID, B_uartHandle_t** transmitBuarts,
 			msg: an array of messages you want to transmit
 			length: the length of the array of messages
 			senderAddress: the address of the sender
-  * @note	msg array can be up to MAX_PACKET_SIZE (256) bytes long if it does not contain values that must be escaped. 
+  * @note	msg array can be up to MAX_PACKET_SIZE-8 (256-8) bytes long if it does not contain values that must be escaped.
 			If it contains values that need to be escaped, the msg array can be up to (MAX_PACKET_SIZE - number_of_values_to_be_escaped) bytes long
   * @retval B_tcpHandle_t*: pointer to a B_tcpHandle_t struct which stores uart, task handles and other transmission information 
   */
 void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 	
-    uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8)); 
-
+    //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
+	uint8_t* buf = btcp->txBuf;
     //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
     buf[1] = length;
@@ -198,6 +149,178 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     		buf_pos++;
     	}
     }
+#ifdef PAD // To pad the data to a multiple of 4
+    if(buf_pos%4 != 0) {
+    	int paddingNum = 4 - buf_pos % 4;
+    	for (int i = paddingNum; i > 0; i--) {
+    	   buf[buf_pos] = 0x00;
+    	   buf_pos++;
+    	}
+   }
+#endif
+
+	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array 
+    for(int i = 0; i < btcp->numTransmitBuarts; i++){
+        B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
+    }
+
+}
+
+
+void B_tcpSendToBMS(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
+
+  //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
+	uint8_t* buf = btcp->txBuf;
+  //buf without escape character to generate crc
+	buf[0] = BSSR_SERIAL_START;
+  buf[1] = length;
+  buf[2] = btcp->senderID;
+  buf[3] = btcp->tcpSeqNum;
+  memcpy(buf+4, msg, length);
+  uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
+
+  //buf with escape character
+  uint16_t buf_pos = 0;
+
+  buf[buf_pos] = BSSR_SERIAL_START;
+  buf_pos++;
+
+  //check if length needs to be escaped
+	if(length == BSSR_SERIAL_START || length == BSSR_SERIAL_ESCAPE){
+  	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+  	buf_pos++;
+  	buf[buf_pos] = length;
+  	buf_pos++;
+  } else{
+  	buf[buf_pos] = length;
+  	buf_pos++;
+  }
+
+  buf[buf_pos] = btcp->senderID;;
+  buf_pos++;
+
+  //check if sequence number needs to be escaped
+  if(btcp->tcpSeqNum == BSSR_SERIAL_START || btcp->tcpSeqNum == BSSR_SERIAL_ESCAPE){
+  	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+  	buf_pos++;
+  	buf[buf_pos] = btcp->tcpSeqNum;
+  	buf_pos++;
+  } else{
+  	buf[buf_pos] = btcp->tcpSeqNum;
+  	buf_pos++;
+  }
+  btcp->tcpSeqNum++;
+
+  //check if each data needs to be escaped
+  for(int i=0; i<length; i++){
+  	if(msg[i] == BSSR_SERIAL_ESCAPE || msg[i] == BSSR_SERIAL_START){
+  		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+  		buf_pos++;
+  		buf[buf_pos] = msg[i];
+  		buf_pos++;
+  	} else{
+  		buf[buf_pos] = msg[i];
+  		buf_pos++;
+  	}
+  }
+
+	//checks if each crc value needs to be escaped
+  for(int i=0; i<4; i++){
+  	uint8_t crc = (crc_result>>(8*(3-i))) & 255;
+  	if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
+  		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+  		buf_pos++;
+  		buf[buf_pos] = crc;
+  		buf_pos++;
+  	} else{
+  		buf[buf_pos] = crc;
+  		buf_pos++;
+  	}
+  }
+
+// To pad the data to constant length, for BMS to receive in IT mode
+  while (buf_pos < 30) {
+  	buf[buf_pos] = 0x00;
+  	buf_pos++;
+  }
+	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array
+  for(int i = 0; i < btcp->numTransmitBuarts; i++){
+      B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
+  }
+
+}
+
+// will cause caller thread to sleep until the message has been sent
+void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
+
+    //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
+	uint8_t* buf = btcp->txBuf;
+    //buf without escape character to generate crc
+	buf[0] = BSSR_SERIAL_START;
+    buf[1] = length;
+    buf[2] = btcp->senderID;
+    buf[3] = btcp->tcpSeqNum;
+    memcpy(buf+4, msg, length);
+    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
+
+    //buf with escape character
+    uint16_t buf_pos = 0;
+
+    buf[buf_pos] = BSSR_SERIAL_START;
+    buf_pos++;
+
+    //check if length needs to be escaped
+	if(length == BSSR_SERIAL_START || length == BSSR_SERIAL_ESCAPE){
+    	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    	buf_pos++;
+    	buf[buf_pos] = length;
+    	buf_pos++;
+    } else{
+    	buf[buf_pos] = length;
+    	buf_pos++;
+    }
+
+    buf[buf_pos] = btcp->senderID;;
+    buf_pos++;
+
+    //check if sequence number needs to be escaped
+    if(btcp->tcpSeqNum == BSSR_SERIAL_START || btcp->tcpSeqNum == BSSR_SERIAL_ESCAPE){
+    	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    	buf_pos++;
+    	buf[buf_pos] = btcp->tcpSeqNum;
+    	buf_pos++;
+    } else{
+    	buf[buf_pos] = btcp->tcpSeqNum;
+    	buf_pos++;
+    }
+    btcp->tcpSeqNum++;
+
+    //check if each data needs to be escaped
+    for(int i=0; i<length; i++){
+    	if(msg[i] == BSSR_SERIAL_ESCAPE || msg[i] == BSSR_SERIAL_START){
+    		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    		buf_pos++;
+    		buf[buf_pos] = msg[i];
+    		buf_pos++;
+    	} else{
+    		buf[buf_pos] = msg[i];
+    		buf_pos++;
+    	}
+    }
+
+	//checks if each crc value needs to be escaped
+    for(int i=0; i<4; i++){
+    	uint8_t crc = (crc_result>>(8*(3-i))) & 255;
+    	if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
+    		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+    		buf_pos++;
+    		buf[buf_pos] = crc;
+    		buf_pos++;
+    	} else{
+    		buf[buf_pos] = crc;
+    		buf_pos++;
+    	}
+    }
 #ifdef PAD
     if(buf_pos%4 != 0) {
     	int paddingNum = 4 - buf_pos % 4;
@@ -207,11 +330,18 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     	}
    }
 #endif
-	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array 
+
+	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
-        B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
+#ifdef BUART_INTERRUPT_MODE
+		HAL_UART_Transmit_IT(btcp->transmitBuarts[i]->huart, buf, buf_pos);
+#else
+		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, buf, buf_pos);
+#endif
+		xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
+
     }
-    vPortFree(buf);
+
 }
 
 //  ######  ########    ###    ######## ####  ######
@@ -296,12 +426,12 @@ static void tcpRxTask(void *pv){
                 crc |= e->buf[i] << ((3-crcAcc)*8);
                 crcAcc++;
                 if(crcAcc == 4){
-                	//crcExpected = ~HAL_CRC_Calculate(btcp->crc, input_buffer, buf_pos);
-                	//GEN11 change:
                 	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos);
 
 					if(crcExpected == crc && sender != btcp->senderID){ // If CRC correct and the sender is not this motherboard
+
 						for(int i = 0; i < btcp->numTransmitBuarts; i++){
+							//TODO: make this run only when you set btcp to broadcast mode
 							if (btcp->transmitBuarts[i] != btcp->rxBuart) { // to not transmit back to sender
 								B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);
 							}
@@ -318,105 +448,7 @@ static void tcpRxTask(void *pv){
 						pkt.raw_input_buffer = raw_input_buffer;
 						serialParse(&pkt);
 					}
-					raw_buf_pos = 0;
-					crc = 0;
-					seqNum = 0xffff;
-					crcAcc = 0;
-					crcExpected = 0;
-					sender = 0;
-					buf_pos = 0;
-					expected_length = 0;
-					started = 0;
-                }
-            }
-        }
-        B_uartDoneRead(e);
-    }
-}
-
-
-// for testing
-static void tcpRxTask_BBMB_BMS(void *pv){
-    B_tcpHandle_t* btcp = pv;
-    B_bufQEntry_t *e;
-    uint8_t input_buffer[MAX_PACKET_SIZE + 4];
-    uint8_t raw_input_buffer[(MAX_PACKET_SIZE + 8)*2]; // Just in case every byte is escaped
-    uint8_t escaped = 0;
-    uint16_t buf_pos = 0;
-    uint16_t raw_buf_pos = 0;
-    uint8_t expected_length = 0;
-    uint8_t started = 0;
-    uint8_t sender = 0;
-    uint16_t seqNum = 0xffff;
-    uint8_t crcAcc = 0;
-    uint32_t crc = 0;
-    uint32_t crcExpected = 0;
-    B_tcpPacket_t pkt;
-    for(;;){
-        e = B_uartRead(btcp->rxBuart);
-        for(int i = 0; i < e->len; i++){
-//            raw_input_buffer[raw_buf_pos] = e->buf[i]; unnecessary
-//            raw_buf_pos++;
-
-			// First, check if there is an escape character and act accordingly
-            if(e->buf[i] == BSSR_SERIAL_ESCAPE && !escaped){
-                escaped = 1;
-				continue; //Go to the next loop iteration
-            } else if (escaped) {
-				escaped = 0;
-			}
-
-			if(!started){
-                if(e->buf[i] == BSSR_SERIAL_START){
-                    started = 1;
-                    input_buffer[buf_pos] = e->buf[i];
-                    buf_pos++;
-                }
-            } else if(!expected_length){
-                expected_length = e->buf[i];
-                input_buffer[buf_pos] = e->buf[i];
-                buf_pos++;
-            } else if(!sender){
-                sender = e->buf[i];
-                input_buffer[buf_pos] = e->buf[i];
-                buf_pos++;
-            } else if(seqNum == 0xffff){
-				seqNum = e->buf[i];
-				input_buffer[buf_pos] = e->buf[i];
-				buf_pos++;
-            } else if(buf_pos < expected_length+4){
-                input_buffer[buf_pos] = e->buf[i];
-                buf_pos++;
-            } else if(buf_pos + crcAcc < expected_length+8){
-                crc |= e->buf[i] << ((3-crcAcc)*8);
-                crcAcc++;
-                if(crcAcc == 4){
-                	//crcExpected = ~HAL_CRC_Calculate(btcp->crc, input_buffer, buf_pos);
-                	//GEN11 change:
-                	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos);
-
-					if(crcExpected == crc && sender != btcp->senderID){ // If CRC correct and the sender is not this motherboard
-						/*for(int i = 0; i < btcp->numTransmitBuarts; i++){
-							B_uartSend(btcp->transmitBuarts[i], raw_input_buffer, raw_buf_pos);
-						}*/  //Commented out since this is for Daisy Chain, and we are not doing Daisy Chain this cycle
-						pkt.length = expected_length;
-						pkt.sender = sender;
-						pkt.senderID = sender;
-						pkt.seqNum = seqNum;
-						pkt.payload = input_buffer;
-						pkt.data = pkt.payload + 4; //points to element containing DataID
-						pkt.crc = crc;
-						serialParse_BBMB(&pkt);
-					}
-					raw_buf_pos = 0;
-					crc = 0;
-					seqNum = 0xffff;
-					crcAcc = 0;
-					crcExpected = 0;
-					sender = 0;
-					buf_pos = 0;
-					expected_length = 0;
-					started = 0;
+					resetCounters();
                 }
             }
         }
