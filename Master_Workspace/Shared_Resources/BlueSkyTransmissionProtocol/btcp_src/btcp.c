@@ -336,12 +336,13 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 #ifdef BUART_INTERRUPT_MODE
     	btcp->transmitBuarts[i]->itCallbackFlag = 0;
 		HAL_UART_Transmit_IT(btcp->transmitBuarts[i]->huart, buf, buf_pos);
+		while (btcp->transmitBuarts[i]->itCallbackFlag != 1) {}
+		btcp->transmitBuarts[i]->itCallbackFlag = 0;
 #else
 		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, buf, buf_pos);
 #endif
 		//xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
-		while (btcp->transmitBuarts[i]->itCallbackFlag != 1) {}
-		btcp->transmitBuarts[i]->itCallbackFlag == 0;
+
     }
 
 }

@@ -112,7 +112,9 @@ B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart){
 	B_bufQEntry_t* e = pvPortMalloc(sizeof(B_bufQEntry_t));
 #ifdef BUART_INTERRUPT_MODE
 	e->buf = pvPortMalloc(BUART_IT_RX_BUF_SIZE);
-	xQueueReceive(buart->rxQ, e->buf, portMAX_DELAY);
+	//xQueueReceive(buart->rxQ, e->buf, portMAX_DELAY);
+	while (buart->itCallbackFlag != 1){};
+	buart->itCallbackFlag = 0;
 	e->len = BUART_IT_RX_BUF_SIZE;
 #else
 
