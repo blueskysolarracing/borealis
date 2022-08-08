@@ -334,10 +334,10 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
 #ifdef BUART_INTERRUPT_MODE
-    	btcp->transmitBuarts[i]->itCallbackFlag = 0;
+    	btcp->transmitBuarts[i]->itTxCallbackFlag = 0;
 		HAL_UART_Transmit_IT(btcp->transmitBuarts[i]->huart, buf, buf_pos);
-		while (btcp->transmitBuarts[i]->itCallbackFlag != 1) {}
-		btcp->transmitBuarts[i]->itCallbackFlag = 0;
+		while (btcp->transmitBuarts[i]->itTxCallbackFlag != 1) {}
+		btcp->transmitBuarts[i]->itTxCallbackFlag = 0;
 #else
 		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, buf, buf_pos);
 #endif

@@ -40,7 +40,8 @@ typedef struct{
 
 #ifdef BUART_INTERRUPT_MODE
 	uint8_t				    itBuf[BUART_IT_RX_BUF_SIZE];
-	uint8_t 				itCallbackFlag;
+	uint8_t 				itTxCallbackFlag;
+	uint8_t 				itRxCallbackFlag;
 #endif
 }B_uartHandle_t;
 
