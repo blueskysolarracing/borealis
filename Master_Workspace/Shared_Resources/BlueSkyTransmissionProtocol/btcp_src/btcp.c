@@ -334,12 +334,14 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
 #ifdef BUART_INTERRUPT_MODE
+    	btcp->transmitBuarts[i]->itCallbackFlag = 0;
 		HAL_UART_Transmit_IT(btcp->transmitBuarts[i]->huart, buf, buf_pos);
 #else
 		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, buf, buf_pos);
 #endif
-		xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
-
+		//xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
+		while (btcp->transmitBuarts[i]->itCallbackFlag != 1) {}
+		btcp->transmitBuarts[i]->itCallbackFlag == 0;
     }
 
 }
@@ -384,7 +386,6 @@ static void tcpRxTask(void *pv){
     for(;;){
         e = B_uartRead(btcp->rxBuart);
         for(int i = 0; i < e->len; i++){
-
         	// to avoid overflow
         	if (raw_buf_pos >= sizeof(raw_input_buffer) || buf_pos >= sizeof(input_buffer)) {
         		resetCounters();

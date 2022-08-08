@@ -201,7 +201,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-#define DEFAULT_TASK
+//#define DEFAULT_TASK
 #ifdef DEFAULT_TASK
 
   /* USER CODE END RTOS_QUEUES */
@@ -406,7 +406,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 500000;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -541,9 +541,10 @@ static void MX_GPIO_Init(void)
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 	  case BBMB_ID: //Parse data from BBMB
+		  //HAL_UART_Transmit(&huart3, pkt->data, pkt->length, 100);
 		  //--- SoC REQUEST FROM BBMB ---//
 		  /* BBMB will receive SoC packet, voltage packet and temperature packet*/
-		if((pkt->data[0] == BBMB_STATE_OF_CHARGE_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
+		if((pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
 			float current;
 			float SoC_array[NUM_CELLS];
 			current = arrayToFloat(pkt->data + 2);
@@ -634,12 +635,11 @@ void send_temp_volt(){
 					buf_voltage[4 + sizeof(float) * i + j] = floatArray[j];
 				}
 			}
-
+		}
 		//Send
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
 		B_tcpSendBlocking(btcp, buf_voltage, sizeof(buf_voltage));
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-	}
 }
 
 void LTC6810Handler(TimerHandle_t xTimer){

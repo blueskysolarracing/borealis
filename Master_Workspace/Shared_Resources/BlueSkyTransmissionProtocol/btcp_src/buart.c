@@ -4,7 +4,12 @@
 
 #define NUM_UARTS 4
 #define RX_CIRC_BUF_SIZE 2048
+#ifdef BUART_INTERRUPT_MODE
+#define BUART_IT_RX_BUF_SIZE 30
+#define RX_QUEUE_SIZE 5
+#else
 #define RX_QUEUE_SIZE 64
+#endif
 #define TX_QUEUE_SIZE 64
 #define TX_TASK_PRIORITY 5
 #define RX_TASK_PRIORITY 6
@@ -81,6 +86,7 @@ B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, BUART_IT_RX_BUF_SIZE);
 	while(huart->RxState != HAL_UART_STATE_READY) HAL_Delay(1);
 	HAL_UART_Receive_IT(huart, buart->itBuf, BUART_IT_RX_BUF_SIZE);
+	buart->itCallbackFlag = 0;
 
 #else
 	buart->rxQ = xQueueCreate(RX_QUEUE_SIZE, sizeof(B_bufQEntry_t));
@@ -107,7 +113,7 @@ B_bufQEntry_t* B_uartRead(B_uartHandle_t* buart){
 #ifdef BUART_INTERRUPT_MODE
 	e->buf = pvPortMalloc(BUART_IT_RX_BUF_SIZE);
 	xQueueReceive(buart->rxQ, e->buf, portMAX_DELAY);
-	e->len = sizeof(e->buf);
+	e->len = BUART_IT_RX_BUF_SIZE;
 #else
 
 	xQueueReceive(buart->rxQ, e, portMAX_DELAY);
@@ -286,6 +292,9 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef * huart){
 	for(size_t i = 0; i < NUM_UARTS; i++){ //TODO linkedList
 		if(huart == huarts[i]){
 			xSemaphoreGiveFromISR(buarts[i]->txSem, NULL);
+#ifdef BUART_INTERRUPT_MODE
+			buarts[i]->itCallbackFlag = 1;
+#endif
 			return;
 		}
 	}
