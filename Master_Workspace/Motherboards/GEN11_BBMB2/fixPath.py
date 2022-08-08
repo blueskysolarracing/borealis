@@ -1,6 +1,7 @@
+import os
 def fixLine(lineToChange)->str:
 
-    thisFilePath = __file__
+    thisFilePath = os.path.abspath(__file__)
     thisFilePath = thisFilePath.replace("\\", "/")
 
     index = thisFilePath.rfind("/gen11_blueskyelec") + len("/gen11_blueskyelec")
