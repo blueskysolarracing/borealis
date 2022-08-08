@@ -110,7 +110,7 @@ QueueHandle_t relayCtrl = NULL;
 
 //--- BMS ---//
 uint8_t BMS_requesting_from = 7; //Holds which BMS we are requesting data from (needs initial value > 6)
-uint8_t BMS_data_received[3] = {1, 1, 1}; //Holds whether we received voltage, temperature and SoC
+uint8_t BMS_data_received[3] = {0, 0, 0}; //Holds whether we received voltage, temperature and SoC
 
 /* USER CODE END PV */
 
