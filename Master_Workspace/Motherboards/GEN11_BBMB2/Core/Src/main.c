@@ -49,6 +49,12 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define HV_BATT_OVERCURRENT_DISCHARGE 10.0 //Overcurrent threshold on HV battery (discharge; A)
+#define NUM_BATT_CELLS 29 //Number of series parallel groups in battery pack
+#define NUM_BATT_TEMP_SENSORS 3 * 6 //Number of temperature sensors in battery pack
+#define BMS_READ_INTERVAL 1000//(Other intervals defined in psm.h and btcp.h)
+#define BMS_FLT_CHECK_INTERVAL 10 //Interval at which to read the BMS_FLT pin
+#define PROTECTION_ENABLE 0 //Flag to enable (1) or disable (0) relay control
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -69,9 +75,25 @@ B_tcpHandle_t* btcp_main = &btcp_main_actual;
 B_tcpHandle_t* btcp_bms = &btcp_bms_actual;
 uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 
+//--- LIGHTS ---//
+struct lights_stepper_ctrl lightsPeriph;
+uint8_t lightInstruction = 0;
+QueueHandle_t lightsCtrl = NULL;
+
+//--- PSM ---//
+struct PSM_Peripheral psmPeriph;
+float battery_current;
+
+//--- RELAYS ---//
+struct relay_periph relay;
+QueueHandle_t relayCtrl = NULL;
+
 //--- BMS ---//
 uint8_t BMS_requesting_from = 7; //Holds which BMS we are requesting data from (needs initial value > 6)
 uint8_t BMS_data_received[3] = {1, 1, 1}; //Holds whether we received voltage, temperature and SoC
+
+//--- BATTERY ---//
+uint8_t batteryState;
 
 /* USER CODE END PV */
 
@@ -79,6 +101,13 @@ uint8_t BMS_data_received[3] = {1, 1, 1}; //Holds whether we received voltage, t
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 void MX_FREERTOS_Init(void);
+static void lightsTask(void * argument);
+static void relayTask(void * argument);
+void PSMTaskHandler(TimerHandle_t xTimer);
+void HeartbeatHandler(TimerHandle_t xTimer);
+void BMSPeriodicReadHandler(TimerHandle_t xTimer);
+void BMS_Flt_Check(TimerHandle_t xTimer);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -144,8 +173,53 @@ int main(void)
   buart_bms = B_uartStart(&huart8);
   btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
 
-  hspi2;
-  return;
+  //--- PSM ---//
+  psmPeriph.CSPin0 = PSM_CS_0_Pin;
+  psmPeriph.CSPin1 = PSM_CS_1_Pin;
+  psmPeriph.CSPin2 = PSM_CS_2_Pin;
+  psmPeriph.CSPin3 = PSM_CS_3_Pin;
+
+  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
+  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
+  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
+  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
+
+  psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+  psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+
+  psmPeriph.DreadyPin = PSM_DReady_Pin;
+  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+  PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
+  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
+	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+  }
+
+  //TODO Add check that battery is healthy
+  batteryState = HEALTHY;
+
+  //--- LIGHTS ---//
+  lightsPeriph.CSPin0 = TMC5160_CS0_Pin;
+  lightsPeriph.CSPort0 = TMC5160_CS0_GPIO_Port;
+  lightsPeriph.CSPin1 = TMC5160_CS1_Pin;
+  lightsPeriph.CSPort1 = TMC5160_CS1_GPIO_Port;
+
+  lightsPeriph.PWR_EN_Pin = Light_ctrl_PWR_EN_Pin;
+  lightsPeriph.PWR_EN_Port = GPIOK;
+
+  lightsPeriph.TMC5160_SPI = &hspi5;
+
+  lightsPeriph.right_ind_TIM = &htim2;
+  lightsPeriph.right_ind_CH = TIM_CHANNEL_2;
+  lightsPeriph.left_ind_TIM = &htim2;
+  lightsPeriph.left_ind_CH = TIM_CHANNEL_1;
+  lightsPeriph.master_TIM = &htim1;
+  lightsPeriph.master_CH = TIM_CHANNEL_1;
+  lightsPeriph.BRK_TIM = &htim5;
+  lightsPeriph.BRK_CH = TIM_CHANNEL_2;
+  lightsPeriph.DRL_TIM = &htim5;
+  lightsPeriph.DRL_CH = TIM_CHANNEL_1;
+  lightsPeriph.FLT_TIM = &htim3;
+  lightsPeriph.FLT_CH = TIM_CHANNEL_1;
 
   //--- FREERTOS ---//
 //  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
@@ -300,37 +374,26 @@ void serialParse_BBMB(B_tcpPacket_t *pkt){
 		case DCMB_ID: //Parse data from DCMB
 			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
-			} //else if (pkt->payload[0] == DCMB_CAR_STATE_ID){
-//					uint8_t relay_open_cmd;
-//					if ((pkt->payload[1] == CAR_SAFE_STATE) || (pkt->payload[1] == CAR_SLEEP)){ //Need to open power relays
-//						relay_open_cmd = 1;
-//						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
-//						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
-//
-//					} else if (pkt->payload[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
-//						relay_open_cmd = 2;
-//						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-//						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
-//
-//					} else if (pkt->payload[1] == CAR_DRIVE){ //Need to close power relays
-//						relay_open_cmd = 2;
-//						xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-//						HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
-//					}
+			} else (pkt->payload[0] == DCMB_RELAYS_STATE_ID){
+				taskENTER_CRITICAL();
+
+				if (pkt->payload[2] == OPEN){ //Open relays and resend
+					open_relays(&relay);
+
+					uint8_t buf[4] = {BBMB_RELAYS_STATE, batteryState, OPEN, pkt->payload[3]};
+					B_tcpSend(btcp_main, BMS_error, sizeof(BMS_error));
+
+				} else if ((pkt->payload[2] == CLOSED) && (batteryState == HEALTHY)){ //Try to open relays
+					close_relays(&relay);
+
+				}
+
+				taskEXIT_CRITICAL();
+			}
 			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
-			if (pkt->payload[0] == BMS_ERROR_STATUS){ //Received error from BMS
-				uint8_t BMS_error[2 * 4] = {0};
-				BMS_error[0] = BBMB_RELAY_STATE_ID;
-				BMS_error[1] = OPEN;
-				if (pkt->payload[1] == BMS_OV){	BMS_error[2] = 0x00;	}
-				else if (pkt->payload[1] == BMS_UV){	BMS_error[2] = 0x01;	}
-				else if (pkt->payload[1] == BMS_OT){	BMS_error[2] = 0x03;	}
-
-				B_tcpSend(btcp_main, BMS_error, sizeof(BMS_error));
-
-			} else { //Received SoCs, temps or voltage from BMS
+			if ((pkt->payload[0] == BMS_CELL_TEMP) || (pkt->payload[0] == BMS_CELL_VOLT) || (pkt->payload[0] == BMS_CELL_SOC_ID)){ //Received SoCs, temps or voltage from BMS
 				//Simply re-send on main bus
 				B_tcpSend(btcp_main, pkt->payload, sizeof(pkt->payload));
 
@@ -372,10 +435,64 @@ void serialParse_BBMB(B_tcpPacket_t *pkt){
 		case MCMB_ID:
 			/*BBMB no need for MCMB data*/
 
-
 			break;
 	}
 }
+
+void PSMTaskHandler(TimerHandle_t xTimer){
+//Battery
+	double voltageCurrent_HV[2] = {0};
+	uint8_t busMetrics_HV[3 * 4] = {0};
+	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
+
+	//PSMRead will fill first element with voltage, second with current
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Array output on channel #2
+
+	//Update battery pack current global variable (used for BMS communication)
+	taskENTER_CRITICAL();
+	battery_current = voltageCurrent_HV[1];
+	taskEXIT_CRITICAL();
+
+	//Check overcurrent protection
+	if (voltageCurrent_HV[1] >= HV_BATT_OVERCURRENT_DISCHARGE){ //Overcurrent protection --> Put car into safe state
+		taskENTER_CRITICAL();
+		batteryState = FAULTED;
+		taskEXIT_CRITICAL();
+
+		uint8_t car_state_error[1 * 4];
+		car_state_error[0] = BBMB_RELAYS_STATE_ID;
+		car_state_error[1] = FAULTED;
+		car_state_error[2] = OPEN;
+
+		B_tcpSend(btcp_main, car_state_error, sizeof(car_state_error));
+
+		if (PROTECTION_ENABLE){	open_relays(&relay);	}
+	}
+
+	floatToArray((float) voltageCurrent_HV[0], busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) voltageCurrent_HV[1], busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+
+	B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
+
+//LV
+	double voltageCurrent_LV[2] = {0};
+	uint8_t busMetrics_LV[3 * 4] = {0};
+	busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
+
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_LV, 2);
+	floatToArray((float) voltageCurrent_LV[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) voltageCurrent_LV[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
+
+	B_tcpSend(btcp_main, busMetrics_LV, sizeof(busMetrics_LV));
+}
+
+void HeartbeatHandler(TimerHandle_t xTimer){
+	//Send periodic heartbeat so we know the board is still running
+	B_tcpSend(btcp_main, heartbeat, sizeof(heartbeat));
+	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
+	//Heartbeat only accessed here so no need for mutex
+}
+
 /* USER CODE END 4 */
 
 /**

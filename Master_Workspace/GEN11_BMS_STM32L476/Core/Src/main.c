@@ -934,13 +934,13 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-		//TODO: remove this
-		//Testing begin
+	//TODO: remove this
+	//Testing begin
 
-		uint8_t junk[3] = {3,2,5};
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-		B_tcpSendBlocking(btcp, junk, sizeof(junk));
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+	uint8_t junk[3] = {3,2,5};
+	HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+	B_tcpSendBlocking(btcp, junk, sizeof(junk));
+	HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 
     osDelay(10);
   }

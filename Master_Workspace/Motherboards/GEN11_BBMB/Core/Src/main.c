@@ -82,10 +82,6 @@ osStaticThreadDef_t defaultTaskControlBlock;
 /* USER CODE BEGIN PV */
 
 //--- COMMS ---//
-// test
-int mcmbi = 0;
-int dcmbi = 0;
-
 B_tcpHandle_t btcp_bms_actual;
 B_tcpHandle_t btcp_main_actual;
 
@@ -112,6 +108,8 @@ QueueHandle_t relayCtrl = NULL;
 uint8_t BMS_requesting_from = 7; //Holds which BMS we are requesting data from (needs initial value > 6)
 uint8_t BMS_data_received[3] = {0, 0, 0}; //Holds whether we received voltage, temperature and SoC
 
+//--- Battery ---/
+uint8_t batteryState;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -276,6 +274,9 @@ int main(void)
 
   //--- ENABLE 12V FROM VICOR ---//
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, 1);
+
+  //--- BATTERY ---//
+  batteryState = HEALTHY;
 
   /* USER CODE END 2 */
 
@@ -1190,37 +1191,35 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-
-	uint8_t buf[100];
-
 	switch(pkt->senderID){
 		case DCMB_ID: //Parse data from DCMB
-			dcmbi++;
-			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
-				xQueueSend(lightsCtrl, &(pkt->data[1]), 200); //Send to lights control task
-			} //else if (pkt->data[0] == DCMB_CAR_STATE_ID){
-//			uint8_t relay_open_cmd;
-//			if ((pkt->data[1] == CAR_SAFE_STATE) || (pkt->data[1] == CAR_SLEEP)){ //Need to open power relays
-//				relay_open_cmd = 1;
-//				xQueueSend(relayCtrl, &relay_open_cmd, 200); //Open relays (next time relayTask runs)
-//				HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
-//
-//			} else if (pkt->data[1] == CAR_CHARGING_SOLAR){ //Need to close power relays
-//				relay_open_cmd = 2;
-//				xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-//				HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET); //Switch to supplemental supply
-//
-//			} else if (pkt->data[1] == CAR_DRIVE){ //Need to close power relays
-//				relay_open_cmd = 2;
-//				xQueueSend(relayCtrl, &relay_open_cmd, 200); //Close relays (next time relayTask runs)
-//				HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Switch to Vicor 12V
-//			}
+			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
+				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
+
+			} else if (pkt->payload[0] == DCMB_RELAYS_STATE_ID){
+				taskENTER_CRITICAL();
+
+				if (pkt->payload[2] == OPEN){ //Open relays and resend
+					open_relays(&relay);
+
+					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->payload[3]};
+					B_tcpSend(btcp_main, buf, sizeof(buf));
+
+				} else if ((pkt->payload[2] == CLOSED) && (batteryState == HEALTHY)){ //Try to open close
+					close_relays(&relay);
+
+					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->payload[3]};
+					B_tcpSend(btcp_main, buf, sizeof(buf));
+				}
+
+				taskEXIT_CRITICAL();
+			}
 			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
 			if (pkt->data[0] == BMS_ERROR_STATUS){ //Received error from BMS
 				uint8_t BMS_error[2 * 4] = {0};
-				BMS_error[0] = BBMB_RELAY_STATE_ID;
+				BMS_error[0] = BBMB_RELAYS_STATE_ID;
 				BMS_error[1] = OPEN;
 				if (pkt->data[1] == BMS_OV){	BMS_error[2] = 0x00;	}
 				else if (pkt->data[1] == BMS_UV){	BMS_error[2] = 0x01;	}
@@ -1278,8 +1277,6 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		case MCMB_ID:
 			/*BBMB no need for MCMB data*/
-			mcmbi++;
-
 			break;
 	}
 }
@@ -1411,7 +1408,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	//Check overcurrent protection
 	if (voltageCurrent_HV[1] >= HV_BATT_OVERCURRENT_DISCHARGE){ //Overcurrent protection --> Put car into safe state
 		uint8_t car_state_error[1 * 4];
-		car_state_error[0] = BBMB_RELAY_STATE_ID;
+		car_state_error[0] = BBMB_RELAYS_STATE_ID;
 		car_state_error[1] = OPEN;
 		car_state_error[2] = 0x02; //Overcurrent
 

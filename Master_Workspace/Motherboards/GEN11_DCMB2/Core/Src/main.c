@@ -39,6 +39,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//--- PPTMB ---//
+#define IGNORE_PPTMB 1; //Ignore PPTMB for display purpose when IGNORE_PPTMB == 1
+
 //--- DISPLAY ---//
 #define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
@@ -108,11 +111,6 @@ WWDG_HandleTypeDef hwwdg1;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
-typedef enum {
-	RELAY_OPEN,
-	RELAY_CLOSED,
-} RELAYSTATE;
-
 //--- PEDALS ---//
 float pedals_angle[2] = {-1, -1};
 float accelValue = 0.0;
@@ -170,19 +168,14 @@ uint8_t oldDownButton;
 uint8_t oldSelectButton;
 
 //--- BATTERY ---//
-//Needs battery non-faulted to change car state. Defaults to being faulted until BBMB tells it that there is no battery fault
-typedef enum {
-	BATTERY_NO_FAULT,
-	BATTERY_FAULTED,
-} BATTERYSTATE;
-uint8_t batteryState = BATTERY_FAULTED;
-uint8_t batteryRelayState = RELAY_OPEN;
+uint8_t batteryState = HEALTHY;
+uint8_t batteryRelayState = OPEN;
 float voltage_array[29]; //Array of the voltages of each 14P group
 float soc_array[29]; //Array of the SoCs of each 14P group
 float temp_array[18]; //Array of the temp of each thermistor
 
 //--- ARRAY ---//
-uint8_t arrayRelayState = RELAY_OPEN;
+uint8_t arrayRelayState = OPEN;
 
 /* USER CODE END PV */
 
@@ -1644,8 +1637,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			common_data.solar_power = arrayToFloat(&pkt->payload[8]) * arrayToFloat(&pkt->payload[12]); //Solar power
 			detailed_data.P1_solar_voltage = arrayToFloat(&pkt->payload[8]); //Solar voltage
 			detailed_data.P1_solar_current = arrayToFloat(&pkt->payload[12]); //Solar current
-		  }
-		  break;
+
+		 } else if (pkt->payload[4] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
+			arrayRelayState = pkt->payload[7]; //Display task will take care of choosing appropriate frame
+		 }
+		 break;
 
 	case MCMB_ID:
 		if (pkt->payload[4] == MCMB_BUS_METRICS_ID){ //HV bus
@@ -1664,12 +1660,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_battery_voltage = arrayToFloat(&pkt->payload[8]); //Battery voltage
 			detailed_data.P1_battery_current = arrayToFloat(&pkt->payload[12]); //Battery current
 
-		 } else if (pkt->payload[4] == BBMB_RELAY_STATE_ID){ //Relay state
-			  if (pkt->payload[5] == 0){ //Battery faulted
-				display_selection = 5;
-				//motorState = OFF;
-				default_data.P2_motor_state = OFF;
-			  }
+		 } else if (pkt->payload[4] == BBMB_RELAYS_STATE_ID){ //Relay state
+
+			 batteryState = pkt->payload[5];
+			 batteryRelayState = pkt->payload[6]; //Update global variable tracking battery relay state
+
 		} else if (pkt->payload[4] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
 			float maxTemp = 0;
 			float minSoC = 200; //Very high initial value to make sure we can detect the true minimum
@@ -1691,10 +1686,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			}
 
 			common_data.battery_soc = minSoC;
-		}
-		 break;
-	}
 
+		 break;
+		}
+	}
 	taskEXIT_CRITICAL();
 }
 
@@ -1713,7 +1708,6 @@ void steeringWheelTask(const void *pv){
 	//e = B_uartRead(swBuart); // not good
 
 	  B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
-
 
 	  taskENTER_CRITICAL();
 	//Save old data
@@ -1880,14 +1874,14 @@ void sidePanelTask(const void *pv){
 				}
 
 			//AUX0 (DRL in GEN11)
-				uint8_t bufh[2] = {0x03, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
 				if (sidePanelData & (1 << 1)){
-					bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
-					default_data.P2_DRL_state = 0;
-				} else { //Turn off horn
 					bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
 					default_data.P2_DRL_state = 1;
+				} else {
+					bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
+					default_data.P2_DRL_state = 0;
 				}
 				B_tcpSend(btcp, bufh, 2);
 
@@ -1907,14 +1901,15 @@ void sidePanelTask(const void *pv){
 
 			//--- Update states ---//
 			//ARRAY
+				uint8_t bufh3[4] = {DCMB_RELAYS_STATE_ID, batteryState, batteryRelayState, arrayRelayState};
+
 				if (sidePanelData & (1 << 0)){ //Array switch is ON (try to close relays)
-					if (batteryState != BATTERY_FAULTED){
-						arrayRelayState = RELAY_CLOSED;
+					if (batteryState != FAULTED){
+						bufh3[3] = CLOSED;
 					}
 				} else { //Array switch is OFF (open relays)
-					arrayRelayState = RELAY_OPEN;
+					bufh3[3] = OPEN;
 				}
-				uint8_t bufh3[4] = {0x06, batteryState, batteryRelayState, arrayRelayState};
 				B_tcpSend(btcp, bufh3, 3);
 
 			//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
@@ -1956,7 +1951,25 @@ void displayTask(const void *pv){
 
 	while(1){
 		taskENTER_CRITICAL();
-		uint8_t local_display_sel = display_selection;
+		uint8_t local_display_sel;
+
+		//Logic to decide whether to show sleeping car screen or default screen
+		if (IGNORE_PPTMB){
+			if (batteryRelayState == OPEN){
+				local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
+			}
+		} else {
+			if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)){
+				local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
+			}
+		}
+
+		//Overwrite display state if battery fault
+		if (batteryState == FAULTED){
+			local_display_sel = 5; //Display battery faulted
+			 default_data.P2_motor_state = OFF;
+		}
+
 		taskEXIT_CRITICAL();
 		drawP1(local_display_sel);
 		drawP2(local_display_sel);
