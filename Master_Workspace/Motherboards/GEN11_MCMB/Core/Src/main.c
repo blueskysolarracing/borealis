@@ -1975,27 +1975,27 @@ static void motorTmr(TimerHandle_t xTimer){
 		gearDown = 0;
 		return;
 	}
-
+	int res = -1; //res will be used for debugging
 	switch (motorState) {
 		case OFF:
 			motor->turnOff(motor);
 			return; //return instead of break here, since no need for VFM gear change
 		case STANDBY:
 			if (!motor->isOn(motor)) {
-				motor->turnOn(motor);
+				res = motor->turnOn(motor);
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 
 				if (motor->isAccel(motor)) {
-					motor->setAccel(motor, 0); // turns off accel
+					res = motor->setAccel(motor, 0); // turns off accel
 				}
 				if (motor->isRegen(motor)) {
-					motor->setRegen(motor, 0); // turns off regen
+					res = motor->setRegen(motor, 0); // turns off regen
 				}
 			}
 			break;
@@ -2006,26 +2006,26 @@ static void motorTmr(TimerHandle_t xTimer){
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 				if (motor->isRegen(motor)) {
-					motor->setRegen(motor, 0);
+					res = motor->setRegen(motor, 0);
 				}
-				motor->setAccel(motor, targetPower); 
+				res = motor->setAccel(motor, targetPower);
 			}
 			break;
 
 		case CRUISE:
 			if (!motor->isOn(motor)) {
-				motor->turnOn(motor);
+				res = motor->turnOn(motor);
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 				// TODO: call pid controller update
 			}
@@ -2034,21 +2034,21 @@ static void motorTmr(TimerHandle_t xTimer){
 
 		case REGEN:
 			if (!motor->isOn(motor)) {
-				motor->turnOn(motor);
+				res = motor->turnOn(motor);
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 				if (motor->isAccel(motor)) {
-					motor->setAccel(motor, 0);
+					res = motor->setAccel(motor, 0);
 				}
 				if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
-					motor->setRegen(motor, 0); // for safety, turn off regen
+					res = motor->setRegen(motor, 0); // for safety, turn off regen
 				} else {
-					motor->setRegen(motor, targetPower); 
+					res = motor->setRegen(motor, targetPower);
 				}
 			}
 			break;
@@ -2056,10 +2056,10 @@ static void motorTmr(TimerHandle_t xTimer){
 
 	// Commented out since mechnical side does not support gear changes for vfm
 	/*if (gearUp && !gearDown) {
-		motor->gearUp(motor);
+		res = motor->gearUp(motor);
 		gearUp = 0;
 	} else if (gearDown) {
-		motor->gearDown(motor);
+		res = motor->gearDown(motor);
 		gearDown = 0;
 	}*/
 }
