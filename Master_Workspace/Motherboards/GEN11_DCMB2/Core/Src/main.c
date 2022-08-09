@@ -40,9 +40,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 //--- PPTMB ---//
-#define IGNORE_PPTMB 1; //Ignore PPTMB for display purpose when IGNORE_PPTMB == 1
+#define IGNORE_PPTMB 1 //Ignore PPTMB for display purpose when IGNORE_PPTMB == 1
 
 //--- DISPLAY ---//
+#define SLEEP_FRAME_EN 0 //When set to 1, enable the sleeping car start frame
 #define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
@@ -52,7 +53,7 @@
 #define PEDAL_PULLUP 1.0 //Pullup resistance of pedal ADC input (kR)
 #define ACCEL_ZERO_RESISTANCE 0.358 //Resistance of acceleration pedal when not pressed
 #define REGEN_ZERO_RESISTANCE 2.3 //Resistance of regen pedal when not pressed
-#define ACCEL_PEDAL_SLOPE 0.166 //Resistance per degree, empirically found with delta-resistance / delta-angle
+#define ACCEL_PEDAL_SLOPE 0.166 //Resistance per degree, empirically f`ound with delta-resistance / delta-angle
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
@@ -1953,14 +1954,19 @@ void displayTask(const void *pv){
 		taskENTER_CRITICAL();
 		uint8_t local_display_sel;
 
-		//Logic to decide whether to show sleeping car screen or default screen
-		if (IGNORE_PPTMB){
-			if (batteryRelayState == OPEN){
-				local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
-			}
-		} else {
-			if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)){
-				local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
+		local_display_sel = display_selection;
+
+		//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
+		if (SLEEP_FRAME_EN) {
+			//Logic to decide whether to show sleeping car screen or default screen
+			if (IGNORE_PPTMB){
+				if (batteryRelayState == OPEN){
+					local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
+				}
+			} else {
+				if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)){
+					local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
+				}
 			}
 		}
 
