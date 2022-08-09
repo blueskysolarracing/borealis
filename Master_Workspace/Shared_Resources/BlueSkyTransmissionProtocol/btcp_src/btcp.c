@@ -340,9 +340,9 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 		btcp->transmitBuarts[i]->itTxCallbackFlag = 0;
 #else
 		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, buf, buf_pos);
-#endif
-		//xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
+		xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
 
+#endif
     }
 
 }
