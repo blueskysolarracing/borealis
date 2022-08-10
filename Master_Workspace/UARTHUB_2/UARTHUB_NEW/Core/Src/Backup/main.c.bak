@@ -88,9 +88,11 @@ SRAM_HandleTypeDef hsram4;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 //B_uartHandle_t buarts[5];
-UART_HandleTypeDef* huarts[5] = {&huart2, &huart3, &huart4, &huart7, &huart8};
- B_uartHandle_t buarts[5];
- B_tcpHandle_t btcps[5];
+
+#define NUM_UART 5
+UART_HandleTypeDef* huarts[NUM_UART] = {&huart2, &huart3, &huart4, &huart7, &huart8};
+ B_uartHandle_t* buarts[NUM_UART];
+ B_tcpHandle_t* btcps[NUM_UART];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -207,7 +209,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 4096);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -231,9 +233,12 @@ int main(void)
 //  configASSERT(status == pdPASS); // Error checking
 
 
-  for (int i = 0; i < sizeof(huarts)/sizeof(huarts[0]); i++) {
-	  B_uartStart(huarts[i]);
-	  //B_tcpStart(sender, transmitBuarts, rxBuart, numTransmitBuarts, crc)
+  for (int i = 0; i < NUM_UART; i++) {
+	  buarts[i] = B_uartStart(huarts[i]);
+  }
+
+  for (int i = 0; i < NUM_UART; i++) {
+	  btcps[i] = B_tcpStart(SENDER_ID_NOT_USED, buarts, buarts[i], NUM_UART, &hcrc);
   }
 
   //status = xTaskCreate(uart4To8Parser, "test4To8", 1024, (void*)2, 4, NULL);

@@ -2254,7 +2254,7 @@ void PSMTaskHandler(void* parameters){
 
 		//Supplemental battery on channel #2
 		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
-		floatToArray((float) voltageCurrent_Supp_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+		floatToArray((float) voltageCurrent_Supp_local[0], suppBatteryMetrics + 4); // fills 4 - 7 of suppBatteryMetrics
 
 		//Send to bus
 		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
