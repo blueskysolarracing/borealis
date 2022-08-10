@@ -113,7 +113,7 @@ WWDG_HandleTypeDef hwwdg1;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 //--- PEDALS ---//
-float pedals_angle[2] = {-1, -1};
+float accelReading = -1;
 float accelValue = 0.0;
 float regenValue = 0.0;
 
@@ -422,11 +422,11 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.Resolution = ADC_RESOLUTION_16B;
-  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
-  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.LowPowerAutoWait = ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
@@ -451,20 +451,11 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_64CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_8CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
   sConfig.OffsetSignedSaturation = DISABLE;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -1363,7 +1354,6 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -1525,26 +1515,20 @@ static void pedalTask(const void* p) {
 	float accel_reading_upper_bound = 57000.0; //ADC reading corresponding to 100% power request
 	float accel_reading_lower_bound = 27000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
-	float regen_reading_upper_bound = 48000.0; //ADC reading corresponding to 100% regen request
-	float regen_reading_lower_bound = 0.0; //ADC reading corresponding to 0% regen request
-	float regen_reading_threshold = 25.0; //Threshold at which the regen engages (overides acceleration)
-	float pedalsReading[2] = {0, 0};
 
 	while (1) {
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
+			taskENTER_CRITICAL();
 			HAL_ADC_Start(&hadc1);
 			HAL_ADC_PollForConversion(&hadc1, 10);
-			pedalsReading[0] += HAL_ADC_GetValue(&hadc1);
-
-			HAL_ADC_Start(&hadc1);
-			HAL_ADC_PollForConversion(&hadc1, 10);
-			pedalsReading[1] += HAL_ADC_GetValue(&hadc1);
-			HAL_ADC_Stop(&hadc1);
+			float currentVal = HAL_ADC_GetValue(&hadc1);
+			accelReading += currentVal;
+			taskEXIT_CRITICAL();
 		}
 
 		//Compute value on 0-256 scale
-		accelValue = 256 - round(((pedalsReading[1]/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
+		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
 
 		//Bound acceleration value
 		if (accelValue < 0){
@@ -1553,22 +1537,11 @@ static void pedalTask(const void* p) {
 			accelValue = 256;
 		}
 
-		//Bound regen value
-		if(regenValue < 0){
-			regenValue = 0;
-		} else if (regenValue > 256){
-			regenValue = 256;
-		}
-
 		//Check if we need to turn on braking lights
-		if (regenValue >= 10){ //If braking power is >= 10/255%, turn on break lights (higher threshold)
-			uint8_t bufh[2] = {0x03, 0b01001000}; //[DATA ID, LIGHT INSTRUCTION]
-			B_tcpSend(btcp, bufh, 2);
-		}
 
 		//Try to catch if accel pedal cable is cut
 		//Since pedal pot is pull-up, if the cable is cut, the ADC reading will be very low
-		if ((pedalsReading[1]/ADC_NUM_AVG) < 5000){
+		if ((accelReading/ADC_NUM_AVG) < 5000){
 			accelValue = 0;
 		}
 
@@ -1576,11 +1549,7 @@ static void pedalTask(const void* p) {
 		taskENTER_CRITICAL();
 		// Prioritize regen if both are pressed
 
-		if (regenValue > regen_reading_threshold) {
-			motorTargetPower = (uint16_t) regenValue - regen_reading_threshold;
-			motorState = REGEN;
-			default_data.P2_motor_state = REGEN;
-		} else if (accelValue > accel_reading_threshold) {
+		if (accelValue > accel_reading_threshold) {
 			motorTargetPower = (uint16_t) accelValue - accel_reading_threshold;
 			// Will not change motorState if in cruise
 			if (motorState != CRUISE){
@@ -1606,8 +1575,7 @@ static void pedalTask(const void* p) {
 		taskEXIT_CRITICAL();
 
 		//Reset variables for next averaging
-		pedalsReading[0] = 0;
-		pedalsReading[1] = 0;
+		accelReading = 0;
 
 		osDelay(PEDALS_MEASUREMENT_INTERVAL);
 	}
@@ -1634,62 +1602,65 @@ void serialParse(B_tcpPacket_t *pkt){
 
 	switch(pkt->sender){
 	case PPTMB_ID:
-		 if (pkt->payload[4] == PPTMB_BUS_METRICS_ID){ //HV bus
-			common_data.solar_power = arrayToFloat(&pkt->payload[8]) * arrayToFloat(&pkt->payload[12]); //Solar power
-			detailed_data.P1_solar_voltage = arrayToFloat(&pkt->payload[8]); //Solar voltage
-			detailed_data.P1_solar_current = arrayToFloat(&pkt->payload[12]); //Solar current
+		 if (pkt->data[0] == PPTMB_BUS_METRICS_ID){ //HV bus
+			common_data.solar_power = 			(short) arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Solar power
+
+			detailed_data.P1_solar_voltage = 	(short) arrayToFloat(&(pkt->data[4])); //Solar voltage
+			detailed_data.P1_solar_current = 	(short) arrayToFloat(&(pkt->data[8])); //Solar current
 
 		 } else if (pkt->payload[4] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
-			arrayRelayState = pkt->payload[7]; //Display task will take care of choosing appropriate frame
+			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
 		 }
 		 break;
 
 	case MCMB_ID:
-		if (pkt->payload[4] == MCMB_BUS_METRICS_ID){ //HV bus
-			common_data.motor_power = arrayToFloat(&pkt->payload[8]) * arrayToFloat(&pkt->payload[12]); //Motor power
-			detailed_data.P1_motor_voltage = arrayToFloat(&pkt->payload[8]); //Motor voltage
-			detailed_data.P1_motor_current = arrayToFloat(&pkt->payload[12]); //Motor current
+		if (pkt->data[0] == MCMB_BUS_METRICS_ID){ //HV bus
+			common_data.motor_power = 			(short) arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Motor power
+			detailed_data.P1_motor_voltage = 	(short) arrayToFloat(&(pkt->data[4])); //Motor voltage
+			detailed_data.P1_motor_current = 	(short) arrayToFloat(&(pkt->data[8])); //Motor current
+			float test1 = arrayToFloat(&(pkt->data[4]));
+			float test2 = arrayToFloat(&(pkt->data[8]));
+			float test3 = arrayToFloat(&(pkt->payload[12]));
 
 		} else if (pkt->payload[4] == MCMB_CAR_SPEED_ID){ //Car speed
-			default_data.P1_speed_kph = pkt->payload[5]; //Car speed
+			default_data.P1_speed_kph = pkt->payload[8]; //Car speed (uint8_t)
 		}
 		break;
 
 	case BBMB_ID:
-		 if (pkt->payload[4] == BBMB_BUS_METRICS_ID){ //HV bus
-			common_data.battery_power = arrayToFloat(&pkt->payload[8]) * arrayToFloat(&pkt->payload[12]); //Battery power
-			detailed_data.P1_battery_voltage = arrayToFloat(&pkt->payload[8]); //Battery voltage
-			detailed_data.P1_battery_current = arrayToFloat(&pkt->payload[12]); //Battery current
+		 if (pkt->data[0] == BBMB_BUS_METRICS_ID){ //HV bus
+			common_data.battery_power = 		(short) arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Battery power
+			detailed_data.P1_battery_voltage = 	(short) arrayToFloat(&(pkt->data[4])); //Battery voltage
+			detailed_data.P1_battery_current =  (short)arrayToFloat(&(pkt->data[8])); //Battery current
 
-		 } else if (pkt->payload[4] == BBMB_RELAYS_STATE_ID){ //Relay state
+		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
 
-			 batteryState = pkt->payload[5];
-			 batteryRelayState = pkt->payload[6]; //Update global variable tracking battery relay state
+			 batteryState = pkt->data[1];
+			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
-		} else if (pkt->payload[4] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
+		} else if (pkt->data[0] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
 			float maxTemp = 0;
 			float minSoC = 200; //Very high initial value to make sure we can detect the true minimum
 
 			for (int i = 0; i < 3; i++){ //Parse cell temps in global array
-				temp_array[i + 3*pkt->payload[5]] = arrayToFloat(&pkt->payload[8 + 4*i]);
-				if (temp_array[i + 3*pkt->payload[5]] > maxTemp) {maxTemp = temp_array[i + 3*pkt->payload[5]];};
+				temp_array[i + 3*pkt->data[1]] = arrayToFloat(&(pkt->data[4 + 4*i]));
+				if (temp_array[i + 3*pkt->data[1]] > maxTemp) {maxTemp = temp_array[i + 3*pkt->data[1]];};
 			}
 
 			detailed_data.P2_max_batt_temp = maxTemp;
 
 			for (int i = 0; i < 5; i++){ //Parse cell voltages in global array
-				voltage_array[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x20 + 4*i]);
+				voltage_array[i + 5*pkt->data[1]] = arrayToFloat(&(pkt->data[0x1C + 4*i]));
 			}
 
 			for (int i = 0; i < 5; i++){ //Parse cell SoCs in global array
-				soc_array[i + 5*pkt->payload[5]] = arrayToFloat(&pkt->payload[0x34 + i]);
-				if (soc_array[i + 3*pkt->payload[5]] < minSoC) {minSoC = soc_array[i + 3*pkt->payload[5]];};
+				soc_array[i + 5*pkt->data[1]] = arrayToFloat(&(pkt->data[0x30 + i]));
+				if (soc_array[i + 3*pkt->data[1]] < minSoC) {minSoC = soc_array[i + 3*pkt->data[1]];};
 			}
 
 			common_data.battery_soc = minSoC;
-
-		 break;
 		}
+		 break;
 	}
 	taskEXIT_CRITICAL();
 }
@@ -1889,14 +1860,14 @@ void sidePanelTask(const void *pv){
 			//AUX1 (not implemented in GEN11)
 				if (sidePanelData & (1 << 2)){
 					// pass
-				}else { //Turn off horn
+				}else {
 					// pass
 				}
 
 			//AUX2 (not implemented in GEN11)
 				if (sidePanelData & (1 << 3)){
 					//pass
-				} else { //Turn off horn
+				} else {
 					//pass
 				}
 

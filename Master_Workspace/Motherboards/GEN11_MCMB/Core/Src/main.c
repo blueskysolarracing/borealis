@@ -2238,27 +2238,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 }
 
 void PSMTaskHandler(void* parameters){
-//	int i = 0;
-//	int x = 0;
-//
-//	while (1) {
-//		if (!motor->isOn(motor)) {
-//			motor->turnOn(motor);
-//		}
-//		if (motor->isOn(motor)) {
-//			motor->setAccel(motor, x);
-//			x += 25;
-//		}
-//		//vTaskDelay(5000);
-//
-//		i++;
-//		if (x > 255){
-//			motor->setAccel(motor, 0);
-//			break;
-//		}
-//	} // for testing
-
-
 	uint8_t busMetrics[3 * 4] = {0};
 	uint8_t suppBatteryMetrics[2 * 4] = {0};
 	double voltageCurrent_Motor_local[2] = {0, 0};

@@ -243,7 +243,6 @@ void rotate(int clockwise, int left_or_right, SPI_HandleTypeDef *hspi5){
 
 	// left arm, close
 	if (clockwise == 1 && left_or_right == 0){
-		HAL_GPIO_WritePin(GPIOH, GPIO_PIN_6, 1);
 		HAL_GPIO_WritePin(GPIOK, GPIO_PIN_1, 0); // CS_0 for left (PK1) go low to start transmission
 //		spi_buf[0] = 0xA0;
 //		spi_buf[1] = 0x00;
@@ -268,7 +267,6 @@ void rotate(int clockwise, int left_or_right, SPI_HandleTypeDef *hspi5){
 
 	// left arm, open
 	else if (clockwise == 0 && left_or_right == 0){
-		HAL_GPIO_WritePin(GPIOH, GPIO_PIN_6, 0);
 		HAL_GPIO_WritePin(GPIOK, GPIO_PIN_1, 0); // CS_0 for left (PK1) go low to start transmission
 		spi_buf[0] = 0xA0;
 		spi_buf[1] = 0x00;

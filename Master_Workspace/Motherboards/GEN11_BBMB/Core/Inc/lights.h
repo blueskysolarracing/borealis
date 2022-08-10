@@ -8,6 +8,8 @@
 #include "main.h"
 #include "TMC5160_driver.h"
 
+#define USE_RETRACTABLE_LIGHTS 0 //Set to 1 to enable stepper motors for retractable front lights
+
 struct lights_stepper_ctrl{
 	//SPI CS pins for TMC5160
 	GPIO_TypeDef* CSPort0;
@@ -49,9 +51,3 @@ void turn_on_hazard_lights(struct lights_stepper_ctrl* lights, double pwm_duty_c
 void turn_off_hazard_lights(struct lights_stepper_ctrl* lights);
 void turn_on_fault_indicator(struct lights_stepper_ctrl* lights);
 void turn_off_fault_indicator(struct lights_stepper_ctrl* lights);
-
-//
-//TIM_HandleTypeDef htim1;
-//TIM_HandleTypeDef htim2;
-//TIM_HandleTypeDef htim3;
-//TIM_HandleTypeDef htim5;

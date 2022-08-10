@@ -1194,7 +1194,7 @@ void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 		case DCMB_ID: //Parse data from DCMB
 			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
-				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
+				xQueueSend(lightsCtrl, &(pkt->payload[1]), 0); //Send to lights control task
 
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 				taskENTER_CRITICAL();
