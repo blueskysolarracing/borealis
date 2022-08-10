@@ -1193,10 +1193,10 @@ static void MX_GPIO_Init(void)
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 		case DCMB_ID: //Parse data from DCMB
-			if (pkt->payload[0] == DCMB_LIGHTCONTROL_ID){
+			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->payload[1]), 200); //Send to lights control task
 
-			} else if (pkt->payload[0] == DCMB_RELAYS_STATE_ID){
+			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 				taskENTER_CRITICAL();
 
 				if (pkt->payload[2] == OPEN){ //Open relays and resend
@@ -1205,7 +1205,7 @@ void serialParse(B_tcpPacket_t *pkt){
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->payload[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 
-				} else if ((pkt->payload[2] == CLOSED) && (batteryState == HEALTHY)){ //Try to open close
+				} else if ((pkt->payload[2] == CLOSED) && (batteryState == HEALTHY)){ //Try to close relays
 					close_relays(&relay);
 
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->payload[3]};
@@ -1213,6 +1213,14 @@ void serialParse(B_tcpPacket_t *pkt){
 				}
 
 				taskEXIT_CRITICAL();
+
+			} else if (pkt->data[0] == DCMB_STEERING_WHEEL_ID){
+				//Horn
+				if (pkt->data[2] & 0b00001000){ //Turn on horn
+					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_SET);
+				} else if (~(pkt->data[2] & 0b00001000)){ //Turn off horn
+					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_RESET);
+				}
 			}
 			break;
 
@@ -1265,8 +1273,8 @@ void serialParse(B_tcpPacket_t *pkt){
 
  						B_tcpSendToBMS(btcp_bms, BMS_Request, sizeof(BMS_Request));
 					}
-				taskEXIT_CRITICAL();
 				}
+				taskEXIT_CRITICAL();
 			}
 			break;
 		case CHASE_ID:
