@@ -1728,8 +1728,9 @@ void steeringWheelTask(const void *pv){
 
 	//------- Send to RS485 bus -------//
     uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
+    taskEXIT_CRITICAL();
     B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
-
+    taskENTER_CRITICAL();
 	//---------- Process data ----------//
 	// Navigation <- Not implemented
 	// Cruise <- Not implemented
@@ -1753,8 +1754,9 @@ void steeringWheelTask(const void *pv){
     	bufh[1] = 0b00000011;
     	default_data.P2_right_indicator_status = 1;
     }
+	taskEXIT_CRITICAL();
     B_tcpSend(btcp, bufh, sizeof(bufh));
-
+    taskENTER_CRITICAL();
     //Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
 
     //Encoder - Set car motor global values

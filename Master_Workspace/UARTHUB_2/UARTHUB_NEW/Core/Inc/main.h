@@ -73,7 +73,7 @@ void Error_Handler(void);
 #define GPIO_IN10_GPIO_Port GPIOD
 #define GPIO_IN10_EXTI_IRQn EXTI15_10_IRQn
 /* USER CODE BEGIN Private defines */
-
+#define UARTHUB
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

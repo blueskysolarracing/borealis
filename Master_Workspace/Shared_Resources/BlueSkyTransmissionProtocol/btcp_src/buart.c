@@ -2,19 +2,22 @@
 #include "string.h"
 #include "stdint.h"
 
-#define NUM_UARTS 4
+#define NUM_UARTS 5   //max number of working uarts for the H7
 #define RX_CIRC_BUF_SIZE 2048
 #ifdef BUART_INTERRUPT_MODE
 #define BUART_IT_RX_BUF_SIZE 30
 #define RX_QUEUE_SIZE 5
+#endif
+#ifdef UARTHUB
+#define RX_QUEUE_SIZE 200
+#define TX_QUEUE_SIZE 200
 #else
 #define RX_QUEUE_SIZE 64
-#endif
 #define TX_QUEUE_SIZE 64
-#define TX_TASK_PRIORITY 5
+#endif
+#define TX_TASK_PRIORITY 7
 #define RX_TASK_PRIORITY 6
 #define TRX_TASK_STACK_SIZE 256
-
 
 
 // ########  ##     ##
@@ -66,7 +69,7 @@ static void processCriticalFrame(B_bufQEntry_t* e);
 
 B_uartHandle_t* B_uartStart(UART_HandleTypeDef* huart){
 	B_uartHandle_t *buart;
-    for(int i = 0; i < 3; i++){
+    for(int i = 0; i < NUM_UARTS; i++){
         if(buarts[i] == NULL){
             buarts[i] = pvPortMalloc(sizeof(B_uartHandle_t));
             buart = buarts[i];

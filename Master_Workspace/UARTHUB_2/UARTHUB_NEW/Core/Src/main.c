@@ -91,7 +91,11 @@ osThreadId defaultTaskHandle;
 
 #define NUM_UART 5
 UART_HandleTypeDef* huarts[NUM_UART] = {&huart2, &huart3, &huart4, &huart7, &huart8};
- B_uartHandle_t* buarts[NUM_UART];
+//#define NUM_UART 2
+
+//UART_HandleTypeDef* huarts[NUM_UART] = {&huart3, &huart4}; //if 1 and 4
+
+B_uartHandle_t* buarts[NUM_UART];
  B_tcpHandle_t* btcps[NUM_UART];
 /* USER CODE END PV */
 
@@ -209,7 +213,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 4096);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -234,11 +238,13 @@ int main(void)
 
 
   for (int i = 0; i < NUM_UART; i++) {
+
 	  buarts[i] = B_uartStart(huarts[i]);
   }
 
   for (int i = 0; i < NUM_UART; i++) {
 	  btcps[i] = B_tcpStart(SENDER_ID_NOT_USED, buarts, buarts[i], NUM_UART, &hcrc);
+
   }
 
   //status = xTaskCreate(uart4To8Parser, "test4To8", 1024, (void*)2, 4, NULL);
@@ -316,7 +322,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
@@ -343,7 +349,7 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PLL2.PLL2N = 9;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
   PeriphClkInitStruct.PLL2.PLL2Q = 2;
-  PeriphClkInitStruct.PLL2.PLL2R = 2;
+  PeriphClkInitStruct.PLL2.PLL2R = 1;
   PeriphClkInitStruct.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_3;
   PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOMEDIUM;
   PeriphClkInitStruct.PLL2.PLL2FRACN = 3072;
