@@ -2260,8 +2260,8 @@ void PSMTaskHandler(void* parameters){
 		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
 		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
 
-		//Place in global variables
 		taskENTER_CRITICAL();
+		//Place in global variables
 		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
 		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
 		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];

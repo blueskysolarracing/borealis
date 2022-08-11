@@ -1603,10 +1603,10 @@ void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->sender){
 	case PPTMB_ID:
 		 if (pkt->data[0] == PPTMB_BUS_METRICS_ID){ //HV bus
-			common_data.solar_power = 			(short) arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Solar power
+			common_data.solar_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Solar power
 
-			detailed_data.P1_solar_voltage = 	(short) arrayToFloat(&(pkt->data[4])); //Solar voltage
-			detailed_data.P1_solar_current = 	(short) arrayToFloat(&(pkt->data[8])); //Solar current
+			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
+			detailed_data.P1_solar_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Solar current
 
 		 } else if (pkt->payload[4] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
@@ -1615,9 +1615,9 @@ void serialParse(B_tcpPacket_t *pkt){
 
 	case MCMB_ID:
 		if (pkt->data[0] == MCMB_BUS_METRICS_ID){ //HV bus
-			common_data.motor_power = 			(short) arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Motor power
-			detailed_data.P1_motor_voltage = 	(short) arrayToFloat(&(pkt->data[4])); //Motor voltage
-			detailed_data.P1_motor_current = 	(short) arrayToFloat(&(pkt->data[8])); //Motor current
+			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
+			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
+			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
 			float test1 = arrayToFloat(&(pkt->data[4]));
 			float test2 = arrayToFloat(&(pkt->data[8]));
 			float test3 = arrayToFloat(&(pkt->payload[12]));
@@ -1629,9 +1629,9 @@ void serialParse(B_tcpPacket_t *pkt){
 
 	case BBMB_ID:
 		 if (pkt->data[0] == BBMB_BUS_METRICS_ID){ //HV bus
-			common_data.battery_power = 		(short) arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Battery power
-			detailed_data.P1_battery_voltage = 	(short) arrayToFloat(&(pkt->data[4])); //Battery voltage
-			detailed_data.P1_battery_current =  (short)arrayToFloat(&(pkt->data[8])); //Battery current
+			common_data.battery_power = 		(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Battery power
+			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
+			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
 
 		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
 
@@ -1884,7 +1884,6 @@ void sidePanelTask(const void *pv){
 				} else { //Array switch is OFF (open relays)
 					bufh3[3] = OPEN;
 				}
-				B_tcpSend(btcp, bufh3, 3);
 
 			//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
 				if (sidePanelData & (1 << 5)){ // reverse state?
@@ -1896,12 +1895,15 @@ void sidePanelTask(const void *pv){
 			//IGNITION
 				if (sidePanelData & (1 << 7)){ //Ignition ON
 					ignitionState = IGNITION_ON;
-					//motorState = STANDBY; Will set motorState in pedal task instead
+					bufh3[2] = CLOSED;
+
 				} else { //Ignition OFF
 					ignitionState = IGNITION_OFF;
-					//motorState = OFF; Will set motorState in pedal task instead
 					default_data.P2_motor_state = OFF;
+					bufh3[2] = OPEN;
 				}
+
+				B_tcpSend(btcp, bufh3, 3);
 			}
 		}
 		taskEXIT_CRITICAL(); // exit critical section

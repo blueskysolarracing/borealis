@@ -19,6 +19,8 @@ struct relay_periph{
 
 	GPIO_TypeDef* GND_SIG_GPIO_Port;
 	uint16_t GND_SIG_Pin;
+
+	uint8_t relay_state;
 };
 
 void open_relays(struct relay_periph* relay);

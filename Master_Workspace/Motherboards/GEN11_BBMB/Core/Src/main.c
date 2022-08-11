@@ -93,8 +93,8 @@ uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 
 //--- LIGHTS ---//
 struct lights_stepper_ctrl lightsPeriph;
-uint8_t lightInstruction = 0;
 QueueHandle_t lightsCtrl = NULL;
+uint8_t lightInstruction;
 
 //--- PSM ---//
 struct PSM_Peripheral psmPeriph;
@@ -103,6 +103,7 @@ float battery_current;
 //--- RELAYS ---//
 struct relay_periph relay;
 QueueHandle_t relayCtrl = NULL;
+uint8_t relayCtrlMessage;
 
 //--- BMS ---//
 uint8_t BMS_requesting_from = 7; //Holds which BMS we are requesting data from (needs initial value > 6)
@@ -270,7 +271,11 @@ int main(void)
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
 
   //--- RELAYS ---//
-  close_relays(&relay);
+  if (PROTECTION_ENABLE == 0){ //No protection, so closed relays immediately
+	  relayCtrlMessage = 2;
+	  xQueueSend(relayCtrl, &relayCtrlMessage, 10);
+	  relay.relay_state = CLOSED;
+  } else {	relay.relay_state = OPEN; }
 
   //--- ENABLE 12V FROM VICOR ---//
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, 1);
@@ -1193,20 +1198,25 @@ static void MX_GPIO_Init(void)
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 		case DCMB_ID: //Parse data from DCMB
+			//Light control
 			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
-				xQueueSend(lightsCtrl, &(pkt->payload[1]), 0); //Send to lights control task
+				lightInstruction = pkt->payload[1];
+				xQueueSend(lightsCtrl, &lightInstruction, 10); //Send to lights control task
 
+			//Relays
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 				taskENTER_CRITICAL();
 
-				if (pkt->payload[2] == OPEN){ //Open relays and resend
-					open_relays(&relay);
+				if ((pkt->data[2] == OPEN) && (relay.relay_state == CLOSED)){ //Open relays and resend
+					relayCtrlMessage = 1;
+					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
 
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->payload[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 
-				} else if ((pkt->payload[2] == CLOSED) && (batteryState == HEALTHY)){ //Try to close relays
-					close_relays(&relay);
+				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.relay_state == OPEN)){ //Try to close relays
+					relayCtrlMessage = 2;
+					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
 
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->payload[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
@@ -1214,8 +1224,8 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				taskEXIT_CRITICAL();
 
+			//Horn
 			} else if (pkt->data[0] == DCMB_STEERING_WHEEL_ID){
-				//Horn
 				if (pkt->data[2] & 0b00001000){ //Turn on horn
 					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_SET);
 				} else if (~(pkt->data[2] & 0b00001000)){ //Turn off horn
@@ -1299,7 +1309,7 @@ void relayTask(void * argument){
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
 			if (buf_relay[0] == 1){
-//				open_relays(&relay);
+				open_relays(&relay);
 			} else if (buf_relay[0] == 2){
 				close_relays(&relay);
 			}
@@ -1332,13 +1342,12 @@ void lightsTask(void * argument)
   for(;;)
   {
 
-    // osMessageQueueGet(lightsCtrlHandle, &buf_get, NULL, 200);
 	if (xQueueReceive(lightsCtrl, &buf_get, 200)){
 		// HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_6);
 		uint8_t light_msg = buf_get[0];
 		uint8_t light_id = light_msg & 0x3E;
 		switch(light_id){ // mask 0b0011 1110 to isolate light
-			case 0x02: // indicator
+			case 0x02: // Indicator
 				if ((light_msg & 0x40) != 0x00){ // masking for start / stop bit
 					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), duty, blink, on_period); // masking last bit for left or right
 				}
@@ -1463,6 +1472,37 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	}
 	taskEXIT_CRITICAL();
 }
+
+//void open_relays(struct relay_periph* relay){
+//	//Open the power relays around the battery to disconnect the battery from the HV system
+//	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Make sure the precharge relay is open (should be at this point)
+//	osDelay(ACTUATION_DELAY);
+//
+//	HAL_GPIO_WritePin(relay->DISCHARGE_GPIO_Port, relay->DISCHARGE_Pin, GPIO_PIN_RESET); //Enable battery discharge circuit to safely discharge bus capacitance
+//	osDelay(DISCHARGE_TIME);
+//
+//	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_RESET); //Open high-side relay
+//	osDelay(ACTUATION_DELAY);
+//
+//	HAL_GPIO_WritePin(relay->GND_SIG_GPIO_Port, relay->GND_SIG_Pin, GPIO_PIN_RESET); //Open low-side relay
+//	osDelay(ACTUATION_DELAY);
+//}
+//
+//void close_relays(struct relay_periph* relay){
+//	//Close the power relays (sequentially) around the battery to connect the battery to the HV system
+//	HAL_GPIO_WritePin(relay->DISCHARGE_GPIO_Port, relay->DISCHARGE_Pin, GPIO_PIN_SET); //Make sure battery discharge circuit is disabled
+//	osDelay(ACTUATION_DELAY);
+//
+//	HAL_GPIO_WritePin(relay->GND_SIG_GPIO_Port, relay->GND_SIG_Pin, GPIO_PIN_SET); //Close low-side relay
+//	osDelay(ACTUATION_DELAY);
+//
+//	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_SET); //Close pre-charge relay to safely charge bus capacitance and avoid high dI/dt
+//	vTaskDelay(PRECHARGE_TIME);
+//
+//	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_SET); //Close high-side relay
+//	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Open pre-charge relay
+//	osDelay(ACTUATION_DELAY + 500); //500ms added to prevent inrush current from tripping PSM measurements
+//}
 
 /* USER CODE END 4 */
 
