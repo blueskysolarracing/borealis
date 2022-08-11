@@ -387,7 +387,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
@@ -1701,6 +1701,7 @@ void steeringWheelTask(const void *pv){
     uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
     taskEXIT_CRITICAL();
     B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
+
     taskENTER_CRITICAL();
 	//---------- Process data ----------//
 	// Navigation <- Not implemented
@@ -1708,25 +1709,32 @@ void steeringWheelTask(const void *pv){
 
 	//INDICATOR LIGHTS - SEND TO BBMB
     //Left indicator - SEND TO BBMB
-    uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+    uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Retract lights
-    	bufh[1] = 0b01000010;
+    	bufh1[1] = 0b01000010;
     	default_data.P1_left_indicator_status = 0;
 	} else {
-    	bufh[1] = 0b00000010;
+    	bufh1[1] = 0b00000010;
     	default_data.P1_left_indicator_status = 1;
 	}
+	taskEXIT_CRITICAL();
 
+    B_tcpSend(btcp, bufh1, sizeof(bufh1));
+
+    taskENTER_CRITICAL();
+    uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
     //Right indicator - SEND TO BBMB
 	if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Retract lights
-    	bufh[1] = 0b01000011;
+    	bufh2[1] = 0b01000011;
     	default_data.P2_right_indicator_status = 0;
 	} else {
-    	bufh[1] = 0b00000011;
+    	bufh2[1] = 0b00000011;
     	default_data.P2_right_indicator_status = 1;
     }
 	taskEXIT_CRITICAL();
-    B_tcpSend(btcp, bufh, sizeof(bufh));
+
+    B_tcpSend(btcp, bufh2, sizeof(bufh2));
+
     taskENTER_CRITICAL();
     //Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
 

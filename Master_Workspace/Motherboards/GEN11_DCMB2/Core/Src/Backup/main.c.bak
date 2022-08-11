@@ -451,7 +451,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_64CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_8CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
@@ -1602,11 +1602,11 @@ void serialParse(B_tcpPacket_t *pkt){
 
 	switch(pkt->sender){
 	case PPTMB_ID:
-		 if (pkt->payload[4] == PPTMB_BUS_METRICS_ID){ //HV bus
-			common_data.solar_power = arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Solar power
+		 if (pkt->data[0] == PPTMB_BUS_METRICS_ID){ //HV bus
+			common_data.solar_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Solar power
 
-			detailed_data.P1_solar_voltage = arrayToFloat(&(pkt->data[4])); //Solar voltage
-			detailed_data.P1_solar_current = arrayToFloat(&(pkt->data[8])); //Solar current
+			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
+			detailed_data.P1_solar_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Solar current
 
 		 } else if (pkt->payload[4] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
@@ -1614,10 +1614,10 @@ void serialParse(B_tcpPacket_t *pkt){
 		 break;
 
 	case MCMB_ID:
-		if (pkt->payload[4] == MCMB_BUS_METRICS_ID){ //HV bus
-			common_data.motor_power = arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Motor power
-			detailed_data.P1_motor_voltage = arrayToFloat(&(pkt->data[4])); //Motor voltage
-			detailed_data.P1_motor_current = arrayToFloat(&(pkt->data[8])); //Motor current
+		if (pkt->data[0] == MCMB_BUS_METRICS_ID){ //HV bus
+			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
+			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
+			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
 			float test1 = arrayToFloat(&(pkt->data[4]));
 			float test2 = arrayToFloat(&(pkt->data[8]));
 			float test3 = arrayToFloat(&(pkt->payload[12]));
@@ -1628,17 +1628,17 @@ void serialParse(B_tcpPacket_t *pkt){
 		break;
 
 	case BBMB_ID:
-		 if (pkt->payload[4] == BBMB_BUS_METRICS_ID){ //HV bus
-			common_data.battery_power = arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8])); //Battery power
-			detailed_data.P1_battery_voltage = arrayToFloat(&(pkt->data[4])); //Battery voltage
-			detailed_data.P1_battery_current = arrayToFloat(&(pkt->data[8])); //Battery current
+		 if (pkt->data[0] == BBMB_BUS_METRICS_ID){ //HV bus
+			common_data.battery_power = 		(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Battery power
+			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
+			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
 
-		 } else if (pkt->payload[4] == BBMB_RELAYS_STATE_ID){ //Relay state
+		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
 
 			 batteryState = pkt->data[1];
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
-		} else if (pkt->payload[4] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
+		} else if (pkt->data[0] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
 			float maxTemp = 0;
 			float minSoC = 200; //Very high initial value to make sure we can detect the true minimum
 
@@ -1659,9 +1659,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			}
 
 			common_data.battery_soc = minSoC;
-
-		 break;
 		}
+		 break;
 	}
 	taskEXIT_CRITICAL();
 }
@@ -1700,33 +1699,43 @@ void steeringWheelTask(const void *pv){
 
 	//------- Send to RS485 bus -------//
     uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
+    taskEXIT_CRITICAL();
     B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
 
+    taskENTER_CRITICAL();
 	//---------- Process data ----------//
 	// Navigation <- Not implemented
 	// Cruise <- Not implemented
 
 	//INDICATOR LIGHTS - SEND TO BBMB
     //Left indicator - SEND TO BBMB
-    uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+    uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Retract lights
-    	bufh[1] = 0b01000010;
+    	bufh1[1] = 0b01000010;
     	default_data.P1_left_indicator_status = 0;
 	} else {
-    	bufh[1] = 0b00000010;
+    	bufh1[1] = 0b00000010;
     	default_data.P1_left_indicator_status = 1;
 	}
+	taskEXIT_CRITICAL();
 
+    B_tcpSend(btcp, bufh1, sizeof(bufh1));
+
+    taskENTER_CRITICAL();
+    uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
     //Right indicator - SEND TO BBMB
 	if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Retract lights
-    	bufh[1] = 0b01000011;
+    	bufh2[1] = 0b01000011;
     	default_data.P2_right_indicator_status = 0;
 	} else {
-    	bufh[1] = 0b00000011;
+    	bufh2[1] = 0b00000011;
     	default_data.P2_right_indicator_status = 1;
     }
-    B_tcpSend(btcp, bufh, sizeof(bufh));
+	taskEXIT_CRITICAL();
 
+    B_tcpSend(btcp, bufh2, sizeof(bufh2));
+
+    taskENTER_CRITICAL();
     //Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
 
     //Encoder - Set car motor global values
@@ -1861,14 +1870,14 @@ void sidePanelTask(const void *pv){
 			//AUX1 (not implemented in GEN11)
 				if (sidePanelData & (1 << 2)){
 					// pass
-				}else { //Turn off horn
+				}else {
 					// pass
 				}
 
 			//AUX2 (not implemented in GEN11)
 				if (sidePanelData & (1 << 3)){
 					//pass
-				} else { //Turn off horn
+				} else {
 					//pass
 				}
 
@@ -1883,7 +1892,6 @@ void sidePanelTask(const void *pv){
 				} else { //Array switch is OFF (open relays)
 					bufh3[3] = OPEN;
 				}
-				B_tcpSend(btcp, bufh3, 3);
 
 			//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
 				if (sidePanelData & (1 << 5)){ // reverse state?
@@ -1895,12 +1903,15 @@ void sidePanelTask(const void *pv){
 			//IGNITION
 				if (sidePanelData & (1 << 7)){ //Ignition ON
 					ignitionState = IGNITION_ON;
-					//motorState = STANDBY; Will set motorState in pedal task instead
+					bufh3[2] = CLOSED;
+
 				} else { //Ignition OFF
 					ignitionState = IGNITION_OFF;
-					//motorState = OFF; Will set motorState in pedal task instead
 					default_data.P2_motor_state = OFF;
+					bufh3[2] = OPEN;
 				}
+
+				B_tcpSend(btcp, bufh3, 3);
 			}
 		}
 		taskEXIT_CRITICAL(); // exit critical section

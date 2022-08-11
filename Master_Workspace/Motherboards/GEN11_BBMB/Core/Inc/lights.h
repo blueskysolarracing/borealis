@@ -8,6 +8,24 @@
 #include "main.h"
 #include "TMC5160_driver.h"
 
+enum LIGHTS_STATE {
+	LIGHTS_OFF,
+	LIGHTS_ON,
+};
+
+enum LIGHTS_INDICATOR {
+	LEFT,
+	RIGHT,
+};
+
+enum LIGHTS {
+	LIGHTS_UNUSED,
+	INDICATOR_LIGHTS = 0x02,
+	DRL_LIGHTS = 0x04,
+	BRAKES_LIGHTS = 0x8,
+	HAZARD_LIGHTS = 0x10,
+	FAULT_LIGHTS = 0x20
+};
 #define USE_RETRACTABLE_LIGHTS 0 //Set to 1 to enable stepper motors for retractable front lights
 
 struct lights_stepper_ctrl{
@@ -41,7 +59,7 @@ struct lights_stepper_ctrl{
 	TIM_HandleTypeDef* FLT_TIM;
 };
 
-void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, double pwm_duty_cycle, double blink_rate, double on_period);
+void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, double pwm_duty_cycle, double bpm, double on_period);
 void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right);
 void turn_on_DRL(struct lights_stepper_ctrl* lights, double pwm_duty_cycle);
 void turn_off_DRL(struct lights_stepper_ctrl* lights);

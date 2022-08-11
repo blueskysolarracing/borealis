@@ -45,7 +45,7 @@
 #define NUM_BATT_TEMP_SENSORS 3 * 6 //Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 1000//(Other intervals defined in psm.h and btcp.h)
 #define BMS_FLT_CHECK_INTERVAL 10 //Interval at which to read the BMS_FLT pin
-#define PROTECTION_ENABLE 0 //Flag to enable (1) or disable (0) relay control
+#define PROTECTION_ENABLE 1 //Flag to enable (1) or disable (0) relay control
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -246,8 +246,8 @@ int main(void)
   lightsPeriph.FLT_CH = TIM_CHANNEL_1;
 
   //Initial state of lights: all off
-  turn_off_indicators(&lightsPeriph, 1);
-  turn_off_indicators(&lightsPeriph, 0);
+  turn_off_indicators(&lightsPeriph, LEFT);
+  turn_off_indicators(&lightsPeriph, RIGHT);
   turn_off_DRL(&lightsPeriph);
   turn_off_brake_lights(&lightsPeriph);
   turn_off_fault_indicator(&lightsPeriph);
@@ -355,12 +355,12 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 2;
-  RCC_OscInitStruct.PLL.PLLN = 12;
+  RCC_OscInitStruct.PLL.PLLN = 16;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
-  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
+  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -532,7 +532,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 1000;
+  htim1.Init.Prescaler = 2000;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 13552;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -665,7 +665,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 1000;
+  htim3.Init.Prescaler = 0;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 6400;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -1200,7 +1200,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		case DCMB_ID: //Parse data from DCMB
 			//Light control
 			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
-				lightInstruction = pkt->payload[1];
+				lightInstruction = pkt->data[1];
 				xQueueSend(lightsCtrl, &lightInstruction, 10); //Send to lights control task
 
 			//Relays
@@ -1320,9 +1320,10 @@ void relayTask(void * argument){
 void lightsTask(void * argument)
 {
 	uint8_t buf_get[10];
-	double duty = 0.1;
-	double blink = 50.82;
-	double on_period = 160;
+	double duty = 0.85;
+	double duty_DRL = 0.8;
+	double blink = 60;
+	double on_period = 1000;
 
 /**
  * Item in lightsCtrl queue is 8-bit binary instruction
@@ -1346,48 +1347,44 @@ void lightsTask(void * argument)
 		// HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_6);
 		uint8_t light_msg = buf_get[0];
 		uint8_t light_id = light_msg & 0x3E;
+
 		switch(light_id){ // mask 0b0011 1110 to isolate light
-			case 0x02: // Indicator
-				if ((light_msg & 0x40) != 0x00){ // masking for start / stop bit
-					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), duty, blink, on_period); // masking last bit for left or right
-				}
-				else{
+			case INDICATOR_LIGHTS: // Indicator
+				if ((light_msg & 0x40) >> 6 == LIGHTS_OFF){ //Turn off
 					turn_off_indicators(&lightsPeriph, (int)(light_msg & 0x01)); // masking last bit for left or right
+				} else { //Turn on
+					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), duty, blink, on_period); // masking last bit for left or right
 				}
 				break;
 
-			case 0x04: // DRL
+			case DRL_LIGHTS: // DRL
 				if ((light_msg & 0x40) != 0x00){
-					turn_on_DRL(&lightsPeriph, duty);
-				}
-				else{
+					turn_on_DRL(&lightsPeriph, duty_DRL);
+				} else {
 					turn_off_DRL(&lightsPeriph);
 				}
 				break;
 
-			case 0x08: // brake
+			case BRAKES_LIGHTS: // brake
 				if ((light_msg & 0x40) != 0x00){
 					turn_on_brake_lights(&lightsPeriph, duty);
-				}
-				else{
+				} else {
 					turn_off_brake_lights(&lightsPeriph);
 				}
 				break;
 
-			case 0x10: // hazard light
+			case HAZARD_LIGHTS: // hazard light
 				if ((light_msg & 0x40) != 0x00){
 					turn_on_hazard_lights(&lightsPeriph, duty, blink);
-				}
-				else{
+				} else {
 					turn_off_hazard_lights(&lightsPeriph);
 				}
 				break;
 
-			case 0x20: // fault indicator - started by interrupt?
+			case FAULT_LIGHTS: // fault indicator - started by interrupt?
 				if ((light_msg & 0x40) != 0x00){
 					turn_on_fault_indicator(&lightsPeriph);
-				}
-				else{
+				} else {
 					turn_off_fault_indicator(&lightsPeriph);
 				}
 				break;

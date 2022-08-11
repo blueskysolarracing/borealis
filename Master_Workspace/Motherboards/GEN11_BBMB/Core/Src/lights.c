@@ -9,14 +9,13 @@
 
 #include "lights.h"
 
-void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, double pwm_duty_cycle, double blink_rate, double on_period)
-{
-	double frequency = blink_rate / 60; // blink_rate given in bpm
-	double period_master = frequency * 75000; // based on internal clock, pre-scaler (assumes 75MHz TIM2 clock frequency)
-	double pulse_master = pwm_duty_cycle * period_master;
+void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, double pwm_duty_cycle, double bpm, double on_period){
+	uint32_t frequency = bpm / 60; // blink per minute
+	uint32_t period_master = frequency * 64000; // based on internal clock, pre-scaler (assumes 64MHz TIM2 clock frequency)
+	uint32_t pulse_master = 0.1 * period_master;
 
-	double pulse_slave = on_period; // 160 ticks
-	double period_slave = on_period / pwm_duty_cycle; // 160 / 0.10 = 1600
+	uint32_t pulse_slave = on_period;
+	uint32_t period_slave = on_period / pwm_duty_cycle;
 
 	if (USE_RETRACTABLE_LIGHTS){
 		HAL_GPIO_WritePin(lights->PWR_EN_Port, lights->PWR_EN_Pin, 1); // write to power board
@@ -30,14 +29,12 @@ void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, d
 	//turn on master timer
 	HAL_TIM_PWM_Start(lights->master_TIM, lights->master_CH);
 
-	if (left_or_right == 0){
-		if (USE_RETRACTABLE_LIGHTS){	rotate(0, 0, lights->TMC5160_SPI); 	}// anti-clockwise: out for left
+	if (left_or_right == LEFT){
+		if (USE_RETRACTABLE_LIGHTS){	rotate(0, LEFT, lights->TMC5160_SPI); 	}// anti-clockwise: out for left
 		lights->left_ind_TIM->Instance->CCR1 = pulse_slave;
 		HAL_TIM_PWM_Start(lights->left_ind_TIM, lights->left_ind_CH);
-	}
-
-	else{
-		if (USE_RETRACTABLE_LIGHTS){	rotate(1, 1, lights->TMC5160_SPI); 	}// clockwise: out for right
+	} else {
+		if (USE_RETRACTABLE_LIGHTS){	rotate(1, RIGHT, lights->TMC5160_SPI); 	}// clockwise: out for right
 		lights->right_ind_TIM->Instance->CCR2 = pulse_slave;
 		HAL_TIM_PWM_Start(lights->right_ind_TIM, lights->right_ind_CH);
 	}
@@ -50,8 +47,6 @@ void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right){
 		HAL_GPIO_WritePin(lights->PWR_EN_Port, lights->PWR_EN_Pin, 1); // write to power board
 		setup_motor(lights->TMC5160_SPI);
 	}
-
-	lights->master_TIM->Instance->CCR1 = 0;
 
 	if (left_or_right == 0){ //left
 		HAL_TIM_PWM_Stop(lights->left_ind_TIM, lights->left_ind_CH);
