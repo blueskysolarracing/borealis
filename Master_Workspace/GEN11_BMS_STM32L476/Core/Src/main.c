@@ -39,20 +39,15 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
-#define MY_ID 1 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS)
+#define MY_ID 0 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
 #define NUM_CELLS 5 //have to make sure is the same as NUM_14P_UNITS in batteryEKF.h
 #define NUM_TEMP_SENSE 3
-#define SEND_PERIOD 200
-#define MEAS_PERIOD 200
-
-#define OV_THRESHOLD 4.2
-#define UV_THRESHOLD 2.5
-#define OT_THRESHOLD 40 //Should be set to 60C
-
 #define TEMP_CORRECTION_MULTIPLIER 1.0
 #define TEMP_CORRECTION_OFFSET 0.0
+#define SEND_PERIOD 200
+#define MEAS_PERIOD 200
 
 #define TCP_ID BMS_ID
 #define LTC6810_INTERVAL 200 //Interval of reading LTC6810 measurements
@@ -103,9 +98,10 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 void LTC6810Handler(TimerHandle_t xTimer);
 int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
-int readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
-int readVolt(float*voltArray);
+void readTemp(float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
+void readVolt(float* voltArray);
 void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send);
+void send_temp_volt();
 void convert_to_temp(float input_voltage[3], float output_temperature[3]);
 /* USER CODE END PFP */
 
@@ -162,7 +158,6 @@ int main(void)
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("LTC6810Handler",  pdMS_TO_TICKS(LTC6810_INTERVAL), pdTRUE, (void *)0, LTC6810Handler), 0); //Temperature and voltage measurements
 
-
   //--- BMS_FLT ---//
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Signal is active-high (high when no fault)
 
@@ -171,19 +166,10 @@ int main(void)
   readVolt(local_voltage_array); //Places voltage in temp 1, temp
 
   float tickNow = HAL_GetTick();
-  for(int i=0; i<NUM_CELLS; i++){
+  for (int i = 0; i < NUM_CELLS; i++){
 	  tickLastMeasurement[i] = tickNow;
   }
   initBatteryAlgo(&inBattery, &local_voltage_array[0], tickNow);
-
-//--- TESTING ---//
-//  char buf[5] = "test\n";
-//	char pData[100];
-//  while(1){
-//	  //HAL_UART_Transmit_DMA(&huart1, buf, sizeof(buf));
-//	  //HAL_UART_Receive(&huart1, pData, 100, 100);
-//	  HAL_Delay(50);
-//  }
 
   /* USER CODE END 2 */
 
@@ -541,10 +527,11 @@ static void MX_GPIO_Init(void)
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 	  case BBMB_ID: //Parse data from BBMB
-		  //HAL_UART_Transmit(&huart3, pkt->data, pkt->length, 100);
 		  //--- SoC REQUEST FROM BBMB ---//
 		  /* BBMB will receive SoC packet, voltage packet and temperature packet*/
-		if((pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
+		if ((pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
+			HAL_GPIO_WritePin(MCU_LED_GPIO_Port, MCU_LED_Pin, GPIO_PIN_RESET); //Turn on MCU LED
+
 			float current;
 			float SoC_array[NUM_CELLS];
 			current = arrayToFloat(pkt->data + 2);
@@ -584,6 +571,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			//Also, send temp and volt
 			send_temp_volt();
+			HAL_GPIO_WritePin(MCU_LED_GPIO_Port, MCU_LED_Pin, GPIO_PIN_SET); //Turn on MCU LED
 		}
 		break;
 	}
@@ -592,7 +580,7 @@ void serialParse(B_tcpPacket_t *pkt){
 void send_temp_volt(){
 	//--- SEND TEMPERATURE ---//
 		uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
-		buf_temp[0] = BMS_CELL_TEMP;
+		buf_temp[0] = BMS_CELL_TEMP_ID;
 		buf_temp[1] = MY_ID;
 
 		//Pack temperatures into buffer
@@ -618,7 +606,7 @@ void send_temp_volt(){
 
 	//--- SEND VOLTAGE ---//
 		uint8_t buf_voltage[4 + 6*4]; //[DATA ID, MODULE ID, Voltage group #0, Voltage group #1, ... , Voltage group #4]
-		buf_voltage[0] = BMS_CELL_VOLT;
+		buf_voltage[0] = BMS_CELL_VOLT_ID;
 		buf_voltage[1] = MY_ID;
 
 		//Pack voltage into buffer
@@ -652,39 +640,37 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
 	convert_to_temp(local_temp_array, local_temp_array);
 
-
-
-
 	//---- BATTERY FAULT CHECK----//
-	//Check for UV, OV faults
-	for (int i = 0; i < 5; i++){
-		if (local_voltage_array[i] > OV_THRESHOLD){ //Overvoltage
-			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
-			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //Switch to 12V power
-			send_error_msg(i, BMS_OV, voltage_array[i]);
-
-		} else if (local_voltage_array[i] < UV_THRESHOLD){ //Undervoltage
-			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
-			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-			send_error_msg(i, BMS_UV, voltage_array[i]);
-
-		} else { //Voltage OK
-			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-		}
-	}
-
-	//Check for OT faults
-	for (int i = 0; i < 6; i++){
-		if (local_temp_array[i] > OT_THRESHOLD){
-			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
-			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-			send_error_msg(i, BMS_OT, temperature_array[i]);
-
-		} else {
-			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-		}
-	}
+	//DONE ON BBMB FOR NOW
+//	//Check for UV, OV faults
+//	for (int i = 0; i < 5; i++){
+//		if (local_voltage_array[i] > OV_THRESHOLD){ //Overvoltage
+//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
+//			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //Switch to 12V power
+//			send_error_msg(i, BMS_OV, voltage_array[i]);
+//
+//		} else if (local_voltage_array[i] < UV_THRESHOLD){ //Undervoltage
+//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
+//			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+//			send_error_msg(i, BMS_UV, voltage_array[i]);
+//
+//		} else { //Voltage OK
+//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
+//		}
+//	}
+//
+//	//Check for OT faults
+//	for (int i = 0; i < 6; i++){
+//		if (local_temp_array[i] > OT_THRESHOLD){
+//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
+//			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
+//			send_error_msg(i, BMS_OT, temperature_array[i]);
+//
+//		} else {
+//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
+//		}
+//	}
 
 	//Update global variables
 	taskENTER_CRITICAL();
@@ -730,8 +716,6 @@ int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, i
 	int data6Byte[48]; //[47] is MSB, CFGR0 Bit7
 	uint8_t dataToSend[12]; //stores the command and PEC bit of WRCFG
 	//2byte command, 2byte PEC, 6byte data, 2byte PEC
-
-	uint8_t dataToReceive[8];
 
 	//write configure command
 	messageInBinary = 0b1;		//write config
@@ -807,54 +791,53 @@ int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, i
 	return 0; //temp
 }
 
-int readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1){
+void readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1){
 	//read Temp 0,1,2. Pass by reference to the input array.
 	//if discharging, make DCC global variables so this don't disturb Discharge
 
 	int cycle = 0;
-while(cycle<3){
+	while(cycle<3){
 
-	if(cycle ==0){
-	LTC6810Init(0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 1
-	else if(cycle == 1){
-	LTC6810Init(0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
-	else if(cycle == 2){
-	LTC6810Init(0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
-//cycle are 0,1,2
+		if(cycle ==0){
+		LTC6810Init(0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 1
+		else if(cycle == 1){
+		LTC6810Init(0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
+		else if(cycle == 2){
+		LTC6810Init(0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
+	//cycle are 0,1,2
 
-	messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
-	LTC6810CommandGenerate(messageInBinary, dataToSend);
-	HAL_Delay(1);
+		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
+		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		HAL_Delay(1);
 
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);//slave low
-	HAL_Delay(1);
-	HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);//slave low
+		HAL_Delay(1);
+		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
-	HAL_Delay(2);
-	//now read from it
-	messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
-			  //now receive those data
-	LTC6810CommandGenerate(messageInBinary, dataToSend);
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+		HAL_Delay(2);
+		//now read from it
+		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
+				  //now receive those data
+		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
 
-	HAL_Delay(1);
-	HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	HAL_Delay(2); //ADD DELAY between Transmit & Receive
-	HAL_SPI_Receive(&hspi3, dataToReceive, 6, 100);
+		HAL_Delay(1);
+		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
+		HAL_Delay(2); //ADD DELAY between Transmit & Receive
+		HAL_SPI_Receive(&hspi3, dataToReceive, 6, 100);
 
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-	//write value into array
-	int tempSum = 256*dataToReceive[3] + dataToReceive[2];
-	//float TempInC = 1/(1/298.15+(1/3950) * log((-10)/(tempSum/)))
-	tempArray[cycle] = (float)tempSum;//msb of data
-	cycle++;
-	}//end of while(cycle = sth)
-return 0;
-
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+		//write value into array
+		int tempSum = 256*dataToReceive[3] + dataToReceive[2];
+		//float TempInC = 1/(1/298.15+(1/3950) * log((-10)/(tempSum/)))
+		tempArray[cycle] = (float)tempSum;//msb of data
+		cycle++;
+		}//end of while(cycle = sth)
+	return 0;
 }
 
-int readVolt(float*voltArray){
+void readVolt(float* voltArray){
 	int VmessageInBinary;//for internal command
 
 	  //first read first half of data
@@ -916,6 +899,9 @@ void convert_to_temp(float input_voltage[3], float output_temperature[3]){
 		float thermistor_resistance = 10.0 / ((2.8 / (float) corrected_voltage) - 1.0);
 		output_temperature[i] = 1.0 / (0.003356 + 0.0002532 * log(thermistor_resistance / 10.0));
 		output_temperature[i] = output_temperature[i] - 273.15;
+
+		if (thermistor_resistance < 0) {output_temperature[i] = -100;	}; //Preventing NaN (treated as 0xFFFFFFFF) from tripping the battery safety but lower-bounding them to -100C
+		//This occurs when the measurement is closes to 3V, suggesting that the thermistor isn't connected.
 	}
 }
 

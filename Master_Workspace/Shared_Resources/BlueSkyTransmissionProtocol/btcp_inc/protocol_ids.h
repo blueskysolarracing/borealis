@@ -33,7 +33,7 @@ enum BBMB_Data_ID {
 enum PPTMB_DATA_ID {
 	PPTMB_BUS_METRICS_ID,
 	PPTMB_PPT_METRICS_ID,
-	PPTMB_RELAYS_STATE_ID,
+	PPTMB_RELAYS_STATE_ID = 0x06,
 	
 	PPTMB_LP_BUS_METRICS_ID = 0x0D,
 	PPTMB_CORE_TEMP_ID = 0x0E,
@@ -76,9 +76,8 @@ enum Chase_Data_ID {
 };
 
 enum BMS_Data_ID {
-	BMS_CELL_TEMP,
-	BMS_CELL_VOLT,
-	BMS_ERROR_STATUS = 0x03,
+	BMS_CELL_TEMP_ID,
+	BMS_CELL_VOLT_ID,
 	BMS_CELL_SOC_ID = 0x04
 };
 
@@ -89,7 +88,7 @@ enum BMS_Error_Code {
 	BMS_LTC6810_UNRESPONSIVE = 0x04 //Not receiving response from LTC6810 (cause safe state because we can't measure cell voltage and temperature anymore)
 };
 
-enum RELAY_STATE_ID {
+enum RELAY_STATE {
 	OPEN,
 	CLOSED
 };
@@ -97,6 +96,11 @@ enum RELAY_STATE_ID {
 enum BATTERY_STATE {
 	HEALTHY,
 	FAULTED
+};
+
+enum DATA_RECEIVED {
+	NOT_RECEIVED,
+	RECEIVED
 };
 
 #endif
