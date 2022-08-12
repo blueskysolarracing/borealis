@@ -67,6 +67,7 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim7;
+TIM_HandleTypeDef htim15;
 
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart8;
@@ -128,6 +129,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_UART4_Init(void);
 static void MX_UART8_Init(void);
+static void MX_TIM15_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -184,6 +186,7 @@ int main(void)
   MX_TIM7_Init();
   MX_UART4_Init();
   MX_UART8_Init();
+  MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
   //--- MCU OK LED ---//
   NVIC_EnableIRQ(TIM7_IRQn);
@@ -236,14 +239,17 @@ int main(void)
   lightsPeriph.right_ind_CH = TIM_CHANNEL_2;
   lightsPeriph.left_ind_TIM = &htim2;
   lightsPeriph.left_ind_CH = TIM_CHANNEL_1;
-  lightsPeriph.master_TIM = &htim1;
-  lightsPeriph.master_CH = TIM_CHANNEL_1;
+  lightsPeriph.ind_master_TIM = &htim1;
+  lightsPeriph.ind_master_CH = TIM_CHANNEL_1;
   lightsPeriph.BRK_TIM = &htim5;
   lightsPeriph.BRK_CH = TIM_CHANNEL_2;
   lightsPeriph.DRL_TIM = &htim5;
   lightsPeriph.DRL_CH = TIM_CHANNEL_1;
   lightsPeriph.FLT_TIM = &htim3;
   lightsPeriph.FLT_CH = TIM_CHANNEL_1;
+  lightsPeriph.FLT_master_TIM = &htim15;
+  lightsPeriph.FLT_master_CH = TIM_CHANNEL_1;
+  lightsPeriph.hazard_state = LIGHTS_OFF;
 
   //Initial state of lights: all off
   turn_off_indicators(&lightsPeriph, LEFT);
@@ -532,12 +538,12 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 2000;
+  htim1.Init.Prescaler = 1000;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 13552;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -550,7 +556,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 6750;
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -602,11 +608,11 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 1000;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 1600;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -658,6 +664,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 0 */
 
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
@@ -665,12 +672,22 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 1000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 6400;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_GATED;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR2;
+  if (HAL_TIM_SlaveConfigSynchro(&htim3, &sSlaveConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -714,11 +731,11 @@ static void MX_TIM5_Init(void)
 
   /* USER CODE END TIM5_Init 1 */
   htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 0;
+  htim5.Init.Prescaler = 1000;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim5.Init.Period = 1600;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
   {
     Error_Handler();
@@ -783,6 +800,72 @@ static void MX_TIM7_Init(void)
   /* USER CODE BEGIN TIM7_Init 2 */
 
   /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
+  * @brief TIM15 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM15_Init(void)
+{
+
+  /* USER CODE BEGIN TIM15_Init 0 */
+
+  /* USER CODE END TIM15_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM15_Init 1 */
+
+  /* USER CODE END TIM15_Init 1 */
+  htim15.Instance = TIM15;
+  htim15.Init.Prescaler = 999;
+  htim15.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim15.Init.Period = 65535;
+  htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim15.Init.RepetitionCounter = 0;
+  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_PWM_Init(&htim15) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC1REF;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim15, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim15, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.BreakFilter = 0;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim15, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM15_Init 2 */
+
+  /* USER CODE END TIM15_Init 2 */
+  HAL_TIM_MspPostInit(&htim15);
 
 }
 
@@ -1008,14 +1091,12 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, PSM_CS_1_Pin|PSM_CS_3_Pin|PSM_CS_2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PE2 PE4 PE5 PE6
-                           PE7 PE8 PE9 PE10
-                           PE11 PE13 PE15 PE0
-                           PE1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_13|GPIO_PIN_15|GPIO_PIN_0
-                          |GPIO_PIN_1;
+  /*Configure GPIO pins : PE2 PE4 PE6 PE7
+                           PE8 PE10 PE11 PE13
+                           PE15 PE0 PE1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7
+                          |GPIO_PIN_8|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_13
+                          |GPIO_PIN_15|GPIO_PIN_0|GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -1091,10 +1172,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA4 PA5 PA8 PA9
-                           PA10 PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_9
-                          |GPIO_PIN_10|GPIO_PIN_15;
+  /*Configure GPIO pins : PA4 PA5 PA7 PA8
+                           PA9 PA10 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -1320,13 +1401,14 @@ void relayTask(void * argument){
 void lightsTask(void * argument)
 {
 	uint8_t buf_get[10];
-	double duty = 0.85;
-	double duty_DRL = 0.8;
-	double blink = 60;
-	double on_period = 1000;
+	float indicator_brightness = 0.25; //Don't go over 40%
+	float DRL_brightness = 0.25; //Don't go over 50%
+	float brake_brightness = 0.25; //Don't go over 50%
+	float hazard_brightness = 0.25; //Don't go over 50%
+	float BPS_fault_brightness = 0.25; //Don't go over 50%
 
 /**
- * Item in lightsCtrl queue is 8-bit binary instruction
+ * Item in control queue is 8-bit binary instruction
  * 7: empty
  * 6: Start / stop (1/0)
  * 5: Fault indicator
@@ -1340,9 +1422,7 @@ void lightsTask(void * argument)
  */
 
   /* Infinite loop */
-  for(;;)
-  {
-
+  for(;;){
 	if (xQueueReceive(lightsCtrl, &buf_get, 200)){
 		// HAL_GPIO_TogglePin(GPIOH, GPIO_PIN_6);
 		uint8_t light_msg = buf_get[0];
@@ -1353,13 +1433,13 @@ void lightsTask(void * argument)
 				if ((light_msg & 0x40) >> 6 == LIGHTS_OFF){ //Turn off
 					turn_off_indicators(&lightsPeriph, (int)(light_msg & 0x01)); // masking last bit for left or right
 				} else { //Turn on
-					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), duty, blink, on_period); // masking last bit for left or right
+					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), indicator_brightness); // masking last bit for left or right
 				}
 				break;
 
 			case DRL_LIGHTS: // DRL
 				if ((light_msg & 0x40) != 0x00){
-					turn_on_DRL(&lightsPeriph, duty_DRL);
+					turn_on_DRL(&lightsPeriph, DRL_brightness);
 				} else {
 					turn_off_DRL(&lightsPeriph);
 				}
@@ -1367,7 +1447,7 @@ void lightsTask(void * argument)
 
 			case BRAKES_LIGHTS: // brake
 				if ((light_msg & 0x40) != 0x00){
-					turn_on_brake_lights(&lightsPeriph, duty);
+					turn_on_brake_lights(&lightsPeriph, brake_brightness);
 				} else {
 					turn_off_brake_lights(&lightsPeriph);
 				}
@@ -1375,7 +1455,7 @@ void lightsTask(void * argument)
 
 			case HAZARD_LIGHTS: // hazard light
 				if ((light_msg & 0x40) != 0x00){
-					turn_on_hazard_lights(&lightsPeriph, duty, blink);
+					turn_on_hazard_lights(&lightsPeriph, hazard_brightness);
 				} else {
 					turn_off_hazard_lights(&lightsPeriph);
 				}
@@ -1383,7 +1463,7 @@ void lightsTask(void * argument)
 
 			case FAULT_LIGHTS: // fault indicator - started by interrupt?
 				if ((light_msg & 0x40) != 0x00){
-					turn_on_fault_indicator(&lightsPeriph);
+					turn_on_fault_indicator(&lightsPeriph, BPS_fault_brightness);
 				} else {
 					turn_off_fault_indicator(&lightsPeriph);
 				}

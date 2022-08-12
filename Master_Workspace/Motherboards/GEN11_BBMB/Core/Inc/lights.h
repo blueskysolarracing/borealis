@@ -43,29 +43,34 @@ struct lights_stepper_ctrl{
 	SPI_HandleTypeDef* TMC5160_SPI;
 
 	//LED TIM CH
-	uint32_t master_CH;
+	uint32_t ind_master_CH;
 	uint32_t left_ind_CH;
 	uint32_t right_ind_CH;
 	uint32_t DRL_CH;
 	uint32_t BRK_CH;
 	uint32_t FLT_CH;
+	uint32_t FLT_master_CH;
 
 	//LED TIM
-	TIM_HandleTypeDef* master_TIM;
+	TIM_HandleTypeDef* ind_master_TIM;
 	TIM_HandleTypeDef* left_ind_TIM;
 	TIM_HandleTypeDef* right_ind_TIM;
 	TIM_HandleTypeDef* DRL_TIM;
 	TIM_HandleTypeDef* BRK_TIM;
 	TIM_HandleTypeDef* FLT_TIM;
+	TIM_HandleTypeDef* FLT_master_TIM;
+
+	//States
+	uint8_t hazard_state;
 };
 
-void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, double pwm_duty_cycle, double bpm, double on_period);
+void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, float pwm_duty_cycle);
 void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right);
-void turn_on_DRL(struct lights_stepper_ctrl* lights, double pwm_duty_cycle);
+void turn_on_DRL(struct lights_stepper_ctrl* lights, float pwm_duty_cycle);
 void turn_off_DRL(struct lights_stepper_ctrl* lights);
-void turn_on_brake_lights(struct lights_stepper_ctrl* lights, double pwm_duty_cycle);
+void turn_on_brake_lights(struct lights_stepper_ctrl* lights, float pwm_duty_cycle);
 void turn_off_brake_lights(struct lights_stepper_ctrl* lights);
-void turn_on_hazard_lights(struct lights_stepper_ctrl* lights, double pwm_duty_cycle, double blink_rate);
+void turn_on_hazard_lights(struct lights_stepper_ctrl* lights, float pwm_duty_cycle);
 void turn_off_hazard_lights(struct lights_stepper_ctrl* lights);
-void turn_on_fault_indicator(struct lights_stepper_ctrl* lights);
+void turn_on_fault_indicator(struct lights_stepper_ctrl* lights, float pwm_duty_cycle);
 void turn_off_fault_indicator(struct lights_stepper_ctrl* lights);
