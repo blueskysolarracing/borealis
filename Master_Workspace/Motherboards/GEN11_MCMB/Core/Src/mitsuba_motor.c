@@ -70,7 +70,6 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->isAccel = mitsubaMotor_isAccel;
 	interface->isRegen = mitsubaMotor_isRegen;
 
-	mitsubaMotor_eepromInit(&self->interface);
 	mitsubaMotor_vfmTimersInit(&self->interface);
 	mitsubaMotor_turnOnTimerInit(&self->interface);
 	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
@@ -90,6 +89,7 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	HAL_GPIO_WritePin(self->MT1Port, self->MT1Pin, GPIO_PIN_SET); // MT1
 	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
 
+	mitsubaMotor_eepromInit(&self->interface);
 	mitsubaMotor_setAccel(interface, 0);
 	mitsubaMotor_setRegen(interface, 0);
 	return interface;
