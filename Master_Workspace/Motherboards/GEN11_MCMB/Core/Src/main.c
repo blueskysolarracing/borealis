@@ -1967,18 +1967,31 @@ float speedToFrequency(uint8_t targetSpeed){
 
 
 static void motorTmr(TimerHandle_t xTimer){
+	int res = -1; //res will be used for debugging
+
 	//TODO: use software timer to handle tickcount overflow
 	if(xTaskGetTickCount() >= (lastDcmbPacket + 4000)){  //if serialParse stops being called (this means uart connection is lost)
 
 		motor->turnOff(motor);
 		gearUp = 0;
 		gearDown = 0;
+		if (motor->isAccel(motor)) {
+			res = motor->setAccel(motor, 0); // turns off accel
+		}
+		if (motor->isRegen(motor)) {
+			res = motor->setRegen(motor, 0); // turns off regen
+		}
 		return;
 	}
-	int res = -1; //res will be used for debugging
 	switch (motorState) {
 		case OFF:
 			motor->turnOff(motor);
+			if (motor->isAccel(motor)) {
+				res = motor->setAccel(motor, 0); // turns off accel
+			}
+			if (motor->isRegen(motor)) {
+				res = motor->setRegen(motor, 0); // turns off regen
+			}
 			return; //return instead of break here, since no need for VFM gear change
 		case STANDBY:
 			if (!motor->isOn(motor)) {

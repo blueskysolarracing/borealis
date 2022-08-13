@@ -5,9 +5,12 @@
  *      Author: raymond
  */
 
+#include <stdbool.h>
+
 #include "mitsuba_motor.h"
 
 /* ================== Private function declaration (static) =========================*/
+static void mitsubaMotor_eepromInit(MotorInterface* interface);
 static void mitsubaMotor_vfmTimersInit(MotorInterface* interface);
 static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface);
 static void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelInputUpperBound, uint32_t regenInputUpperBound);
@@ -34,7 +37,9 @@ static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turn
  * 		And, configure SPI to send MSB first, and send 8 bits at a time
 */
 #define MCP4161_MAX_WIPER_VALUE 255 // actually, it is 256, but we don't really need that 1 extra value, so to prevent mapping, we go for 255
+#define MCP4161_EEPROM_OFFSET   0x2
 static void _MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr);
+static void _MCP4161_Pot_Write_Internal(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr, bool eeprom);
 
 /* =======================================================================*/
 
@@ -84,12 +89,23 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	HAL_GPIO_WritePin(self->MT1Port, self->MT1Pin, GPIO_PIN_SET); // MT1
 	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
 
+	mitsubaMotor_eepromInit(&self->interface);
 	mitsubaMotor_setAccel(interface, 0);
 	mitsubaMotor_setRegen(interface, 0);
 	return interface;
 }
 
+static void mitsubaMotor_eepromInit(MotorInterface* interface)
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 
+	/* write to non-volative eeprom for each pot */
+	_MCP4161_Pot_Write_Internal(0, self->cs0AccelPort, self->cs0AccelPin, self->potSpiPtr, true);
+	_MCP4161_Pot_Write_Internal(0, self->cs1RegenPort, self->cs1RegenPin, self->potSpiPtr, true);
+
+	/* need to wait for t_wc (max. 10ms) */
+	HAL_Delay(10);
+}
 static int mitsubaMotor_isOn(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
@@ -295,14 +311,18 @@ static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turn
  * Note: In cubeMx make sure SPI CLK is below 10Mhz
  * 		And, configure SPI to send MSB first, and send 8 bits at a time
 */
-#define MCP4161_MAX_WIPER_VALUE 255 // actually, it is 256, but we don't really need that 1 extra value, so to prevent mapping, we go for 255
 static void _MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr)
+{
+	_MCP4161_Pot_Write_Internal(wiperValue, CSPort, CSPin, hspiPtr, false);
+}
+
+static void _MCP4161_Pot_Write_Internal(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr, bool eeprom)
 {
 	if (wiperValue > MCP4161_MAX_WIPER_VALUE) {
 		wiperValue = MCP4161_MAX_WIPER_VALUE; // Since the highest wiperValue is 256
 	}
 	uint8_t ninethDataBit = (wiperValue >> 8) & 0b1;
-	uint8_t potAddress = 0b0000;
+	uint8_t potAddress = 0b0000 + (eeprom ? MCP4161_EEPROM_OFFSET : 0);
 	uint8_t writeCommand = 0b00;
 
 	uint8_t commandByte  = (potAddress << 4) | (writeCommand << 2) | ninethDataBit;
