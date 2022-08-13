@@ -44,10 +44,10 @@
 #define HV_BATT_OC_CHARGE 		30.0 	//Should be set to 30.0A
 #define HV_BATT_OV_THRESHOLD 	4.20	//Should be set to 4.20V
 #define HV_BATT_UV_THRESHOLD 	2.50 	//Should be set to 2.50V
-#define HV_BATT_OT_THRESHOLD 	60.0 	//Should be set to 60.0C
+#define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
 
 #define NUM_BATT_CELLS 			29 //Number of series parallel groups in battery pack
-#define NUM_BSM					2 //Number of BMS to read from
+#define NUM_BSM					6 //Number of BMS to read from
 #define NUM_BATT_TEMP_SENSORS 	3 * 6 //Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 		200//(Other intervals defined in psm.h and btcp.h). It also implicitely calculates a new SoC estimation on the BMS.
 #define BMS_FLT_CHECK_INTERVAL 	10 //Interval at which to read the BMS_FLT pin
@@ -111,7 +111,6 @@ float battery_current;
 struct relay_periph relay;
 QueueHandle_t relayCtrl = NULL;
 uint8_t relayCtrlMessage;
-uint8_t arrayRelayState = OPEN; //Assume array relays are opened until confirmation is recevied from PPTMB
 
 //--- BMS ---//
 int BMS_requesting_from = -1; //Holds which BMS we are requesting data from (needs initial value >5)
@@ -222,6 +221,7 @@ int main(void)
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
 
+
   //--- RDB ---//
   relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
   relay.DISCHARGE_Pin = RELAY_DISCHARGE_Pin;
@@ -231,6 +231,9 @@ int main(void)
   relay.ON_SIG_Pin = RELAY_HS_Pin;
   relay.PRE_SIG_GPIO_Port = RELAY_PRECHARGE_GPIO_Port;
   relay.PRE_SIG_Pin = RELAY_PRECHARGE_Pin;
+  relay.battery_relay_state = OPEN; //Open battery relays at startup
+  relay.array_relay_state = OPEN; //Assume array relays are opened until confirmation is recevied from PPTMB
+
 
   //--- LIGHTS ---//
   lightsPeriph.CSPin0 = TMC5160_CS0_Pin;
@@ -267,11 +270,13 @@ int main(void)
   turn_off_fault_indicator(&lightsPeriph);
   turn_off_hazard_lights(&lightsPeriph);
 
+
   //--- COMMS ---//
   buart_main = B_uartStart(&huart4);
   btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
   buart_bms = B_uartStart(&huart8);
   btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
+
 
   //--- FREERTOS ---//
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
@@ -284,6 +289,7 @@ int main(void)
   configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
 
+
   //--- RELAYS ---//
   if (PROTECTION_ENABLE == 0){ //No protection, so close relays immediately
 	  //Indicate no BPS fault (turn off driver BPS FLT LED) and active 12V supply from Vicor
@@ -292,8 +298,8 @@ int main(void)
 	  //Close battery relays
 	  relayCtrlMessage = 2;
 	  xQueueSend(relayCtrl, &relayCtrlMessage, 10);
-	  relay.relay_state = CLOSED;
-  } else {	relay.relay_state = OPEN; }
+  }
+
 
   //--- BATTERY ---//
   batteryState = HEALTHY;
@@ -1289,7 +1295,7 @@ void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
-				taskENTER_CRITICAL();	arrayRelayState = pkt->data[3];	taskEXIT_CRITICAL();
+				taskENTER_CRITICAL();	relay.array_relay_state = pkt->data[3];	taskEXIT_CRITICAL();
 			}
 
 			break;
@@ -1304,14 +1310,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 				taskENTER_CRITICAL();
 
-				if ((pkt->data[2] == OPEN) && (relay.relay_state == CLOSED)){ //Open relays and resend
+				if ((pkt->data[2] == OPEN) && (relay.battery_relay_state == CLOSED)){ //Open relays and resend
 					relayCtrlMessage = 1;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
 
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->payload[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 
-				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.relay_state == OPEN)){ //Try to close relays
+				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.battery_relay_state == OPEN)){ //Try to close relays
 					relayCtrlMessage = 2;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
 
@@ -1335,10 +1341,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			//BMS temperature
 			if (pkt->data[0] == BMS_CELL_TEMP_ID){
 				//Re-send on main bus
-				B_tcpSend(btcp_main, pkt->data, sizeof(pkt->data));
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Update data received tracker
-				taskENTER_CRITICAL(); BMS_data_received[BMS_CELL_TEMP_ID] = RECEIVED; taskEXIT_CRITICAL();
+				taskENTER_CRITICAL(); BMS_data_received[0] = RECEIVED; taskEXIT_CRITICAL();
 
 				//Check for overtemperature for each cell and call routine when battery has faulted
 				for (int i = 1; i < 4; i ++){ //3 thermistors
@@ -1349,24 +1355,24 @@ void serialParse(B_tcpPacket_t *pkt){
 			//BMS voltage
 			} else if (pkt->data[0] == BMS_CELL_VOLT_ID){
 				//Re-send on main bus
-				B_tcpSend(btcp_main, pkt->data, sizeof(pkt->data));
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Update data received tracker
-				taskENTER_CRITICAL(); BMS_data_received[BMS_CELL_VOLT_ID] = RECEIVED; taskEXIT_CRITICAL();
+				taskENTER_CRITICAL(); BMS_data_received[1] = RECEIVED; taskEXIT_CRITICAL();
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
 				for (int i = 1; i < 6; i ++){ //5 cells
 					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-					if ( (voltage > HV_BATT_OV_THRESHOLD) || ((voltage > HV_BATT_UV_THRESHOLD)) ){	 battery_faulted_routine(); }
+					if ( (voltage > HV_BATT_OV_THRESHOLD) || ((voltage < HV_BATT_UV_THRESHOLD)) ){	 battery_faulted_routine(); }
 				}
 
 			//BMS SoC
 			} else if (pkt->data[0] == BMS_CELL_SOC_ID){
 				//Re-send on main bus
-				B_tcpSend(btcp_main, pkt->data, sizeof(pkt->data));
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Update data received tracker
-				taskENTER_CRITICAL(); BMS_data_received[BMS_CELL_SOC_ID - 2] = RECEIVED; taskEXIT_CRITICAL(); //Need - 2 on index because BMS_CELL_SOC_ID == 0x04
+				taskENTER_CRITICAL(); BMS_data_received[2] = RECEIVED; taskEXIT_CRITICAL(); //Need - 2 on index because BMS_CELL_SOC_ID == 0x04
 
 				//BBMB has nothing to do with SoC
 			}
@@ -1395,8 +1401,17 @@ void relayTask(void * argument){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
 			if (buf_relay[0] == 1){
 				open_relays(&relay);
+				relay.battery_relay_state = OPEN;
+
+				if (relay.array_relay_state == OPEN){ //Both relays are opened, so discharge HV bus
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
+					osDelay(DISCHARGE_TIME);
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
+				}
+
 			} else if (buf_relay[0] == 2){
 				close_relays(&relay);
+				relay.battery_relay_state = CLOSED;
 			}
 		}
 	}
@@ -1488,8 +1503,6 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 
 void PSMTaskHandler(TimerHandle_t xTimer){
 //Battery
-
-
 	double voltageCurrent_HV[2] = {0};
 	uint8_t busMetrics_HV[3 * 4] = {0};
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
@@ -1537,7 +1550,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 
 	taskENTER_CRITICAL();
 	//If all data from a BMS has been received, we are ready to read the next
-	if ((BMS_data_received[BMS_CELL_TEMP_ID]) && (BMS_data_received[BMS_CELL_VOLT_ID]) && (BMS_data_received[BMS_CELL_SOC_ID - 2])){
+	if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
 		sendNewBMSRequest();
 		if (BMS_requesting_from >= NUM_BSM - 1){	BMS_requesting_from = -1;	};//We've received from all BMS, start requesting from the first one again (BMS_ID == 0)
 	}
@@ -1567,7 +1580,7 @@ void battery_faulted_routine(){
 	taskENTER_CRITICAL();
 	relayCtrlMessage = 1; //Command to open relays
 	batteryState = FAULTED;
-	uint8_t buf[4 * 1] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, arrayRelayState};
+	uint8_t buf[4 * 1] = {BBMB_RELAYS_STATE_ID, relay.battery_relay_state, OPEN, relay.array_relay_state};
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 	taskEXIT_CRITICAL();
 

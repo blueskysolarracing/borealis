@@ -43,7 +43,7 @@
 #define IGNORE_PPTMB 1 //Ignore PPTMB for display purpose when IGNORE_PPTMB == 1
 
 //--- DISPLAY ---//
-#define SLEEP_FRAME_EN 0 //When set to 1, enable the sleeping car start frame
+#define SLEEP_FRAME_EN 1 //When set to 1, enable the sleeping car start frame (when neither relays are closed)
 #define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
@@ -64,6 +64,9 @@
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
+
+//--- BATTERY ---//
+#define NUM_THERMISTOR_PER_BMS 3 //Number of thermistor for each BMS (assumes same for each BMS)
 
 /* USER CODE END PD */
 
@@ -171,10 +174,14 @@ uint8_t oldSelectButton;
 //--- BATTERY ---//
 uint8_t batteryState = HEALTHY;
 uint8_t batteryRelayState = OPEN;
-float voltage_array[29]; //Array of the voltages of each 14P group
-float soc_array[29]; //Array of the SoCs of each 14P group
-float temp_array[18]; //Array of the temp of each thermistor
-
+float battery_cell_voltage[6 * 5]; //Array of the voltages of each 14P group
+float battery_soc[6 * 5]; //Array of the SoCs of each 14P group (5 cells per BMS)
+float battery_temp[6 * NUM_THERMISTOR_PER_BMS]; //Array of the temp of each thermistor (3 thermistors per BMS)
+	/* Formats
+	 * battery_cell_voltage = 	[VOLT0/BMS0, VOLT1/BMS0, VOLT2/BMS0, VOLT0/BMS1, VOLT1/BMS1, VOLT2/BMS1, ... VOLT0/BMS5, VOLT1/BMS5, VOLT2/BMS5]
+	 * battery_soc = 			[SoC0/BMS0,  SoC1/BMS0,  SoC2/BMS0,  SoC0/BMS1,  SoC1/BMS1,  SoC2/BMS1,  ... SoC0/BMS5,  SoC1/BMS5,  SoC2/BMS5]
+	 * battery_temp = 			[TEMP0/BMS0, TEMP1/BMS0, TEMP2/BMS0, TEMP0/BMS1, TEMP1/BMS1, TEMP2/BMS1, ... TEMP0/BMS5, TEMP1/BMS5, TEMP2/BMS5]
+	 */
 //--- ARRAY ---//
 uint8_t arrayRelayState = OPEN;
 
@@ -1604,11 +1611,10 @@ void serialParse(B_tcpPacket_t *pkt){
 	case PPTMB_ID:
 		 if (pkt->data[0] == PPTMB_BUS_METRICS_ID){ //HV bus
 			common_data.solar_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Solar power
-
 			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
 			detailed_data.P1_solar_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Solar current
 
-		 } else if (pkt->payload[4] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
+		 } else if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
 		 }
 		 break;
@@ -1618,9 +1624,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
-			float test1 = arrayToFloat(&(pkt->data[4]));
-			float test2 = arrayToFloat(&(pkt->data[8]));
-			float test3 = arrayToFloat(&(pkt->payload[12]));
 
 		} else if (pkt->payload[4] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->payload[8]; //Car speed (uint8_t)
@@ -1634,32 +1637,44 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
 
 		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
-
 			 batteryState = pkt->data[1];
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
-		} else if (pkt->data[0] == BBMB_CELL_METRICS_ID){ //Cell temperature, voltage and SoC
-			float maxTemp = 0;
-			float minSoC = 200; //Very high initial value to make sure we can detect the true minimum
+		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
+			 //Update global list
+			 for (int i = 1; i < NUM_THERMISTOR_PER_BMS + 1; i ++){
+				float temp = arrayToFloat( &(pkt->data[4 * i]) );
+			 	battery_temp[pkt->data[1] * NUM_THERMISTOR_PER_BMS + (i-1)] = temp;
+			 }
 
-			for (int i = 0; i < 3; i++){ //Parse cell temps in global array
-				temp_array[i + 3*pkt->data[1]] = arrayToFloat(&(pkt->data[4 + 4*i]));
-				if (temp_array[i + 3*pkt->data[1]] > maxTemp) {maxTemp = temp_array[i + 3*pkt->data[1]];};
-			}
+			 //Update display with new max. temp
+			 float max_temp = -100; //Low initial value to find max. temp
+			 for (int i = 0; i < 6 * NUM_THERMISTOR_PER_BMS; i++){
+				 if (battery_temp[i] > max_temp){	max_temp = battery_temp[i];	}
+			 }
+			 detailed_data.P2_max_batt_temp = (short) 10.0*max_temp;
 
-			detailed_data.P2_max_batt_temp = maxTemp;
+		 } else if (pkt->data[0] == BMS_CELL_VOLT_ID){ //Cell voltage
+			 //Update global list
+			 for (int i = 1; i <= 5; i ++){
+				float voltage = arrayToFloat( &(pkt->data[4 * i]) );
+			 	battery_cell_voltage[pkt->data[1] * 5 + (i-1)] = voltage;
+			 }
 
-			for (int i = 0; i < 5; i++){ //Parse cell voltages in global array
-				voltage_array[i + 5*pkt->data[1]] = arrayToFloat(&(pkt->data[0x1C + 4*i]));
-			}
+		 } else if (pkt->data[0] == BMS_CELL_SOC_ID){ //Cell state of charge
+			 //Update global list
+			 for (int i = 1; i <= 5; i ++){
+				float soc = arrayToFloat( &(pkt->data[4 * i]) );
+			 	battery_soc[pkt->data[1] * 5 + (i-1)] = soc;
+			 }
 
-			for (int i = 0; i < 5; i++){ //Parse cell SoCs in global array
-				soc_array[i + 5*pkt->data[1]] = arrayToFloat(&(pkt->data[0x30 + i]));
-				if (soc_array[i + 3*pkt->data[1]] < minSoC) {minSoC = soc_array[i + 3*pkt->data[1]];};
-			}
-
-			common_data.battery_soc = minSoC;
-		}
+			 //Update display with new min. soc
+			 float min_soc = 200; //High initial value to find min. soc
+			 for (int i = 0; i < 6 * 5; i++){
+				 if (battery_soc[i] < min_soc){	min_soc = battery_soc[i];	}
+			 }
+			 common_data.battery_soc = (short) 100*min_soc;
+		 }
 		 break;
 	}
 	taskEXIT_CRITICAL();
@@ -1677,8 +1692,6 @@ void steeringWheelTask(const void *pv){
   uint8_t expectedLen = 6; //must be same length as sent from SWB
   uint8_t rxBuf[expectedLen];
   for(;;){
-	//e = B_uartRead(swBuart); // not good
-
 	  B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
 
 	  taskENTER_CRITICAL();
@@ -1865,7 +1878,7 @@ void sidePanelTask(const void *pv){
 					bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
 					default_data.P2_DRL_state = 0;
 				}
-				B_tcpSend(btcp, bufh, 2);
+				B_tcpSend(btcp, bufh, sizeof(bufh));
 
 			//AUX1 (not implemented in GEN11)
 				if (sidePanelData & (1 << 2)){
@@ -1911,7 +1924,7 @@ void sidePanelTask(const void *pv){
 					bufh3[2] = OPEN;
 				}
 
-				B_tcpSend(btcp, bufh3, 3);
+				B_tcpSend(btcp, bufh3, sizeof(bufh3));
 			}
 		}
 		taskEXIT_CRITICAL(); // exit critical section
@@ -1941,15 +1954,10 @@ void displayTask(const void *pv){
 
 		//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
 		if (SLEEP_FRAME_EN) {
-			//Logic to decide whether to show sleeping car screen or default screen
 			if (IGNORE_PPTMB){
-				if (batteryRelayState == OPEN){
-					local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
-				}
+				if (batteryRelayState == OPEN) { local_display_sel = 4; }
 			} else {
-				if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)){
-					local_display_sel = 4; //Car is sleeping as neither the array nor the battery relays are closed
-				}
+				if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 4; }
 			}
 		}
 
@@ -1973,8 +1981,6 @@ void motorDataTimer(TimerHandle_t xTimer){
 		motorTargetPower = (uint16_t) 0;
 		default_data.P2_motor_state = OFF;
 	}
-
-
 
 	static uint8_t buf[10] = {0};
 

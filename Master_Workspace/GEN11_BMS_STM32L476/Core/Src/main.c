@@ -40,6 +40,8 @@
 /* USER CODE BEGIN PD */
 // -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
 #define MY_ID 0 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
+//BMS with 4 cells is ID 0. This is needed to send a fake nominal voltage of 3.7V to BBMB so as to not trip the system.
+
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
 #define NUM_CELLS 5 //have to make sure is the same as NUM_14P_UNITS in batteryEKF.h
@@ -549,6 +551,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			buf_soc[0] = BMS_CELL_SOC_ID;
 			buf_soc[1] = MY_ID;
 
+			//BMS #0 has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
+			if (MY_ID == 0) {
+				SoC_array[4] = 1.5;
+			}
+
 			//Pack SoCs into buffer
 			for (int i = 0; i < 5; i++){
 				if (i >= NUM_CELLS){
@@ -605,13 +612,13 @@ void send_temp_volt(){
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 
 	//--- SEND VOLTAGE ---//
-		uint8_t buf_voltage[4 + 6*4]; //[DATA ID, MODULE ID, Voltage group #0, Voltage group #1, ... , Voltage group #4]
+		uint8_t buf_voltage[4 + 5*4]; //[DATA ID, MODULE ID, Voltage group #0, Voltage group #1, ... , Voltage group #4]
 		buf_voltage[0] = BMS_CELL_VOLT_ID;
 		buf_voltage[1] = MY_ID;
 
 		//Pack voltage into buffer
 		for (int i = 0; i < 6; i++){
-			if (i >= NUM_CELLS){ //Thermistors not populated
+			if (i >= NUM_CELLS){
 				for (int j = 0; j < sizeof(float); j++){	buf_voltage[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
 
 			} else {
@@ -624,6 +631,12 @@ void send_temp_volt(){
 				}
 			}
 		}
+
+		//BMS #0 has only 4 cells, so we place a fake nominal voltage of 3.7V at cell #4 to avoid tripping battery protection
+		if (MY_ID == 0) {
+			floatToArray((float) 3.7, &buf_voltage[0x14]);
+		}
+
 		//Send
 		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
 		B_tcpSendBlocking(btcp, buf_voltage, sizeof(buf_voltage));

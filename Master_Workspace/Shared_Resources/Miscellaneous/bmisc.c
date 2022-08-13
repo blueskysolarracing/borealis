@@ -29,18 +29,11 @@ void open_relays(struct relay_periph* relay){
 	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Make sure the precharge relay is open (should be at this point)
 	osDelay(ACTUATION_DELAY);
 
-	HAL_GPIO_WritePin(relay->DISCHARGE_GPIO_Port, relay->DISCHARGE_Pin, GPIO_PIN_RESET); //Enable battery discharge circuit to safely discharge bus capacitance
-	osDelay(DISCHARGE_TIME);
-
 	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_RESET); //Open high-side relay
 	osDelay(ACTUATION_DELAY);
 
 	HAL_GPIO_WritePin(relay->GND_SIG_GPIO_Port, relay->GND_SIG_Pin, GPIO_PIN_RESET); //Open low-side relay
 	osDelay(ACTUATION_DELAY);
-	HAL_GPIO_WritePin(relay->DISCHARGE_GPIO_Port, relay->DISCHARGE_Pin, GPIO_PIN_SET); //Disable battery discharge
-
-	//Update relay
-	relay->relay_state = OPEN;
 }
 
 void close_relays(struct relay_periph* relay){
@@ -56,8 +49,6 @@ void close_relays(struct relay_periph* relay){
 
 	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_SET); //Close high-side relay
 	osDelay(ACTUATION_DELAY + 500); //500ms added to prevent inrush current from tripping PSM measurements
-	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Open pre-charge relay
 
-	//Update relay
-	relay->relay_state = CLOSED;
+	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Open pre-charge relay
 }
