@@ -292,17 +292,14 @@ int main(void)
 
   //--- RELAYS ---//
   if (PROTECTION_ENABLE == 0){ //No protection, so close relays immediately
-	  //Indicate no BPS fault (turn off driver BPS FLT LED) and active 12V supply from Vicor
-	  HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET);
-
 	  //Close battery relays
 	  relayCtrlMessage = 2;
 	  xQueueSend(relayCtrl, &relayCtrlMessage, 10);
   }
 
-
   //--- BATTERY ---//
   batteryState = HEALTHY;
+  HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Turn off BPS fault LED on driver's panel and activate Vicor 12V
 
   /* USER CODE END 2 */
 
@@ -1508,7 +1505,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
 
 	//PSMRead will fill first element with voltage, second with current
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Array output on channel #2
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Battery output on channel #2
 
 	//Update battery pack current global variable (used for BMS communication)
 	taskENTER_CRITICAL();
@@ -1580,7 +1577,7 @@ void battery_faulted_routine(){
 	taskENTER_CRITICAL();
 	relayCtrlMessage = 1; //Command to open relays
 	batteryState = FAULTED;
-	uint8_t buf[4 * 1] = {BBMB_RELAYS_STATE_ID, relay.battery_relay_state, OPEN, relay.array_relay_state};
+	uint8_t buf[4 * 1] = {BBMB_RELAYS_STATE_ID, FAULTED, OPEN, relay.array_relay_state};
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 	taskEXIT_CRITICAL();
 

@@ -238,7 +238,6 @@ int main(void)
 
 
   for (int i = 0; i < NUM_UART; i++) {
-
 	  buarts[i] = B_uartStart(huarts[i]);
   }
 
@@ -967,7 +966,7 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 34999;
+  htim7.Init.Prescaler = 32499;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 2000;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -1716,7 +1715,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
   else if (htim == &htim7){
-  	HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+  	HAL_GPIO_TogglePin(GPIOH, LED1_Pin);
   }
   /* USER CODE END Callback 1 */
 }
