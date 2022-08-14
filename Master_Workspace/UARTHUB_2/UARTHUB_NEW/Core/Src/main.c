@@ -92,8 +92,7 @@ osThreadId defaultTaskHandle;
 #define NUM_UART 5
 UART_HandleTypeDef* huarts[NUM_UART] = {&huart2, &huart3, &huart4, &huart7, &huart8};
 //#define NUM_UART 2
-
-//UART_HandleTypeDef* huarts[NUM_UART] = {&huart3, &huart4}; //if 1 and 4
+//UART_HandleTypeDef* huarts[NUM_UART] = {&huart3, &huart4}; //only enable port 1 and 4
 
 B_uartHandle_t* buarts[NUM_UART];
  B_tcpHandle_t* btcps[NUM_UART];
@@ -218,33 +217,13 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-  //TODO : disable all except 2 and 4, and test if transmission still works
-
-//  BaseType_t status;
-//  status = xTaskCreate(uartRxParser, "UartRxParser1", 4096, (void*)0, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser2", 4096, (void*)1, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser3", 4096, (void*)2, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser4", 4096, (void*)3, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser5", 4096, (void*)4, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-
 
   for (int i = 0; i < NUM_UART; i++) {
-
 	  buarts[i] = B_uartStart(huarts[i]);
   }
 
   for (int i = 0; i < NUM_UART; i++) {
 	  btcps[i] = B_tcpStart(SENDER_ID_NOT_USED, buarts, buarts[i], NUM_UART, &hcrc);
-
   }
 
   //status = xTaskCreate(uart4To8Parser, "test4To8", 1024, (void*)2, 4, NULL);
