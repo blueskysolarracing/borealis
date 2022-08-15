@@ -1936,6 +1936,11 @@ void displayTask(const void *pv){
 	glcd_init();
 	glcd_clear();
 	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+	detailed_data.P2_BB = 1;
+	detailed_data.P2_MC = 1;
+	detailed_data.P2_BMS = 1;
+	detailed_data.P2_PPT = 1;
+	detailed_data.P2_RAD = 1;
 
 	/* Display selection (sel):
 	 * 0: Default

@@ -507,8 +507,8 @@ void drawP2Detailed(/*int value[5]*/){
 						detailed_data.P2_LV_current,
 						detailed_data.P2_max_batt_temp,
 						default_data.P2_VFM};
-	char* labelsP2[] = {"Lo Voltage:", "Max pack temp:", "VFM:"};
-	int labelsP2L = 3;
+	char* labelsP2[] = {"Lo Voltage:", "Max pack temp:"/*, "VFM:"*/};
+	int labelsP2L = 2;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -585,9 +585,32 @@ void drawP2Detailed(/*int value[5]*/){
     glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'C');
     // VFM
     y+=23;
-    x = 20;
-    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[4][2]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[4][3]);
+//    x = 20;
+//    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[4][2]);
+//    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[4][3]);
+    if(detailed_data.P2_BB){
+    	glcd_tiny_draw_char_xy_white(2, correct_Y(y), 'B');
+    	glcd_tiny_draw_char_xy_white(7, correct_Y(y), 'B');
+    }
+    if(detailed_data.P2_MC){
+		glcd_tiny_draw_char_xy_white(13, correct_Y(y), 'M');
+		glcd_tiny_draw_char_xy_white(18, correct_Y(y), 'C');
+	}
+    if(detailed_data.P2_BMS){
+		glcd_tiny_draw_char_xy_white(24, correct_Y(y), 'B');
+		glcd_tiny_draw_char_xy_white(29, correct_Y(y), 'M');
+		glcd_tiny_draw_char_xy_white(34, correct_Y(y), 's');
+	}
+    if(detailed_data.P2_PPT){
+		glcd_tiny_draw_char_xy_white(40, correct_Y(y), 'P');
+		glcd_tiny_draw_char_xy_white(45, correct_Y(y), 'P');
+		glcd_tiny_draw_char_xy_white(50, correct_Y(y), 'T');
+	}
+    if(detailed_data.P2_RAD){
+		glcd_tiny_draw_char_xy_white(56, correct_Y(y), 'R');
+		glcd_tiny_draw_char_xy_white(61, correct_Y(y), 'A');
+		glcd_tiny_draw_char_xy_white(66, correct_Y(y), 'D');
+	}
 
 	glcd_write();
 }

@@ -41,6 +41,12 @@ struct disp_detailed_frame{
 	short	P2_HV_voltage;
 	short	P2_LV_current;
 	short	P2_max_batt_temp;
+
+	char	P2_BB;
+	char	P2_MC;
+	char	P2_BMS;
+	char	P2_PPT;
+	char	P2_RAD;
 };
 
 extern struct disp_common common_data;
