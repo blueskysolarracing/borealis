@@ -589,27 +589,32 @@ void drawP2Detailed(/*int value[5]*/){
 //    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[4][2]);
 //    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[4][3]);
     if(detailed_data.P2_BB){
-    	glcd_tiny_draw_char_xy_white(2, correct_Y(y), 'B');
-    	glcd_tiny_draw_char_xy_white(7, correct_Y(y), 'B');
+    	glcd_fill_rect(8, correct_Y(y-1), 12, 9, 1);
+    	glcd_tiny_draw_char_xy_white(9, correct_Y(y), 'B');
+    	glcd_tiny_draw_char_xy_white(14, correct_Y(y), 'B');
     }
     if(detailed_data.P2_MC){
-		glcd_tiny_draw_char_xy_white(13, correct_Y(y), 'M');
-		glcd_tiny_draw_char_xy_white(18, correct_Y(y), 'C');
+    	glcd_fill_rect(29, correct_Y(y-1), 12, 9, 1);
+		glcd_tiny_draw_char_xy_white(30, correct_Y(y), 'M');
+		glcd_tiny_draw_char_xy_white(35, correct_Y(y), 'C');
 	}
     if(detailed_data.P2_BMS){
-		glcd_tiny_draw_char_xy_white(24, correct_Y(y), 'B');
-		glcd_tiny_draw_char_xy_white(29, correct_Y(y), 'M');
-		glcd_tiny_draw_char_xy_white(34, correct_Y(y), 's');
+    	glcd_fill_rect(50, correct_Y(y-1), 17, 9, 1);
+		glcd_tiny_draw_char_xy_white(51, correct_Y(y), 'B');
+		glcd_tiny_draw_char_xy_white(56, correct_Y(y), 'M');
+		glcd_tiny_draw_char_xy_white(61, correct_Y(y), 'S');
 	}
     if(detailed_data.P2_PPT){
-		glcd_tiny_draw_char_xy_white(40, correct_Y(y), 'P');
-		glcd_tiny_draw_char_xy_white(45, correct_Y(y), 'P');
-		glcd_tiny_draw_char_xy_white(50, correct_Y(y), 'T');
+    	glcd_fill_rect(76, correct_Y(y-1), 17, 9, 1);
+		glcd_tiny_draw_char_xy_white(77, correct_Y(y), 'P');
+		glcd_tiny_draw_char_xy_white(82, correct_Y(y), 'P');
+		glcd_tiny_draw_char_xy_white(87, correct_Y(y), 'T');
 	}
     if(detailed_data.P2_RAD){
-		glcd_tiny_draw_char_xy_white(56, correct_Y(y), 'R');
-		glcd_tiny_draw_char_xy_white(61, correct_Y(y), 'A');
-		glcd_tiny_draw_char_xy_white(66, correct_Y(y), 'D');
+    	glcd_fill_rect(102, correct_Y(y-1), 17, 9, 1);
+		glcd_tiny_draw_char_xy_white(103, correct_Y(y), 'R');
+		glcd_tiny_draw_char_xy_white(108, correct_Y(y), 'A');
+		glcd_tiny_draw_char_xy_white(113, correct_Y(y), 'D');
 	}
 
 	glcd_write();
