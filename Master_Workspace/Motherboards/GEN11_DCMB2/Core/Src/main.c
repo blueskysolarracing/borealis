@@ -1624,9 +1624,12 @@ void serialParse(B_tcpPacket_t *pkt){
 			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
+//			float test1 = arrayToFloat(&(pkt->data[4]));
+//			float test2 = arrayToFloat(&(pkt->data[8]));
+//			float test3 = arrayToFloat(&(pkt->payload[12]));
 
-		} else if (pkt->payload[4] == MCMB_CAR_SPEED_ID){ //Car speed
-			default_data.P1_speed_kph = pkt->payload[8]; //Car speed (uint8_t)
+		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
+			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
 		}
 		break;
 
