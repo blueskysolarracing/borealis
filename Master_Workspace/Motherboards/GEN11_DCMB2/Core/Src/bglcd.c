@@ -44,7 +44,7 @@ void drawP1Default(/*int value[4]*/){
 	int labelsP1L = 3;
 	char* labelspeed = "km/h";
 
-	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
 	glcd_clear_buffer();
 
 	// start drawing at y = 5

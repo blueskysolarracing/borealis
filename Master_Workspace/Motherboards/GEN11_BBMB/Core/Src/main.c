@@ -299,6 +299,7 @@ int main(void)
 
   //--- BATTERY ---//
   batteryState = HEALTHY;
+  HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET); //Turn off HV discharge
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Turn off BPS fault LED on driver's panel and activate Vicor 12V
 
   /* USER CODE END 2 */
@@ -1401,9 +1402,9 @@ void relayTask(void * argument){
 				relay.battery_relay_state = OPEN;
 
 				if (relay.array_relay_state == OPEN){ //Both relays are opened, so discharge HV bus
-					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
-					osDelay(DISCHARGE_TIME);
 					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
+					osDelay(DISCHARGE_TIME);
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
 				}
 
 			} else if (buf_relay[0] == 2){

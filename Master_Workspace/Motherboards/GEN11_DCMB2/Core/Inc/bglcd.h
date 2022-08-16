@@ -42,11 +42,11 @@ struct disp_detailed_frame{
 	short	P2_LV_current;
 	short	P2_max_batt_temp;
 
-	char	P2_BB;
-	char	P2_MC;
-	char	P2_BMS;
-	char	P2_PPT;
-	char	P2_RAD;
+	uint8_t	P2_BB;
+	uint8_t	P2_MC;
+	uint8_t	P2_BMS;
+	uint8_t	P2_PPT;
+	uint8_t	P2_RAD;
 };
 
 extern struct disp_common common_data;

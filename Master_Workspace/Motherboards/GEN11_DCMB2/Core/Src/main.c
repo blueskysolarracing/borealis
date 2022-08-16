@@ -39,6 +39,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//--- COMMS ---//
+#define CONNECTION_EXPIRY_THRESHOLD 2000 //Number of ticks since last packet received before connection is considered "lost"
+
 //--- PPTMB ---//
 #define IGNORE_PPTMB 1 //Ignore PPTMB for display purpose when IGNORE_PPTMB == 1
 
@@ -137,6 +140,13 @@ uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 
 uint8_t ignition_state = 0;
 uint8_t array_state = 0;
+
+//Initialize the tick count for each to
+uint32_t BBMB_last_packet_tick_count 	= 0;
+uint32_t PPTMB_last_packet_tick_count 	= 0;
+uint32_t MCMB_last_packet_tick_count 	= 0;
+uint32_t BMS_last_packet_tick_count 	= 0;
+uint32_t Chase_last_packet_tick_count 	= 0;
 
 //--- MOTOR ---//
 typedef enum {
@@ -1609,6 +1619,9 @@ void serialParse(B_tcpPacket_t *pkt){
 
 	switch(pkt->sender){
 	case PPTMB_ID:
+		 //Update connection status
+		 PPTMB_last_packet_tick_count = xTaskGetTickCount();
+
 		 if (pkt->data[0] == PPTMB_BUS_METRICS_ID){ //HV bus
 			common_data.solar_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Solar power
 			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
@@ -1620,6 +1633,9 @@ void serialParse(B_tcpPacket_t *pkt){
 		 break;
 
 	case MCMB_ID:
+		 //Update connection status
+		 MCMB_last_packet_tick_count = xTaskGetTickCount();
+
 		if (pkt->data[0] == MCMB_BUS_METRICS_ID){ //HV bus
 			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
@@ -1634,6 +1650,9 @@ void serialParse(B_tcpPacket_t *pkt){
 		break;
 
 	case BBMB_ID:
+		 //Update connection status
+		 BBMB_last_packet_tick_count = xTaskGetTickCount();
+
 		 if (pkt->data[0] == BBMB_BUS_METRICS_ID){ //HV bus
 			common_data.battery_power = 		(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Battery power
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
@@ -1644,6 +1663,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
+			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
+
 			 //Update global list
 			 for (int i = 1; i < NUM_THERMISTOR_PER_BMS + 1; i ++){
 				float temp = arrayToFloat( &(pkt->data[4 * i]) );
@@ -1658,6 +1679,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			 detailed_data.P2_max_batt_temp = (short) 10.0*max_temp;
 
 		 } else if (pkt->data[0] == BMS_CELL_VOLT_ID){ //Cell voltage
+			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
+
 			 //Update global list
 			 for (int i = 1; i <= 5; i ++){
 				float voltage = arrayToFloat( &(pkt->data[4 * i]) );
@@ -1665,6 +1688,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			 }
 
 		 } else if (pkt->data[0] == BMS_CELL_SOC_ID){ //Cell state of charge
+			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
+
 			 //Update global list
 			 for (int i = 1; i <= 5; i ++){
 				float soc = arrayToFloat( &(pkt->data[4 * i]) );
@@ -1678,6 +1703,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			 }
 			 common_data.battery_soc = (short) 100*min_soc;
 		 }
+		 break;
+
+	case CHASE_ID:
+		 if (pkt->data[0] == CHASE_HEARTBEAT_ID){
+			 //Update connection status
+			 Chase_last_packet_tick_count = xTaskGetTickCount();
+		 }
+
 		 break;
 	}
 	taskEXIT_CRITICAL();
@@ -1939,11 +1972,6 @@ void displayTask(const void *pv){
 	glcd_init();
 	glcd_clear();
 	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
-	detailed_data.P2_BB = 1;
-	detailed_data.P2_MC = 1;
-	detailed_data.P2_BMS = 1;
-	detailed_data.P2_PPT = 1;
-	detailed_data.P2_RAD = 1;
 
 	/* Display selection (sel):
 	 * 0: Default
@@ -1955,8 +1983,24 @@ void displayTask(const void *pv){
 	 */
 
 	while(1){
-		taskENTER_CRITICAL();
 		uint8_t local_display_sel;
+		uint32_t tick_cnt;
+
+		taskENTER_CRITICAL();
+		tick_cnt = xTaskGetTickCount();
+
+		//Update connection status indicator
+		detailed_data.P2_BB = 0;
+		detailed_data.P2_MC = 0;
+		detailed_data.P2_BMS = 0;
+		detailed_data.P2_PPT = 0;
+		detailed_data.P2_RAD = 0;
+
+		if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
+		if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
+		if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
+		if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
+		if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
 
 		local_display_sel = display_selection;
 
