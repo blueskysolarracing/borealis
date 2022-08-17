@@ -40,6 +40,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define BMS_CONNECTION_EXPIRY_THRESHOLD 2000
+
 #define HV_BATT_OC_DISCHARGE 	45.0 	//Should be set to 45.0A
 #define HV_BATT_OC_CHARGE 		30.0 	//Should be set to 30.0A
 #define HV_BATT_OV_THRESHOLD 	4.20	//Should be set to 4.20V
@@ -47,7 +49,7 @@
 #define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
 
 #define NUM_BATT_CELLS 			29 //Number of series parallel groups in battery pack
-#define NUM_BSM					6 //Number of BMS to read from
+#define NUM_BMS					6 //Number of BMS to read from
 #define NUM_BATT_TEMP_SENSORS 	3 * 6 //Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 		200//(Other intervals defined in psm.h and btcp.h). It also implicitely calculates a new SoC estimation on the BMS.
 #define BMS_FLT_CHECK_INTERVAL 	10 //Interval at which to read the BMS_FLT pin
@@ -115,6 +117,7 @@ uint8_t relayCtrlMessage;
 //--- BMS ---//
 int BMS_requesting_from = -1; //Holds which BMS we are requesting data from (needs initial value >5)
 uint8_t BMS_data_received[3] = {RECEIVED, RECEIVED, RECEIVED}; //Holds whether we received voltage, temperature and SoC for the current BMS
+uint32_t BMS_tick_count_last_packet;
 
 //--- Battery ---/
 uint8_t batteryState;
@@ -220,6 +223,10 @@ int main(void)
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
+
+  double PSM_data[2];
+  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSM_data, 2);
+  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_data, 2);
 
 
   //--- RDB ---//
@@ -1336,6 +1343,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
+			BMS_tick_count_last_packet = xTaskGetTickCount();
+
 			//BMS temperature
 			if (pkt->data[0] == BMS_CELL_TEMP_ID){
 				//Re-send on main bus
@@ -1347,7 +1356,9 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Check for overtemperature for each cell and call routine when battery has faulted
 				for (int i = 1; i < 4; i ++){ //3 thermistors
 					float temperature = arrayToFloat( &(pkt->data[4 * i]) );
-					if ( temperature > HV_BATT_OT_THRESHOLD ){	 battery_faulted_routine(); }
+					if ( temperature > HV_BATT_OT_THRESHOLD ){
+						battery_faulted_routine();
+					}
 				}
 
 			//BMS voltage
@@ -1361,7 +1372,9 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
 				for (int i = 1; i < 6; i ++){ //5 cells
 					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-					if ( (voltage > HV_BATT_OV_THRESHOLD) || ((voltage < HV_BATT_UV_THRESHOLD)) ){	 battery_faulted_routine(); }
+					if ( (voltage > HV_BATT_OV_THRESHOLD) || ((voltage < HV_BATT_UV_THRESHOLD)) ){
+						battery_faulted_routine();
+					}
 				}
 
 			//BMS SoC
@@ -1508,22 +1521,15 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	//PSMRead will fill first element with voltage, second with current
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Battery output on channel #2
 
+	//Check overcurrent protection
+	if (voltageCurrent_HV[1] >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
+		battery_faulted_routine();
+	}
+
 	//Update battery pack current global variable (used for BMS communication)
 	taskENTER_CRITICAL();
 	battery_current = (float) voltageCurrent_HV[1];
 	taskEXIT_CRITICAL();
-
-	//Check overcurrent protection
-	if (voltageCurrent_HV[1] >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
-		uint8_t car_state_error[1 * 4];
-		car_state_error[0] = BBMB_RELAYS_STATE_ID;
-		car_state_error[1] = OPEN;
-		car_state_error[2] = 0x02; //Overcurrent
-
-		B_tcpSend(btcp_main, car_state_error, sizeof(car_state_error));
-
-//		if (PROTECTION_ENABLE){	open_relays(&relay);	}
-	}
 
 	floatToArray((float) voltageCurrent_HV[0], busMetrics_HV + 4); // fills 4 - 7 of busMetrics
 	floatToArray((float) voltageCurrent_HV[1], busMetrics_HV + 8); // fills 8 - 11 of busMetrics
@@ -1550,8 +1556,15 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	//If all data from a BMS has been received, we are ready to read the next
 	if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
 		sendNewBMSRequest();
-		if (BMS_requesting_from >= NUM_BSM - 1){	BMS_requesting_from = -1;	};//We've received from all BMS, start requesting from the first one again (BMS_ID == 0)
+		if (BMS_requesting_from >= NUM_BMS - 1){	BMS_requesting_from = -1;	};//We've received from all BMS, start requesting from the first one again (BMS_ID == 0)
 	}
+
+	//If we haven't received a BMS message for a while, resend request to same BMS
+	if ((xTaskGetTickCount() - BMS_tick_count_last_packet) > BMS_CONNECTION_EXPIRY_THRESHOLD){
+		BMS_requesting_from -= 1;
+		sendNewBMSRequest();
+	}
+
 	taskEXIT_CRITICAL();
 }
 

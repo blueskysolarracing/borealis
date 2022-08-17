@@ -615,7 +615,7 @@ void drawP2Detailed(/*int value[5]*/){
 		glcd_tiny_draw_char_xy_white(x+=6, correct_Y(y), 'T');
 	}
     if(detailed_data.P2_RAD){
-    	x = 90;
+    	x = 100;
 		glcd_fill_rect(x, correct_Y(y-1), 19, 9, 1);
 		glcd_tiny_draw_char_xy_white(x+=1, correct_Y(y), 'R');
 		glcd_tiny_draw_char_xy_white(x+=6, correct_Y(y), 'A');

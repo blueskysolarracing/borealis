@@ -52,7 +52,7 @@
 #define MEAS_PERIOD 200
 
 #define TCP_ID BMS_ID
-#define LTC6810_INTERVAL 200 //Interval of reading LTC6810 measurements
+#define LTC6810_INTERVAL 100 //Interval of reading LTC6810 measurements
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -360,7 +360,7 @@ static void MX_TIM7_Init(void)
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 64000;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 1000;
+  htim7.Init.Period = 2000;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
@@ -796,9 +796,7 @@ int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, i
 
 	//now send the data
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_Delay(1); //require several us
 	HAL_SPI_Transmit(&hspi3, dataToSend, 12, 100);
-	HAL_Delay(1);
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
 	return 0; //temp
@@ -821,23 +819,20 @@ void readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1)
 
 		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
 		LTC6810CommandGenerate(messageInBinary, dataToSend);
-		HAL_Delay(1);
 
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);//slave low
-		HAL_Delay(1);
+		osDelay(1);
 		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
-		HAL_Delay(2);
 		//now read from it
 		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
 				  //now receive those data
 		LTC6810CommandGenerate(messageInBinary, dataToSend);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
 
-		HAL_Delay(1);
 		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-		HAL_Delay(2); //ADD DELAY between Transmit & Receive
+		osDelay(1); //ADD DELAY between Transmit & Receive
 		HAL_SPI_Receive(&hspi3, dataToReceive, 6, 100);
 
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
@@ -857,10 +852,8 @@ void readVolt(float* voltArray){
 	  VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
 	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);//generate the "check voltage command"
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	  HAL_Delay(1); //require several us
 	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
 	  //now receive those data
-	  HAL_Delay(4); //ADD DELAY between Transmit & Receive
 	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
@@ -869,9 +862,7 @@ void readVolt(float* voltArray){
 	  VmessageInBinary = 0b100;  //read cell voltage reg group 1;
 	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	  HAL_Delay(1); //require several us
 	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	  HAL_Delay(3); //ADD DELAY between Transmit & Receive
 	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
@@ -888,9 +879,7 @@ void readVolt(float* voltArray){
 	  VmessageInBinary = 0b110; //read cell voltage reg group 2;
 	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	  HAL_Delay(1); //require several us
 	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	  HAL_Delay(3); //ADD DELAY between Transmit & Receive
 	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
@@ -933,15 +922,6 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	//TODO: remove this
-	//Testing begin
-
-	uint8_t junk[3] = {3,2,5};
-	HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-	B_tcpSendBlocking(btcp, junk, sizeof(junk));
-	HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-
-    osDelay(10);
   }
   /* USER CODE END 5 */
 }

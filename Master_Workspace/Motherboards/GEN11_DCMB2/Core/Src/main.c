@@ -1640,9 +1640,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
-//			float test1 = arrayToFloat(&(pkt->data[4]));
-//			float test2 = arrayToFloat(&(pkt->data[8]));
-//			float test3 = arrayToFloat(&(pkt->payload[12]));
 
 		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
@@ -1657,6 +1654,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			common_data.battery_power = 		(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Battery power
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
 			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
+			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 
 		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
 			 batteryState = pkt->data[1];
@@ -1990,11 +1988,11 @@ void displayTask(const void *pv){
 		tick_cnt = xTaskGetTickCount();
 
 		//Update connection status indicator
-		detailed_data.P2_BB = 0;
-		detailed_data.P2_MC = 0;
-		detailed_data.P2_BMS = 0;
-		detailed_data.P2_PPT = 0;
-		detailed_data.P2_RAD = 0;
+		detailed_data.P2_BB = 	0;
+		detailed_data.P2_MC = 	0;
+		detailed_data.P2_BMS = 	0;
+		detailed_data.P2_PPT = 	0;
+		detailed_data.P2_RAD = 	0;
 
 		if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
 		if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
