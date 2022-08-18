@@ -15,10 +15,10 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 	switch (PSM_ID){
 		case 1: //PSM in battery box
 			//PHub out
-			PSM->VDCOS_CH1 = 1.026454 / (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //1.026454;
-			PSM->CDCOS_CH1 = 0.597499 / ((1.2) / 8388607 / 4); //0.597499;
-			PSM->VM_CH1 = 1 * (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //24kR; 19.195782
-			PSM->CM_CH1 = 40.576234 * (1.2) / 8388607 / 4; //40.576234
+			PSM->VDCOS_CH1 = 1.026454 / ((1.2) / 8388607.0 * (1.0 + 664.0*(1/24.0 + 1/480.0))) + 132672.8;// - 6795690; //1.026454;
+			PSM->CDCOS_CH1 = 473183.0 - 58575.0 - 17917.0; //0.597499 / ((1.2) / 8388607.0 / 4.0); //0.597499;
+			PSM->VM_CH1 = 0.9694 * (1.2) / 8388607.0 * (1.0 + 664.0*(1/24.0 + 1/480.0)); //24kR; 19.195782
+			PSM->CM_CH1 = 40.576234 * (1.2) / 8388607.0 / 4.0; //40.576234
 
 			//HV battery
 			PSM->VDCOS_CH2 = 14.8 / ((1.2) / 8388607.0 * (1.0 + 664.0*(1.0/2.2 + 1.0/480.0))); //14.8
@@ -487,12 +487,8 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
         readFromPSM(PSM, spiInterface, uartInterface, V1WV, dataIn, 3, channelNumber);
         V1WV_val = (dataIn[0] << 16) + (dataIn[1] << 8) + dataIn[3];
 
-        //current += (IWV_val - currentOffset)*currentMultiplier;
         current += currentMultiplier*(IWV_val - currentOffset);
-        //voltage += (V1WV_val - voltageOffset)*voltageMultiplier;
         voltage += voltageMultiplier*(V1WV_val - voltageOffset);
-//        current += (IWV_val - currentOffset)*((1.2) / 8388607 / 0.5);
-//        voltage += (V1WV_val - voltageOffset)*((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)));
     }
     //get averages of current and voltage measurements
     voltage /= NUM_AVG;

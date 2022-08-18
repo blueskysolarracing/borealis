@@ -108,6 +108,8 @@ uint8_t lightInstruction;
 //--- PSM ---//
 struct PSM_Peripheral psmPeriph;
 float battery_current;
+double voltageCurrent_LV[2] = {0};
+double voltageCurrent_HV[2] = {0};
 
 //--- RELAYS ---//
 struct relay_periph relay;
@@ -1514,12 +1516,13 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 
 void PSMTaskHandler(TimerHandle_t xTimer){
 //Battery
-	double voltageCurrent_HV[2] = {0};
 	uint8_t busMetrics_HV[3 * 4] = {0};
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
 
+	taskENTER_CRITICAL();
 	//PSMRead will fill first element with voltage, second with current
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Battery output on channel #2
+	taskEXIT_CRITICAL();
 
 	//Check overcurrent protection
 	if (voltageCurrent_HV[1] >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
@@ -1537,11 +1540,13 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
 
 //LV
-	double voltageCurrent_LV[2] = {0};
 	uint8_t busMetrics_LV[3 * 4] = {0};
 	busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
 
+	taskENTER_CRITICAL();
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_LV, 2);
+	taskEXIT_CRITICAL();
+
 	floatToArray((float) voltageCurrent_LV[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
 	floatToArray((float) voltageCurrent_LV[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
 
