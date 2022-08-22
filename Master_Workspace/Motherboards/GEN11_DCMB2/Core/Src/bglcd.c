@@ -12,6 +12,7 @@
 #include "bglcd.h"
 #include "glcd.h"
 #include "main.h"
+#include "display_BSSR.h"
 
 /** Fonts */
 #include "fonts/font5x7.h"
@@ -30,6 +31,30 @@ uint8_t correct_Y(uint8_t y){
 		return y;	// change this if P2 fuck up
 //	return (y+16)%64;
 	return y;	// change this if P1 fuck up
+}
+
+// draw logo on both screens
+void drawLogo(){
+	pToggle = 0;
+	glcd_clear_buffer();
+	for(int i = 0; i < 64; i++){
+		for(int j = 0; j < 128; j++){
+			if(bssr_logo[i][j]){
+				glcd_set_pixel(j, i, 1);
+			}
+		}
+	}
+	glcd_write();
+	pToggle = 1;
+	glcd_clear_buffer();
+	for(int i = 0; i < 64; i++){
+		for(int j = 0; j < 128; j++){
+			if(bssr_logo[i][j]){
+				glcd_set_pixel(j, i, 1);
+			}
+		}
+	}
+	glcd_write();
 }
 
 // p1 stuff start
