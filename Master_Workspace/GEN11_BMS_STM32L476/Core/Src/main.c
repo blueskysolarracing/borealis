@@ -39,7 +39,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
-#define MY_ID 5 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
+#define MY_ID 3 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
 //BMS with 4 cells is ID 0. This is needed to send a fake nominal voltage of 3.7V to BBMB so as to not trip the system.
 
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
@@ -53,6 +53,7 @@
 
 #define TCP_ID BMS_ID
 #define LTC6810_INTERVAL 100 //Interval of reading LTC6810 measurements
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -99,6 +100,7 @@ void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void LTC6810Handler(TimerHandle_t xTimer);
+void PWR_CHECK_Timer(TimerHandle_t xTimer);
 int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
 void readTemp(float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
 void readVolt(float* voltArray);
@@ -159,6 +161,8 @@ int main(void)
 
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("LTC6810Handler",  pdMS_TO_TICKS(LTC6810_INTERVAL), pdTRUE, (void *)0, LTC6810Handler), 0); //Temperature and voltage measurements
+  xTimerStart(xTimerCreate("PWR_CHECK_Timer",  pdMS_TO_TICKS(1000), pdTRUE, (void *)0, PWR_CHECK_Timer), 0); //Periodically checks BMS_WKUP pin
+  //^^^ Eventually, this should be made with EXTI interrupts ^^^//
 
   //--- BMS_FLT ---//
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Signal is active-high (high when no fault)
@@ -497,11 +501,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BMS_WKUP_Pin */
-  GPIO_InitStruct.Pin = BMS_WKUP_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  /*Configure GPIO pins : BMS_WKUP_Pin PSENSE_ALERT_Pin */
+  GPIO_InitStruct.Pin = BMS_WKUP_Pin|PSENSE_ALERT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(BMS_WKUP_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BBMB_INT_Pin */
   GPIO_InitStruct.Pin = BBMB_INT_Pin;
@@ -509,12 +513,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BBMB_INT_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PSENSE_ALERT_Pin */
-  GPIO_InitStruct.Pin = PSENSE_ALERT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(PSENSE_ALERT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : EN_PWR_Pin EN_BLN_PWR_Pin MCU_LED_Pin RS485_EN_Pin */
   GPIO_InitStruct.Pin = EN_PWR_Pin|EN_BLN_PWR_Pin|MCU_LED_Pin|RS485_EN_Pin;
@@ -653,38 +651,6 @@ void LTC6810Handler(TimerHandle_t xTimer){
 	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
 	convert_to_temp(local_temp_array, local_temp_array);
 
-	//---- BATTERY FAULT CHECK----//
-	//DONE ON BBMB FOR NOW
-//	//Check for UV, OV faults
-//	for (int i = 0; i < 5; i++){
-//		if (local_voltage_array[i] > OV_THRESHOLD){ //Overvoltage
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OV protection tripped, put car into safe state
-//			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //Switch to 12V power
-//			send_error_msg(i, BMS_OV, voltage_array[i]);
-//
-//		} else if (local_voltage_array[i] < UV_THRESHOLD){ //Undervoltage
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //UV protection tripped, put car into safe state
-//			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-//			send_error_msg(i, BMS_UV, voltage_array[i]);
-//
-//		} else { //Voltage OK
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-//		}
-//	}
-//
-//	//Check for OT faults
-//	for (int i = 0; i < 6; i++){
-//		if (local_temp_array[i] > OT_THRESHOLD){
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET); //OT protection tripped, put car into safe state
-//			htim7.Instance->PSC = 10667; //Flash LED 6 times per sec (assuming 64MHz clock)
-//			send_error_msg(i, BMS_OT, temperature_array[i]);
-//
-//		} else {
-//			HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Battery voltages OK
-//		}
-//	}
-
 	//Update global variables
 	taskENTER_CRITICAL();
 	for (int i = 0; i < NUM_CELLS; i++){	voltage_array[i] = local_voltage_array[i];	}
@@ -693,8 +659,22 @@ void LTC6810Handler(TimerHandle_t xTimer){
 
 }
 
-void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send){
+void PWR_CHECK_Timer(TimerHandle_t xTimer){
+	uint8_t WKUP_signal = HAL_GPIO_ReadPin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin);
 
+	HAL_GPIO_WritePin(EN_PWR_GPIO_Port, EN_PWR_Pin, WKUP_signal);
+
+	/*
+	 * As per ASC regulations, at startup and when the car is sleeping, the BMS needs to be powered by the 12V supplemental battery.
+	 * During norminal operation, the BMS powers itself from the battery module it is connected to.
+	 * The GEN11 BMS has a PFET and ideal diode circuit to switch from 12V to battery module power.
+	 *
+	 * The BBMB has a BMS_WKUP signal. In ASC mode, the BMS powers itself from the battery module any time this signal is HIGH.
+	 * Thus, when supplemental battery is removed, the BMS_WKUP signal is LOW and the BMS stops being powered by the battery module, effectively turning itself off.
+	 * *
+	 * Note that for this to work, the header P1 (top left of the BMS board) needs to be left open (not shorted). Otherwise, the
+	 * BMS will be powered by the module indefinitely (even when 12V is removed).
+	 */
 }
 
 int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
@@ -815,7 +795,6 @@ void readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1)
 		LTC6810Init(0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
 		else if(cycle == 2){
 		LTC6810Init(0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
-	//cycle are 0,1,2
 
 		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
 		LTC6810CommandGenerate(messageInBinary, dataToSend);
@@ -827,7 +806,6 @@ void readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1)
 
 		//now read from it
 		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
-				  //now receive those data
 		LTC6810CommandGenerate(messageInBinary, dataToSend);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
 
@@ -857,8 +835,6 @@ void readVolt(float* voltArray){
 	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 
-	  //Maybe Try fix this BUG???????
-
 	  VmessageInBinary = 0b100;  //read cell voltage reg group 1;
 	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
@@ -871,11 +847,6 @@ void readVolt(float* voltArray){
 	  voltArray[1] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	  voltArray[2] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
 
-	  /*
-	  v1 = voltageDataConversion(dataToReceive[0], dataToReceive[1]) ;
-	  v2 = voltageDataConversion(dataToReceive[2], dataToReceive[3]) ;
-	  v3 = voltageDataConversion(dataToReceive[4], dataToReceive[5]);
-	   */
 	  VmessageInBinary = 0b110; //read cell voltage reg group 2;
 	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
 	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
@@ -887,11 +858,6 @@ void readVolt(float* voltArray){
 	  voltArray[3] = voltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	  voltArray[4] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	  voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
-	  /*
-	  v4 = voltageDataConversion(dataToReceive[0], dataToReceive[1]) ;
-	  v5 = voltageDataConversion(dataToReceive[2], dataToReceive[3]) ;
-	  v6 = voltageDataConversion(dataToReceive[4], dataToReceive[5]) ;
-	   */
 }
 
 void convert_to_temp(float input_voltage[3], float output_temperature[3]){
@@ -902,7 +868,9 @@ void convert_to_temp(float input_voltage[3], float output_temperature[3]){
 		output_temperature[i] = 1.0 / (0.003356 + 0.0002532 * log(thermistor_resistance / 10.0));
 		output_temperature[i] = output_temperature[i] - 273.15;
 
-		if (thermistor_resistance < 0) {output_temperature[i] = -100;	}; //Preventing NaN (treated as 0xFFFFFFFF) from tripping the battery safety but lower-bounding them to -100C
+		if (thermistor_resistance < 0) {  //Preventing NaN (treated as 0xFFFFFFFF) from tripping the battery safety but lower-bounding them to -100C
+			output_temperature[i] = -100;
+		}
 		//This occurs when the measurement is closes to 3V, suggesting that the thermistor isn't connected.
 	}
 }

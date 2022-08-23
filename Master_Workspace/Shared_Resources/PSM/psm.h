@@ -9,7 +9,7 @@
 
 #define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
 #define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
-#define NUM_AVG 1 //Number of averages to take for each measurements
+#define NUM_AVG 10 //Number of averages to take for each measurements
 
 //ADE7912 register addresses; names identical to datasheet
 #define IWV 0x0

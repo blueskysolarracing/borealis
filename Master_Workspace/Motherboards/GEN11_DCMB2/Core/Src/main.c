@@ -1656,6 +1656,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 
+		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
+			 common_data.LV_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
+			 common_data.LV_voltage = 			(short) round(arrayToFloat(&(pkt->data[4]))); //LV voltage
+			 detailed_data.P2_LV_current = 		(short) round(arrayToFloat(&(pkt->data[8]))); //LV current
+
 		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
 			 batteryState = pkt->data[1];
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state

@@ -40,7 +40,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define BMS_CONNECTION_EXPIRY_THRESHOLD 2000
+#define BMS_CONNECTION_EXPIRY_THRESHOLD 2500
 
 #define HV_BATT_OC_DISCHARGE 	45.0 	//Should be set to 45.0A
 #define HV_BATT_OC_CHARGE 		30.0 	//Should be set to 30.0A
@@ -204,6 +204,7 @@ int main(void)
   NVIC_EnableIRQ(TIM7_IRQn);
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
+
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
   psmPeriph.CSPin1 = PSM_CS_1_Pin;
@@ -310,6 +311,7 @@ int main(void)
   batteryState = HEALTHY;
   HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET); //Turn off HV discharge
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Turn off BPS fault LED on driver's panel and activate Vicor 12V
+  HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_SET); //Power BMS from battery module instead of supplemental battery
 
   /* USER CODE END 2 */
 
@@ -1605,6 +1607,9 @@ void battery_faulted_routine(){
 
 	//Broadcast to rest of car
 	B_tcpSend(btcp_main, buf, sizeof(buf)); //Will update driver displays, alert chase car...
+
+	//Change BMS power from battery module to 12V supplemental
+	HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_RESET);
 
 	//BPS strobe light
 	xQueueSend(lightsCtrl, &strobe_light_EN_cmd, 50); //Send to lights control task
