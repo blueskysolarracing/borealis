@@ -149,7 +149,7 @@ void drawP1Default(/*int value[4]*/){
 	else{
 		glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
 		for(int i = 1; i < 4; i++){
-			glcd_draw_char_xy(85+(i*13), correct_Y(19), valueS[3][i]);
+			glcd_draw_char_xy(85+((i-1)*13), correct_Y(19), valueS[3][i]);
 		}
 		// speed >= 100, case for three digits
 	}
@@ -355,7 +355,7 @@ void drawP1BMSFault(){
 	glcd_clear_buffer();
 
 	// start drawing at y = 5
-	uint8_t y = 12;
+	uint8_t y = 5;
     uint8_t x = 10;
 
     char* ptr = labels[0];
@@ -366,7 +366,7 @@ void drawP1BMSFault(){
         ptr++;
     }
 
-    y = 36;
+    y = y+23;
     x = 43;
 
     ptr = labels[1];
@@ -386,6 +386,52 @@ void drawP1BMSFault(){
 		glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
 		x+=6;
 		ptr++;
+	}
+
+	y=y+23;
+
+	char* faultType = "";
+	uint8_t faultCell = 0xFF;
+	uint8_t faultTypeL = 0;
+
+	switch(detailed_data.faultType){
+	case 0:
+		faultType = "OVERTEMP";
+		faultTypeL = 8;
+		faultCell = detailed_data.faultCell;
+		break;
+	case 1:
+		faultType = "OVERVOLT";
+		faultTypeL = 8;
+		faultCell = detailed_data.faultCell;
+		break;
+	case 2:
+		faultType = "UNDERVOLT";
+		faultTypeL = 9;
+		faultCell = detailed_data.faultCell;
+		break;
+	case 3:
+		faultType = "OVERCURRENT";
+		faultTypeL = 11;
+		break;
+	}
+
+	x = 70 - faultTypeL*6;
+	while(*faultType != '\0'){
+		glcd_tiny_draw_char_xy_white(x, correct_Y(y), *faultType);
+		x+=6;
+		faultType++;
+	}
+	if(faultCell != 0xFF){
+		x = 70;
+		char cellString[10] = {0};
+		sprintf(cellString, "(CELL %d)\0", faultCell);
+		ptr = cellString;
+		while(*ptr != '\0'){
+			glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
+			x+=6;
+			ptr++;
+		}
 	}
 
 	glcd_write();
