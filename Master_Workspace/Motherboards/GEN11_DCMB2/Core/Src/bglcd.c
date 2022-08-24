@@ -642,7 +642,8 @@ void drawP2Detailed(/*int value[5]*/){
     glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ',');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][2]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][3]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
+    glcd_tiny_draw_char_xy(x+=3, correct_Y(y), valueS[2][3]);
     glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'A');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ')');
     // the temp
