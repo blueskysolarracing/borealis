@@ -1658,8 +1658,8 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
-			 common_data.LV_voltage = 			(short) round(arrayToFloat(&(pkt->data[4]))); //LV voltage
-			 detailed_data.P2_LV_current = 		(short) round(arrayToFloat(&(pkt->data[8]))); //LV current
+			 common_data.LV_voltage = 			(short) round(10*arrayToFloat(&(pkt->data[4]))); //LV voltage
+			 detailed_data.P2_LV_current = 		(short) round(10*arrayToFloat(&(pkt->data[8]))); //LV current
 
 		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
 			 batteryState = pkt->data[1];
@@ -1919,11 +1919,11 @@ void sidePanelTask(const void *pv){
 				}
 				B_tcpSend(btcp, bufh, sizeof(bufh));
 
-			//AUX1 (not implemented in GEN11)
+			//AUX1 (display backlight control in GEN11)
 				if (sidePanelData & (1 << 2)){
-					// pass
-				}else {
-					// pass
+					HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
+				} else {
+					HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_RESET);
 				}
 
 			//AUX2 (not implemented in GEN11)
@@ -1946,10 +1946,10 @@ void sidePanelTask(const void *pv){
 				}
 
 			//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
-				if (sidePanelData & (1 << 5)){ // reverse state?
-				  fwdRevState = 1;
-				} else { // foward state?
+				if (sidePanelData & (1 << 5)){
 				  fwdRevState = 0;
+				} else {
+				  fwdRevState = 1;
 				}
 
 			//IGNITION
@@ -1971,10 +1971,10 @@ void sidePanelTask(const void *pv){
 }
 
 void displayTask(const void *pv){
+	uint8_t startupDone = 0;
 	pToggle = 0;
 	glcd_init();
 	glcd_clear();
-	HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET);
 
 	/* Display selection (sel):
 	 * 0: Default
@@ -1984,48 +1984,53 @@ void displayTask(const void *pv){
 	 * 4: Ignition off (car is sleeping)
 	 * 5: BMS fault
 	 */
-
 	while(1){
-		uint8_t local_display_sel;
-		uint32_t tick_cnt;
+		if (startupDone == 0){
+			drawLogo();
+			osDelay(2000);
+			startupDone = 1;
+		} else {
+			uint8_t local_display_sel;
+			uint32_t tick_cnt;
 
-		taskENTER_CRITICAL();
-		tick_cnt = xTaskGetTickCount();
+			taskENTER_CRITICAL();
+			tick_cnt = xTaskGetTickCount();
 
-		//Update connection status indicator
-		detailed_data.P2_BB = 	0;
-		detailed_data.P2_MC = 	0;
-		detailed_data.P2_BMS = 	0;
-		detailed_data.P2_PPT = 	0;
-		detailed_data.P2_RAD = 	0;
+			//Update connection status indicator
+			detailed_data.P2_BB = 	0;
+			detailed_data.P2_MC = 	0;
+			detailed_data.P2_BMS = 	0;
+			detailed_data.P2_PPT = 	0;
+			detailed_data.P2_RAD = 	0;
 
-		if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
-		if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
-		if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
-		if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
-		if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
+			if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
+			if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
+			if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
+			if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
+			if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
 
-		local_display_sel = display_selection;
+			local_display_sel = display_selection;
 
-		//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
-		if (SLEEP_FRAME_EN) {
-			if (IGNORE_PPTMB){
-				if (batteryRelayState == OPEN) { local_display_sel = 4; }
-			} else {
-				if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 4; }
+			//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
+			if (SLEEP_FRAME_EN) {
+				if (IGNORE_PPTMB){
+					if (batteryRelayState == OPEN) { local_display_sel = 4; }
+				} else {
+					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 4; }
+				}
 			}
-		}
 
-		//Overwrite display state if battery fault
-		if (batteryState == FAULTED){
-			local_display_sel = 5; //Display battery faulted
-			 default_data.P2_motor_state = OFF;
-		}
+			//Overwrite display state if battery fault
+			if (batteryState == FAULTED){
+				local_display_sel = 5; //Display battery faulted
+				 default_data.P2_motor_state = OFF;
+			}
 
-		taskEXIT_CRITICAL();
-		drawP1(local_display_sel);
-		drawP2(local_display_sel);
-		vTaskDelay(100);
+			taskEXIT_CRITICAL();
+			drawP1(local_display_sel);
+			drawP2(local_display_sel);
+			osDelay(100);
+		}
 	}
 }
 

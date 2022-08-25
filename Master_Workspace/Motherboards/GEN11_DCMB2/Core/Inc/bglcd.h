@@ -76,4 +76,5 @@ void drawP2Deactivate();
 void drawP2IgnitionOff(/*int value[4]*/);
 void drawP2BMSFault(/*int value[4]*/);
 void drawP2(uint8_t sel);
+void drawLogo();
 #endif /* BGLCD_H_ */
