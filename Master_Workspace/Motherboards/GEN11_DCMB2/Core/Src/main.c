@@ -1657,7 +1657,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
-			 common_data.LV_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
+			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
 			 common_data.LV_voltage = 			(short) round(10*arrayToFloat(&(pkt->data[4]))); //LV voltage
 			 detailed_data.P2_LV_current = 		(short) round(10*arrayToFloat(&(pkt->data[8]))); //LV current
 
@@ -1946,10 +1946,12 @@ void sidePanelTask(const void *pv){
 				}
 
 			//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
-				if (sidePanelData & (1 << 5)){
+				if (sidePanelData & (1 << 5)){ 	//Forward
 				  fwdRevState = 0;
-				} else {
+				  default_data.direction = FORWARD;
+				} else {						//Reverse
 				  fwdRevState = 1;
+				  default_data.direction = REVERSE;
 				}
 
 			//IGNITION

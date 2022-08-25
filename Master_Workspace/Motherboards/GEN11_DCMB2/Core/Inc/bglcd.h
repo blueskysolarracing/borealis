@@ -64,6 +64,11 @@ extern struct disp_common common_data;
 extern struct disp_default_frame default_data;
 extern struct disp_detailed_frame detailed_data;
 
+enum DRIVING_DIRECTION {
+	FORWARD,
+	REVERSE
+};
+
 void drawP1Default(/*int value[4]*/);
 void drawP1Detailed(/*int value[9]*/);
 void drawP1Activate();

@@ -90,7 +90,7 @@ void drawP1Default(/*int value[4]*/){
 	}
 
 	// draw direction
-	if(default_data.direction){
+	if(default_data.direction == FORWARD){
 		glcd_tiny_draw_char_xy(110, correct_Y(4), 'F');
 		glcd_tiny_draw_char_xy(116, correct_Y(4), 'W');
 		glcd_tiny_draw_char_xy(122, correct_Y(4), 'D');
