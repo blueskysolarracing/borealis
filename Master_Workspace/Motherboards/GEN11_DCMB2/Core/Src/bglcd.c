@@ -624,18 +624,24 @@ void drawP2Detailed(/*int value[5]*/){
 		if(v/100 != 0){
 			valueS[i][1] = '0' + v/100;
 		}
+		else{
+			valueS[i][1] = ' ';
+		}
 		// ones
 		if((v/10)%10 != 0 || valueS[i][1] != ' '){
 			valueS[i][2] = '0' + (v/10)%10;
+		}
+		else{
+			valueS[i][2] = '0';
 		}
 		// decimal
 		valueS[i][3] = '0' + v%10;
 	}
 
-    // write the 5 small values
+    // write the 4 small values
 	y = 5;
     // the watt and V and A
-	uint8_t x = 15;
+	uint8_t x = 20;
 	glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
 	glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][1]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][2]);
