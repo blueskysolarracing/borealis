@@ -89,6 +89,18 @@ void drawP1Default(/*int value[4]*/){
 		y+=23;
 	}
 
+	// draw direction
+	if(default_data.direction){
+		glcd_tiny_draw_char_xy(110, correct_Y(4), 'F');
+		glcd_tiny_draw_char_xy(116, correct_Y(4), 'W');
+		glcd_tiny_draw_char_xy(122, correct_Y(4), 'D');
+	}
+	else{
+		glcd_tiny_draw_char_xy(110, correct_Y(4), 'R');
+		glcd_tiny_draw_char_xy(116, correct_Y(4), 'E');
+		glcd_tiny_draw_char_xy(122, correct_Y(4), 'V');
+	}
+
 	// draw divider line
 	glcd_draw_line(81, 0,  81, 63, BLACK);
 	int x = 0;
@@ -183,7 +195,7 @@ void drawP1Detailed(/*int value[9]*/){
 			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
 			j++;
 		}
-		glcd_tiny_draw_char_xy(69, correct_Y(y), 'w');
+		glcd_tiny_draw_char_xy(69, correct_Y(y), 'W');
 		// go next rows, these value are just what I think will look good
 		y+=23;
 	}
@@ -573,12 +585,11 @@ void drawP2Default(/*int value[4]*/){
 }
 
 void drawP2Detailed(/*int value[5]*/){
-	short value[5] = {	common_data.LV_power,
+	short value[4] = {	common_data.LV_power,
 						(common_data.LV_voltage)/10,
 						detailed_data.P2_LV_current,
-						detailed_data.P2_max_batt_temp,
-						default_data.P2_VFM};
-	char* labelsP2[] = {"Lo Voltage:", "Max pack temp:"/*, "VFM:"*/};
+						detailed_data.P2_max_batt_temp};
+	char* labelsP2[] = {"LV:", "Max pack temp:"/*, "VFM:"*/};
 	int labelsP2L = 2;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -596,10 +607,10 @@ void drawP2Detailed(/*int value[5]*/){
 	}
 
     // draw the numbers
-	char valueS[5][4];
+	char valueS[4][4];
 
 	// get it in strings
-	for(int i = 0; i < 5; i++){
+	for(int i = 0; i < 4; i++){
 		// sign
 		short v = value[i];
 		if(v<0){
@@ -609,41 +620,38 @@ void drawP2Detailed(/*int value[5]*/){
 		else{
 			valueS[i][0] = '+';
 		}
-		// hundred
+		// tenth
 		if(v/100 != 0){
 			valueS[i][1] = '0' + v/100;
 		}
-		else{
-			valueS[i][1] = ' ';
-		}
-		// tenth
+		// ones
 		if((v/10)%10 != 0 || valueS[i][1] != ' '){
 			valueS[i][2] = '0' + (v/10)%10;
 		}
-		else{
-			valueS[i][2] = ' ';
-		}
-		// ones
+		// decimal
 		valueS[i][3] = '0' + v%10;
 	}
 
     // write the 5 small values
 	y = 5;
     // the watt and V and A
-	uint8_t x = 54;
+	uint8_t x = 15;
 	glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
+	glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][1]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[0][3]);
     glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'W');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '(');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][1]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][2]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[1][3]);
     glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ',');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][2]);
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
-    glcd_tiny_draw_char_xy(x+=3, correct_Y(y), valueS[2][3]);
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[2][3]);
     glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'A');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), ')');
     // the temp
