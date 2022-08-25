@@ -119,7 +119,7 @@ int main(void)
 
   //Data is collected as a byte with the following formatting: [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY] ([bit 7...bit 0])
   //Data is sent: 1) When board first starts, 2) on any change in switch state
-
+  HAL_Delay(500); //Wait for 500ms until DCMB turns on. 
   /* USER CODE END 2 */
 
   /* Infinite loop */
