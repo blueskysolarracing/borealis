@@ -586,7 +586,7 @@ void drawP2Default(/*int value[4]*/){
 
 void drawP2Detailed(/*int value[5]*/){
 	short value[4] = {	common_data.LV_power,
-						(common_data.LV_voltage)/10,
+						common_data.LV_voltage,
 						detailed_data.P2_LV_current,
 						detailed_data.P2_max_batt_temp};
 	char* labelsP2[] = {"LV:", "Max pack temp:"/*, "VFM:"*/};
@@ -850,7 +850,9 @@ void drawP2IgnitionOff(/*int value[4]*/){
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][3]);
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '(');
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][1]);
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][2]);
+                glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '.');
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][3]);
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'W');
                 glcd_tiny_draw_char_xy(x+=6, correct_Y(y), ')');
