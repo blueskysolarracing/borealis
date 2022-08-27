@@ -1874,8 +1874,10 @@ void sidePanelTask(const void *pv){
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
 
+	uint8_t firstTime = 1;
 	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
+
 	for(;;){
 		//e = B_uartRead(spbBuart);
 		B_uartReadFullMessage(spbBuart,  rxBuf, expectedLen, BSSR_SERIAL_START);
@@ -1953,20 +1955,23 @@ void sidePanelTask(const void *pv){
 				}
 
 			//IGNITION
-				if (sidePanelData & (1 << 7)){ //Ignition ON
-					ignitionState = IGNITION_ON;
-					bufh3[2] = CLOSED;
+				// will not respond to ignition
+				if (!firstTime) {
+					if (sidePanelData & (1 << 7)){ //Ignition ON
+						ignitionState = IGNITION_ON;
+						bufh3[2] = CLOSED;
 
-				} else { //Ignition OFF
-					ignitionState = IGNITION_OFF;
-					default_data.P2_motor_state = OFF;
-					bufh3[2] = OPEN;
+					} else { //Ignition OFF
+						ignitionState = IGNITION_OFF;
+						default_data.P2_motor_state = OFF;
+						bufh3[2] = OPEN;
+					}
+					B_tcpSend(btcp, bufh3, sizeof(bufh3));
 				}
-
-				B_tcpSend(btcp, bufh3, sizeof(bufh3));
 			}
 		}
 		taskEXIT_CRITICAL(); // exit critical section
+		firstTime = 0;
 	}
 }
 
@@ -2049,6 +2054,8 @@ void motorDataTimer(TimerHandle_t xTimer){
 	digitalButtons |= fwdRevState << 3;
 	digitalButtons |= vfmUpState << 2;
 	digitalButtons |= vfmDownState << 1;
+
+	// disabled for now since there is no mechanical support for VFM gear shift
 //	if(vfmUpState == 1){
 //		vfmUpState = 0;
 //	}
