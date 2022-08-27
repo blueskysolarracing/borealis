@@ -105,7 +105,7 @@ void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 			break;
 	}
 
-	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+	if (HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		//successful transmission
 	} else{
 		//data could not be written! transmit some error message to the computer
@@ -208,7 +208,7 @@ void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 	}
 
 	//send read instruction to ade7912 in specified PSM channel
-	if(HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+	if (HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		//successful transmission
 		//store received data into buffer
 		HAL_SPI_Receive(spiInterface, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
@@ -410,9 +410,6 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
 	uint8_t dataIn[6] = {0};//data received from ade7912
-//	uint8_t dataOut[16] = {0}; //data to be sent through UART
-//	uint8_t dataOut[17] = {0}; // New dataOut for BlueSky Protocol
-//	uint8_t dataOutLen = sizeof(dataOut) / sizeof(dataOut[0]); //dataOut length in bytes
 	uint32_t IWV_val, V1WV_val; //for storing data from IWV and V1WV registers of ade7912 respectively
 	double voltage = 0, current = 0;
 	double voltageOffset = 0, currentOffset = 0, voltageMultiplier = 1, currentMultiplier = 1;
@@ -448,13 +445,18 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
 			break;
 	}
 
-	//disable write protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, channelNumber);
+	if (WRITE_PROTECTION_ENABLE){
+		//disable write protection
+		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, channelNumber);
+	}
 
 	//enable master ade7912 clock output by setting CLKOUT_EN = 1
 	if (masterPSM){
-		//disable write protection
-		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
+		if (WRITE_PROTECTION_ENABLE){
+			//disable write protection
+			writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
+		}
+
 		readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
 
 		if (CLKOUT){	configCommand |= 1; //CLKOUT_EN = 1	}
@@ -499,8 +501,6 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     	dataOut[1] = current;
     }
 
-    HAL_UART_Transmit(uartInterface, dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
-
     //power down ade7912
     if (PWR_DWN_ENABLE){
         readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
@@ -516,9 +516,11 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     }
 
 	//re-enable write-protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
-	if(masterPSM){
-		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
+	if (WRITE_PROTECTION_ENABLE){
+		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
+		if (masterPSM){
+			writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
+		}
 	}
 
 	//disable LVDS by outputting logic low to LVDS EN pin

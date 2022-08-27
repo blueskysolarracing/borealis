@@ -9,32 +9,39 @@
 
 #define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
 #define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
-#define NUM_AVG 10 //Number of averages to take for each measurements
+#define NUM_AVG 1 //Number of averages to take for each measurements
+
+/*
+ * With 781.25kHz, PSMRead takes 1.368ms.
+ * With 1.5625MHz, PSMRead takes 1.156ms.
+ * With 3.125MHz, PSMRead takes 1.060ms. (Optimized to 0.401ms)
+ */
 
 //ADE7912 register addresses; names identical to datasheet
-#define IWV 0x0
-#define V1WV 0x1
-#define V2WV 0x2
-#define ADC_CRC 0x4
-#define CTRL_CRC 0x5
-#define CNT_SNAPSHOT 0x7
-#define CONFIG 0x8
-#define STATUS0 0x9
-#define LOCK_ADDRESS 0xA
-#define SYNC_SNAP 0xB
-#define COUNTER0 0xC
-#define COUNTER1 0xD
-#define EMI_CTRL 0xE
-#define STATUS1 0xF
-#define TEMPOS 0x18
+#define IWV 			0x0
+#define V1WV 			0x1
+#define V2WV 			0x2
+#define ADC_CRC 		0x4
+#define CTRL_CRC 		0x5
+#define CNT_SNAPSHOT 	0x7
+#define CONFIG 			0x8
+#define STATUS0 		0x9
+#define LOCK_ADDRESS 	0xA
+#define SYNC_SNAP 		0xB
+#define COUNTER0 		0xC
+#define COUNTER1 		0xD
+#define EMI_CTRL 		0xE
+#define STATUS1 		0xF
+#define TEMPOS 			0x18
 
 //ADE7912 instructions
-#define UNLOCK_COMMAND 0x9C
-#define LOCK_COMMAND 0xCA
+#define UNLOCK_COMMAND 	0x9C
+#define LOCK_COMMAND 	0xCA
 
 #define PWR_DWN_ENABLE 0 //Set to 1 to shutdown ADE7912s between measurements (WILL ADD ~100ms DELAY AS THE ISOLATED CONVERTERS NEED TO TURN ON). Saves ~10mA @ 3.3V
-
-#define PSM_INTERVAL 500 //500ms between measurements
+#define WRITE_PROTECTION_ENABLE 1 //Set to 1 to disable write protection between reads/writes (saves time)
+#define PSM_SEND_INTERVAL 250 //250ms between measurements
+#define PSM_FIR_FILTER_SAMPLING_FREQ 20 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
 
 /*constants for calibrating voltage and current measurements
 These belong to the PSM in different boxes. IDs are written on the PSM.

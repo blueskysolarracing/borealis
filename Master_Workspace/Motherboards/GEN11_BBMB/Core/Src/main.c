@@ -31,6 +31,7 @@
 #include "TMC5160_driver.h"
 #include "lights.h"
 #include <stdio.h>
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,6 +55,7 @@
 #define BMS_READ_INTERVAL 		200//(Other intervals defined in psm.h and btcp.h). It also implicitely calculates a new SoC estimation on the BMS.
 #define BMS_FLT_CHECK_INTERVAL 	10 //Interval at which to read the BMS_FLT pin
 #define PROTECTION_ENABLE 		1 //Flag to enable (1) or disable (0) relay control
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -106,10 +108,13 @@ QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
 
 //--- PSM ---//
+uint16_t PSM_FILTER_LIVE_INDEX = 0;
 struct PSM_Peripheral psmPeriph;
 float battery_current;
 double voltageCurrent_LV[2] = {0};
 double voltageCurrent_HV[2] = {0};
+double PSM_HV_FILTER_BUF_VOLTAGE[PSM_FIR_FILTER_SAMPLING_FREQ] = {0}; //This contains the samples that are passed through a moving average filter
+double PSM_HV_FILTER_BUF_CURRENT[PSM_FIR_FILTER_SAMPLING_FREQ] = {0}; //This contains the samples that are passed through a moving average filter
 
 //--- RELAYS ---//
 struct relay_periph relay;
@@ -147,6 +152,7 @@ void StartDefaultTask(void const * argument);
 static void lightsTask(void * argument);
 static void relayTask(void * argument);
 void PSMTaskHandler(TimerHandle_t xTimer);
+void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
 void sendNewBMSRequest();
@@ -203,7 +209,6 @@ int main(void)
   //--- MCU OK LED ---//
   NVIC_EnableIRQ(TIM7_IRQn);
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
-
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
@@ -296,7 +301,8 @@ int main(void)
   configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
 
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(PSM_INTERVAL), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
 
 
@@ -387,7 +393,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = 2;
   RCC_OscInitStruct.PLL.PLLN = 16;
   RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
   RCC_OscInitStruct.PLL.PLLR = 2;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
@@ -403,13 +409,13 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -469,7 +475,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1517,27 +1523,53 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 void PSMTaskHandler(TimerHandle_t xTimer){
+	double HV_data[2];
+
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
+
+	taskENTER_CRITICAL();
+	//Insert into FIFO
+	if (PSM_FILTER_LIVE_INDEX == PSM_FIR_FILTER_SAMPLING_FREQ){ //Wrap around
+		PSM_FILTER_LIVE_INDEX = 0;
+	}
+
+	PSM_HV_FILTER_BUF_VOLTAGE[PSM_FILTER_LIVE_INDEX] = HV_data[0];
+	PSM_HV_FILTER_BUF_CURRENT[PSM_FILTER_LIVE_INDEX] = HV_data[1];
+
+	PSM_FILTER_LIVE_INDEX++;
+	taskEXIT_CRITICAL();
+}
+
+void measurementSender(TimerHandle_t xTimer){
 //Battery
 	uint8_t busMetrics_HV[3 * 4] = {0};
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
 
+	//Get HV average
 	taskENTER_CRITICAL();
-	//PSMRead will fill first element with voltage, second with current
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_HV, 2); //Battery output on channel #2
+	long double HV_voltage = 0;
+	long double HV_current = 0;
+
+	for (uint16_t i = 0; i < PSM_FIR_FILTER_SAMPLING_FREQ; i++){
+		HV_voltage += PSM_HV_FILTER_BUF_VOLTAGE[i];
+		HV_current += PSM_HV_FILTER_BUF_CURRENT[i];
+	}
+
+	HV_voltage /= PSM_FIR_FILTER_SAMPLING_FREQ;
+	HV_current /= PSM_FIR_FILTER_SAMPLING_FREQ;
+
+	//Update battery pack current global variable (used for BMS communication)
+	battery_current = (float) HV_current;
+
 	taskEXIT_CRITICAL();
 
 	//Check overcurrent protection
-	if (voltageCurrent_HV[1] >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
+	if (HV_current >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
 		battery_faulted_routine();
 	}
 
-	//Update battery pack current global variable (used for BMS communication)
-	taskENTER_CRITICAL();
-	battery_current = (float) voltageCurrent_HV[1];
-	taskEXIT_CRITICAL();
-
-	floatToArray((float) voltageCurrent_HV[0], busMetrics_HV + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) voltageCurrent_HV[1], busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+	floatToArray((float) HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
 
 	B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
 

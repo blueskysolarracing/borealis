@@ -87,7 +87,4 @@ typedef struct MitsubaMotor {
 MotorInterface* mitsubaMotor_init(MitsubaMotor* self);
 
 
-
-
-
 #endif /* INC_MITSUBA_MOTOR_H_ */
