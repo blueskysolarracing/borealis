@@ -185,7 +185,7 @@ static int mitsubaMotor_setForward(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	if (mitsubaMotor_isOn(interface)) {
-		HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_RESET);
 		self->isForward = 1;
 		return 1;
 	}
@@ -196,7 +196,7 @@ static int mitsubaMotor_setEco(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	if (mitsubaMotor_isOn(interface)) {
-//		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, ); //Need to confirm polarity with Nomura
+		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, GPIO_PIN_SET); //3.3V on MCMB turns off current on optoisolator, which opens optoisolator output (MC^2) and goes to ECO mode
 		self->ecoPwrState = ECO;
 		return 1;
 	}
@@ -207,7 +207,7 @@ static int mitsubaMotor_setPwr(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	if (mitsubaMotor_isOn(interface)) {
-//		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, ); //Need to confirm polarity with Nomura
+		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, GPIO_PIN_RESET); //0V on MCMB turns on current on optoisolator, which closes optoisolator output (MC^2) and goes to PWR mode
 		self->ecoPwrState = POWER;
 		return 1;
 	}
@@ -218,7 +218,7 @@ static int mitsubaMotor_setReverse(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	if (mitsubaMotor_isOn(interface)) {
-		HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_SET);
 		self->isForward = 0;
 		return 1;
 	}

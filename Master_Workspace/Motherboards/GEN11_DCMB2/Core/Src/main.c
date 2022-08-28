@@ -160,6 +160,7 @@ uint16_t motorTargetPower = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
 uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
+uint8_t ecoPwrState = 0;
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
@@ -1529,8 +1530,8 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
 	float accel_r_0 = 0.3494; //Resistance when pedal is unpressed (kR)
-	float accel_reading_upper_bound = 57000.0; //ADC reading corresponding to 100% power request
-	float accel_reading_lower_bound = 27000.0; //ADC reading corresponding to 0% power request
+	float accel_reading_upper_bound = 61000.0; //ADC reading corresponding to 0% power request
+	float accel_reading_lower_bound = 24250.0; //ADC reading corresponding to 100% power request
 	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 
 	while (1) {
@@ -1548,7 +1549,7 @@ static void pedalTask(const void* p) {
 		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
 
 		//Bound acceleration value
-		if (accelValue < 0){
+		if (accelValue < 0){ //Deadzone of 15
 			accelValue = 0;
 		} else if (accelValue > 256 ){
 			accelValue = 256;
@@ -1567,7 +1568,7 @@ static void pedalTask(const void* p) {
 		// Prioritize regen if both are pressed
 
 		if (accelValue > accel_reading_threshold) {
-			motorTargetPower = (uint16_t) accelValue - accel_reading_threshold;
+			motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
 			// Will not change motorState if in cruise
 			if (motorState != CRUISE){
 				motorState = PEDAL;
@@ -1913,10 +1914,10 @@ void sidePanelTask(const void *pv){
 				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
 				if (sidePanelData & (1 << 1)){
-					bufh[1] = 0b01000100; //AUX0 == 0 -> DRL on
+					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on
 					default_data.P2_DRL_state = 1;
 				} else {
-					bufh[1] = 0b00000100; //AUX0 == 1 -> DRL off
+					bufh[1] = 0b00000100; //AUX0 == 0 -> DRL off
 					default_data.P2_DRL_state = 0;
 				}
 				B_tcpSend(btcp, bufh, sizeof(bufh));
@@ -1928,11 +1929,11 @@ void sidePanelTask(const void *pv){
 					HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_RESET);
 				}
 
-			//AUX2 (not implemented in GEN11)
+			//AUX2 (ECO/PWR motor state control in GEN11)
 				if (sidePanelData & (1 << 3)){
-					//pass
+					ecoPwrState = 1;
 				} else {
-					//pass
+					ecoPwrState = 0;
 				}
 
 			//--- Update states ---//
@@ -2030,7 +2031,7 @@ void displayTask(const void *pv){
 			//Overwrite display state if battery fault
 			if (batteryState == FAULTED){
 				local_display_sel = 5; //Display battery faulted
-				 default_data.P2_motor_state = OFF;
+				default_data.P2_motor_state = OFF;
 			}
 
 			taskEXIT_CRITICAL();
@@ -2056,6 +2057,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	digitalButtons |= fwdRevState << 3;
 	digitalButtons |= vfmUpState << 2;
 	digitalButtons |= vfmDownState << 1;
+	digitalButtons |= ecoPwrState;
 
 	// disabled for now since there is no mechanical support for VFM gear shift
 //	if(vfmUpState == 1){

@@ -1884,7 +1884,7 @@ uint16_t ADC_poll_read(ADC_HandleTypeDef *hadcPtr) {
 
 // This function maps the ADC value to the actual ADC input voltage
 float ADCMapToVolt(float ADCValue) {
-	float ADCResolution = 4096; //ADC resolution should be 2^12 = 4096
+	float ADCResolution = 4096.0; //ADC resolution should be 2^12 = 4096
 	float ADCRefVoltage = 3.3;
 	return ADCValue / ADCResolution * ADCRefVoltage;
 }
@@ -1988,9 +1988,9 @@ static void motorTmr(TimerHandle_t xTimer){
 
 	//Set ECO/PWR mode
 	if (ecoPwrState == ECO){
-		mitsubaMotor_setEco(motor);
-	} else {
-		mitsubaMotor_setPwr(motor);
+		motor->setEco(motor);
+	} else if (ecoPwrState == POWER){
+		motor->setPwr(motor);
 	}
 
 	switch (motorState) {
