@@ -20,6 +20,8 @@ static int mitsubaMotor_isAccel(MotorInterface* interface);
 static int mitsubaMotor_isRegen(MotorInterface* interface);
 static int mitsubaMotor_turnOn(MotorInterface* interface);
 static int mitsubaMotor_turnOff(MotorInterface* interface);
+static int mitsubaMotor_setEco(MotorInterface* interface);
+static int mitsubaMotor_setPwr(MotorInterface* interface);
 static int mitsubaMotor_setForward(MotorInterface* interface);
 static int mitsubaMotor_setReverse(MotorInterface* interface);
 static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t val);
@@ -58,6 +60,8 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->turnOn = mitsubaMotor_turnOn;
 	interface->turnOff = mitsubaMotor_turnOff;
 	interface->setForward = mitsubaMotor_setForward;
+	interface->setEco = mitsubaMotor_setEco;
+	interface->setPwr = mitsubaMotor_setPwr;
 	interface->setReverse = mitsubaMotor_setReverse;
 	interface->setAccel = mitsubaMotor_setAccel;
 	interface->setRegen = mitsubaMotor_setRegen;
@@ -183,6 +187,28 @@ static int mitsubaMotor_setForward(MotorInterface* interface)
 	if (mitsubaMotor_isOn(interface)) {
 		HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_SET);
 		self->isForward = 1;
+		return 1;
+	}
+	return 0;
+}
+
+static int mitsubaMotor_setEco(MotorInterface* interface)
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	if (mitsubaMotor_isOn(interface)) {
+//		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, ); //Need to confirm polarity with Nomura
+		self->ecoPwrState = ECO;
+		return 1;
+	}
+	return 0;
+}
+
+static int mitsubaMotor_setPwr(MotorInterface* interface)
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	if (mitsubaMotor_isOn(interface)) {
+//		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, ); //Need to confirm polarity with Nomura
+		self->ecoPwrState = POWER;
 		return 1;
 	}
 	return 0;

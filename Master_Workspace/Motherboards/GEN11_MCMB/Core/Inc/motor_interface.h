@@ -26,6 +26,8 @@ typedef struct MotorInterface {
 	 */
 	int (*turnOn)(struct MotorInterface* self);
 	int (*turnOff)(struct MotorInterface* self);
+	int (*setEco)(struct MotorInterface* self);
+	int (*setPwr)(struct MotorInterface* self);
 	int (*setForward)(struct MotorInterface* self);
 	int (*setReverse)(struct MotorInterface* self);
 

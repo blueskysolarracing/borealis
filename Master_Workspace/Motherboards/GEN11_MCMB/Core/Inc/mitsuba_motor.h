@@ -76,11 +76,17 @@ typedef struct MitsubaMotor {
 	//uint32_t turnOnPeriod;
 	uint8_t isOn;
 	uint8_t isForward;
+	uint8_t ecoPwrState;
 	//uint32_t lastTurnOnTime;
 
 	TimerHandle_t turnOnTimerHandle;
 
 } MitsubaMotor;
+
+enum motorPowerState {
+	ECO,
+	POWER
+};
 
 // Note, you will need to set up the hardware perepherals yourself.
 // This init function only sets up the rest.

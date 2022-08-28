@@ -42,9 +42,9 @@
 /* USER CODE BEGIN PD */
 #define MOTOR 16
 #define FWD_REV 8
+#define ECO_PWR 1
 #define VFM_UP 4
 #define VFM_DOWN 2
-#define VFM_RESET 1
 
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 
@@ -133,6 +133,7 @@ float batteryVoltage = 0;
 // These are values from 5 digital buttons
 //uint8_t motorOnOff = 0; // 1 means motor is on, 0 means off (deprecated)
 uint8_t vfmUpState = 0;
+uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER (default to ECO)
 uint8_t gearUp = 0;
 uint8_t fwdRevState = 0;
 uint8_t vfmDownState = 0;
@@ -247,7 +248,6 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr);
 /*========== Helper functions for Cruise Control Implementation ========== */
 float PIDControllerUpdate(float setpoint, float measured);
 float speedToFrequency(uint8_t targetSpeed);
-
 
 /* USER CODE END PFP */
 
@@ -396,7 +396,7 @@ int main(void)
 
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
-  xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
+  xTimerStart(xTimerCreate("spdTimer", 100, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
@@ -1983,6 +1983,14 @@ static void motorTmr(TimerHandle_t xTimer){
 		}
 		return;
 	}
+
+	//Set ECO/PWR mode
+	if (ecoPwrState == ECO){
+		mitsubaMotor_setEco(motor);
+	} else {
+		mitsubaMotor_setPwr(motor);
+	}
+
 	switch (motorState) {
 		case OFF:
 			motor->turnOff(motor);
@@ -2087,7 +2095,6 @@ static void spdTmr(TimerHandle_t xTimer){
 		//Note: if 1 second passed and still no pwm interrupt, the car's wheel is turning once every 16 seconds or more
 		//This is very slow and we will simply set frequency to zero to avoid diffCapture growing too large or even becoming infinite
 		pwm_in.frequency = 0.0;
-
 	}
 	else {
 		pwm_in.frequency = 1000000.0 / pwm_in.diffCapture;
@@ -2098,17 +2105,12 @@ static void spdTmr(TimerHandle_t xTimer){
 	// Can divide by 16 and multiply by 60 for Rotation per min
 
 	// Get KM per Hour
-	float meterPerSecond = pwm_in.frequency / 16 * 1.7156;
-			// Note: 1.7156 = 0.5461 * pi  is the circumference of the wheel
-	uint8_t kmPerHour = meterPerSecond / 1000 * 3600;
+	float meterPerSecond = pwm_in.frequency / 16.0 * 1.5233;
+		// Note: 1.5233 = 0.4849 * pi  is the circumference of the wheel (Bridgestone Ecopia Solar Race Tire)
+	float kmPerHour = meterPerSecond / 1000.0 * 3600.0;
+
 	// Send frequency to DCMB (for now)
-	//buf[1] = pwm_in.frequency;
-	// Send motor speed to DCMB
-	buf[1] = kmPerHour;
-	//temp for testing
-//	static i = 0; i++;
-//	if (i > 99) i = 0;
-//	buf[1] = i;
+	buf[1] = (uint8_t) round(kmPerHour);
 
 	globalKmPerHour = kmPerHour; // used for debugger live expression
 
@@ -2151,6 +2153,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			//for 5 digital buttons (4 now):
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
+			ecoPwrState = pkt->data[2] & ECO_PWR; //ECO_PWR = 0b0001
+
 //			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
 //			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 //			if (vfmDownState != 0) {
