@@ -115,11 +115,10 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
   uint8_t oldSwitchState = 0;
-  uint8_t newSwitchState = getSwitchState();
 
-  //Data is collected as a byte with the following formatting: [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY] ([bit 7...bit 0])
-  //Data is sent: 1) When board first starts, 2) on any change in switch state
-  HAL_Delay(500); //Wait for 500ms until DCMB turns on. 
+
+  HAL_Delay(1000); //Wait for 1 second until DCMB turns on.
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -129,12 +128,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	 newSwitchState = getSwitchState();
+	  //Data is collected as a byte with the following formatting: [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY] ([bit 7...bit 0])
+	  //Data is sent: 1) When board first starts, 2) on any change in switch state
 	 uint8_t buf[4] = {BSSR_SERIAL_START, 0x04, newSwitchState, 0x00}; //Last byte is CRC, optional
 
 	  if (newSwitchState != oldSwitchState){ //Switches changed; need to send
 		  //print_switches();
-		  HAL_UART_Transmit(&huart2, &buf, 4, 10); //To DCMB
-		  HAL_UART_Transmit(&huart4, &buf, 4, 10); //To DCMB
+		  HAL_UART_Transmit(&huart2, buf, 4, 10); //To DCMB
+		  HAL_UART_Transmit(&huart4, buf, 4, 10); //To DEBUG
 	  }
 
 	  oldSwitchState = newSwitchState;
