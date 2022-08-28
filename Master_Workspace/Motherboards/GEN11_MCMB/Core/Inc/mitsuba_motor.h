@@ -83,10 +83,6 @@ typedef struct MitsubaMotor {
 
 } MitsubaMotor;
 
-enum motorPowerState {
-	ECO,
-	POWER
-};
 
 // Note, you will need to set up the hardware perepherals yourself.
 // This init function only sets up the rest.

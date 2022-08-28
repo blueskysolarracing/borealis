@@ -9,6 +9,12 @@
 
 #include "mitsuba_motor.h"
 
+enum motorPowerState {
+	ECO,
+	POWER
+};
+
+
 /* ================== Private function declaration (static) =========================*/
 static void mitsubaMotor_eepromInit(MotorInterface* interface);
 static void mitsubaMotor_vfmTimersInit(MotorInterface* interface);
@@ -79,6 +85,7 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
 	self->isForward = 1;
 	self->isOn = 0;
+	self->ecoPwrState = ECO;
 
 	// set motor pins to default state
 	HAL_GPIO_WritePin(self->fwdRevPort, self->fwdRevPin, GPIO_PIN_SET); // FwdRev (high is forward)
@@ -195,7 +202,7 @@ static int mitsubaMotor_setForward(MotorInterface* interface)
 static int mitsubaMotor_setEco(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (mitsubaMotor_isOn(interface)) {
+	if (mitsubaMotor_isOn(interface) && self->ecoPwrState != ECO) {
 		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, GPIO_PIN_SET); //3.3V on MCMB turns off current on optoisolator, which opens optoisolator output (MC^2) and goes to ECO mode
 		self->ecoPwrState = ECO;
 		return 1;
@@ -206,7 +213,7 @@ static int mitsubaMotor_setEco(MotorInterface* interface)
 static int mitsubaMotor_setPwr(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (mitsubaMotor_isOn(interface)) {
+	if (mitsubaMotor_isOn(interface) && self->ecoPwrState != POWER) {
 		HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, GPIO_PIN_RESET); //0V on MCMB turns on current on optoisolator, which closes optoisolator output (MC^2) and goes to PWR mode
 		self->ecoPwrState = POWER;
 		return 1;

@@ -123,6 +123,11 @@ typedef enum {
 	STANDBY
 } MOTORSTATE;
 
+enum motorPowerState {
+	ECO,
+	POWER
+};
+
 MOTORSTATE motorState; //see below for description
 //	[0] OFF (not reacting to any input)
 //	[1] PEDAL (motor power controlled by accelerator pedal)
@@ -1986,13 +1991,6 @@ static void motorTmr(TimerHandle_t xTimer){
 		return;
 	}
 
-	//Set ECO/PWR mode
-	if (ecoPwrState == ECO){
-		motor->setEco(motor);
-	} else if (ecoPwrState == POWER){
-		motor->setPwr(motor);
-	}
-
 	switch (motorState) {
 		case OFF:
 			motor->turnOff(motor);
@@ -2076,15 +2074,22 @@ static void motorTmr(TimerHandle_t xTimer){
 			}
 			break;
 	}
-
-	// Commented out since mechnical side does not support gear changes for vfm
-	/*if (gearUp && !gearDown) {
-		res = motor->gearUp(motor);
-		gearUp = 0;
-	} else if (gearDown) {
-		res = motor->gearDown(motor);
-		gearDown = 0;
-	}*/
+	//Set ECO/PWR mode
+	if (motor->isOn(motor)) {
+		if (ecoPwrState == ECO){
+			res = motor->setEco(motor);
+		} else if (ecoPwrState == POWER){
+			res = motor->setPwr(motor);
+		}
+		// Commented out since mechnical side does not support gear changes for vfm
+		/*if (gearUp && !gearDown) {
+			res = motor->gearUp(motor);
+			gearUp = 0;
+		} else if (gearDown) {
+			res = motor->gearDown(motor);
+			gearDown = 0;
+		}*/
+	}
 }
 
 // New implementation GEN11
