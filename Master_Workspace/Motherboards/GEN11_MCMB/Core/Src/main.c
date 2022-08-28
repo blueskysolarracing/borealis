@@ -46,6 +46,8 @@
 #define VFM_UP 4
 #define VFM_DOWN 2
 
+#define WHEEL_DIA 0.555625 //In meters
+
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 
 /* USER CODE END PD */
@@ -2105,8 +2107,7 @@ static void spdTmr(TimerHandle_t xTimer){
 	// Can divide by 16 and multiply by 60 for Rotation per min
 
 	// Get KM per Hour
-	float meterPerSecond = pwm_in.frequency / 16.0 * 1.5233;
-		// Note: 1.5233 = 0.4849 * pi  is the circumference of the wheel (Bridgestone Ecopia Solar Race Tire)
+	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
 	float kmPerHour = meterPerSecond / 1000.0 * 3600.0;
 
 	// Send frequency to DCMB (for now)
