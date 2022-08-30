@@ -108,13 +108,14 @@ QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
 
 //--- PSM ---//
-uint16_t PSM_FILTER_LIVE_INDEX = 0;
 struct PSM_Peripheral psmPeriph;
 float battery_current;
 double voltageCurrent_LV[2] = {0};
 double voltageCurrent_HV[2] = {0};
-double PSM_HV_FILTER_BUF_VOLTAGE[PSM_FIR_FILTER_SAMPLING_FREQ] = {0}; //This contains the samples that are passed through a moving average filter
-double PSM_HV_FILTER_BUF_CURRENT[PSM_FIR_FILTER_SAMPLING_FREQ] = {0}; //This contains the samples that are passed through a moving average filter
+
+struct PSM_FIR_Filter psmFilter;
+float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ] = {0};
+float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ] = {0};
 
 //--- RELAYS ---//
 struct relay_periph relay;
@@ -177,7 +178,8 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -228,6 +230,11 @@ int main(void)
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
+  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
+  psmFilter.buf_current = (int) PSM_FIR_HV_Current;
+  psmFilter.buf_voltage = (int) PSM_FIR_HV_Voltage;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ;
+
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
@@ -235,7 +242,6 @@ int main(void)
   double PSM_data[2];
   PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSM_data, 2);
   PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_data, 2);
-
 
   //--- RDB ---//
   relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
@@ -312,6 +318,7 @@ int main(void)
 	  relayCtrlMessage = 2;
 	  xQueueSend(relayCtrl, &relayCtrlMessage, 10);
   }
+
 
   //--- BATTERY ---//
   batteryState = HEALTHY;
@@ -1528,15 +1535,10 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
 
 	taskENTER_CRITICAL();
-	//Insert into FIFO
-	if (PSM_FILTER_LIVE_INDEX == PSM_FIR_FILTER_SAMPLING_FREQ){ //Wrap around
-		PSM_FILTER_LIVE_INDEX = 0;
-	}
 
-	PSM_HV_FILTER_BUF_VOLTAGE[PSM_FILTER_LIVE_INDEX] = HV_data[0];
-	PSM_HV_FILTER_BUF_CURRENT[PSM_FILTER_LIVE_INDEX] = HV_data[1];
+	psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
+	psmFilter.push(&psmFilter, (float) HV_data[1], CURRENT);
 
-	PSM_FILTER_LIVE_INDEX++;
 	taskEXIT_CRITICAL();
 }
 
@@ -1547,19 +1549,11 @@ void measurementSender(TimerHandle_t xTimer){
 
 	//Get HV average
 	taskENTER_CRITICAL();
-	long double HV_voltage = 0;
-	long double HV_current = 0;
-
-	for (uint16_t i = 0; i < PSM_FIR_FILTER_SAMPLING_FREQ; i++){
-		HV_voltage += PSM_HV_FILTER_BUF_VOLTAGE[i];
-		HV_current += PSM_HV_FILTER_BUF_CURRENT[i];
-	}
-
-	HV_voltage /= PSM_FIR_FILTER_SAMPLING_FREQ;
-	HV_current /= PSM_FIR_FILTER_SAMPLING_FREQ;
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
+	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
 
 	//Update battery pack current global variable (used for BMS communication)
-	battery_current = (float) HV_current;
+	battery_current = HV_current;
 
 	taskEXIT_CRITICAL();
 
@@ -1568,8 +1562,8 @@ void measurementSender(TimerHandle_t xTimer){
 		battery_faulted_routine();
 	}
 
-	floatToArray((float) HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
 
 	B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
 

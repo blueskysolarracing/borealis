@@ -115,10 +115,12 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
   uint8_t oldSwitchState = 0;
-
+  uint8_t newSwitchState = getSwitchState();
+  uint8_t buf[4] = {BSSR_SERIAL_START, 0x04, newSwitchState, 0x00}; //Last byte is CRC, optional
 
   HAL_Delay(1000); //Wait for 1 second until DCMB turns on.
-
+  HAL_UART_Transmit(&huart2, buf, 4, 10); //To DCMB
+  HAL_UART_Transmit(&huart4, buf, 4, 10); //To DEBUG
   /* USER CODE END 2 */
 
   /* Infinite loop */
