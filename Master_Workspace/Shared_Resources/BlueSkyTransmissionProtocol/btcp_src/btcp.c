@@ -82,6 +82,7 @@ B_tcpHandle_t* B_tcpStart(uint8_t senderID, B_uartHandle_t** transmitBuarts,
 void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 	
     //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
+	taskENTER_CRITICAL();
 	uint8_t* buf = btcp->txBuf;
     //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
@@ -163,13 +164,14 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
         B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
     }
-
+    taskEXIT_CRITICAL();
 }
 
 
 void B_tcpSendToBMS(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 
   //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
+	taskENTER_CRITICAL();
 	uint8_t* buf = btcp->txBuf;
   //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
@@ -247,13 +249,15 @@ void B_tcpSendToBMS(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
   for(int i = 0; i < btcp->numTransmitBuarts; i++){
       B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
   }
+  taskEXIT_CRITICAL();
 
 }
 
-// will cause caller thread to sleep until the message has been sent
+// will cause caller thread to wait or sleep until the message has been sent
 void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 
     //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
+	taskENTER_CRITICAL();
 	uint8_t* buf = btcp->txBuf;
     //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
@@ -331,6 +335,11 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
    }
 #endif
 
+#ifndef BUART_INTERRUPT_MODE
+    uint8_t *bufLocal = pvPortMalloc(sizeof(uint8_t)*(buf_pos));
+    memcpy(bufLocal, buf, buf_pos);
+#endif
+
 	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
 #ifdef BUART_INTERRUPT_MODE
@@ -339,12 +348,16 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 		while (btcp->transmitBuarts[i]->itTxCallbackFlag != 1) {}
 		btcp->transmitBuarts[i]->itTxCallbackFlag = 0;
 #else
-		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, buf, buf_pos);
+		taskEXIT_CRITICAL();
+		HAL_UART_Transmit_DMA(btcp->transmitBuarts[i]->huart, bufLocal, buf_pos);
 		xSemaphoreTake(btcp->transmitBuarts[i]->txSem, portMAX_DELAY);
-
+		taskENTER_CRITICAL();
 #endif
     }
-
+#ifndef BUART_INTERRUPT_MODE
+    vPortFree(bufLocal);
+#endif
+    taskEXIT_CRITICAL();
 }
 
 //  ######  ########    ###    ######## ####  ######
