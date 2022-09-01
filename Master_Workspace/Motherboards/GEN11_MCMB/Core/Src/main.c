@@ -50,6 +50,15 @@
 
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 
+//--- MOTOR ---//
+enum CRUISE_MODE {
+	CONSTANT_POWER,
+	CONSTANT_SPEED
+};
+
+#define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
+/* ^ Need to update in MCMB as well ^ */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -313,9 +322,11 @@ int main(void)
 
   //uint8_t SPI_START_VAL = 0b00010001;
 
+  //---- COMMS ---//
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
   btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
 
+  //--- MOTOR ---//
   mitsuba.mainPort = GPIOJ;
   mitsuba.mainPin = GPIO_PIN_5;
 
@@ -354,30 +365,11 @@ int main(void)
 
   motor = mitsubaMotor_init(&mitsuba);
 
-
-//  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
-//  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // ECO
-//  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2, GPIO_PIN_SET); // CS0
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET); // CS1
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); // VFM RESET
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET); // MT3
-//  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET); // MT2
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET); // MT1
-//  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
-//
-//
-//  // Note both regenValue and accValue are zero at the moment
-//
-//  //Gen11 regen write below:
+  //Gen11 regen write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //
 //  //Gen11 accel write below:
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
@@ -2048,7 +2040,13 @@ static void motorTmr(TimerHandle_t xTimer){
 				} else {
 					res = motor->setForward(motor);
 				}
-				// TODO: call pid controller update
+
+				//Update motor power
+				if (CRUISE_MODE == CONSTANT_POWER){
+					res = motor->setAccel(motor, targetPower);
+				} else if (CRUISE_MODE == CONSTANT_SPEED){
+					// TODO: call pid controller update
+				}
 			}
 
 			break;

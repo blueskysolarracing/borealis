@@ -1577,7 +1577,9 @@ static void pedalTask(const void* p) {
 		if (accelValue > accel_reading_threshold) {
 			// Will not change motorState if in cruise
 			if (motorState != CRUISE){
-				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
+				if (CRUISE_MODE == CONSTANT_SPEED){ //Only update if motor is in constant speed cruise mode (keep current power else)
+					motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
+				}
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
 			}
@@ -1587,8 +1589,6 @@ static void pedalTask(const void* p) {
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
-
-		}
 
 		//Turn off motor if needed. Overrides original motorState
 		if (ignitionState != IGNITION_ON){
@@ -1610,9 +1610,9 @@ float convertToAngle(uint16_t ADC_reading, uint8_t regen_or_accel){
 	//Convert ADC code of regen and accelerator pedal to angle in degrees
 
 	if (regen_or_accel){ //Accel
-		return (PEDAL_PULLUP * (ADC_reading / (65536 - 1)) - ACCEL_ZERO_RESISTANCE) / ACCEL_PEDAL_SLOPE;
+		return (PEDAL_PULLUP * (ADC_reading / (65536.0 - 1.0)) - ACCEL_ZERO_RESISTANCE) / ACCEL_PEDAL_SLOPE;
 	} else { //Regen
-		return (PEDAL_PULLUP * (ADC_reading / (65536 - 1)) - REGEN_ZERO_RESISTANCE) / REGEN_PEDAL_SLOPE;
+		return (PEDAL_PULLUP * (ADC_reading / (65536.0 - 1.0)) - REGEN_ZERO_RESISTANCE) / REGEN_PEDAL_SLOPE;
 	}
 }
 
@@ -2061,7 +2061,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 		default_data.P2_motor_state = OFF;
 	}
 
-	static uint8_t buf[10] = {0};
+	static uint8_t buf[12] = {0};
 
 	// -------- BUTTONS -------- //
 	uint8_t digitalButtons = 0;
@@ -2083,7 +2083,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[1] = motorState;
 	buf[2] = digitalButtons;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
-	floatToArray(motorTargetSpeed, &buf[6]);
+	floatToArray(motorTargetSpeed, &buf[8]);
 
 	B_tcpSend(btcp, buf, sizeof(buf));
 }
