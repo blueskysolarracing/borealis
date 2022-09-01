@@ -29,16 +29,14 @@ def fixLine(lineToChange)->str:
     return newLine
 
 def main():
-    projectFile = open('.project', 'r')
-    fileLines = projectFile.readlines()
-    projectFile.close()
-    projectFile = open('.project', 'w')
-    i = 0;
-    while i < len(fileLines):
-        if "/Shared_Resources" in fileLines[i]:
-            projectFile.write(fixLine(fileLines[i]))
-        else: 
-            projectFile.write(fileLines[i])
-        i += 1;
+    parent = os.path.dirname(os.path.abspath((__file__)))
+    with open(os.path.join(parent, '.project'), 'r') as projectFile:
+        fileLines = projectFile.readlines()
+    with open(os.path.join(parent, '.project'), 'w') as projectFile:
+        for line in fileLines:
+            if "/Shared_Resources" in line:
+                projectFile.write(fixLine(line))
+            else: 
+                projectFile.write(line)
 if __name__ == "__main__":
     main()

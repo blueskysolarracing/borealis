@@ -1950,13 +1950,15 @@ void sidePanelTask(const void *pv){
 			//--- Update states ---//
 			//ARRAY
 				uint8_t bufh3[4] = {DCMB_RELAYS_STATE_ID, batteryState, batteryRelayState, arrayRelayState};
-
-				if (sidePanelData & (1 << 0)){ //Array switch is ON (try to close relays)
-					if (batteryState != FAULTED){
-						bufh3[3] = CLOSED;
+				// will not respond to toggle the first time this runs. Forces user to toggle for safety reasons.
+				if (!firstTime) {
+					if (sidePanelData & (1 << 0)){ //Array switch is ON (try to close relays)
+						if (batteryState != FAULTED){
+							bufh3[3] = CLOSED;
+						}
+					} else { //Array switch is OFF (open relays)
+						bufh3[3] = OPEN;
 					}
-				} else { //Array switch is OFF (open relays)
-					bufh3[3] = OPEN;
 				}
 
 			//FWD/REV (change motor direction forward or reverse and turn on displays if reverse)
@@ -1969,7 +1971,7 @@ void sidePanelTask(const void *pv){
 				}
 
 			//IGNITION
-				// will not respond to ignition
+				// will not respond to ignition the first time this runs. Forces user to toggle ignition for safety reasons.
 				if (!firstTime) {
 					if (sidePanelData & (1 << 7)){ //Ignition ON
 						ignitionState = IGNITION_ON;

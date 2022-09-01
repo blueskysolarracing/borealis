@@ -2128,7 +2128,7 @@ void tempSenseTaskHandler(void* parameters) {
 		vTaskDelay(pdMS_TO_TICKS(1000));
 
 		buf[1] = temperature;
-//		B_tcpSend(btcp, buf, 4);
+//		B_tcpSend(btcp, buf, 4); // Temperature sense is not implemented hardware wise
 	}
 }
 
@@ -2177,32 +2177,6 @@ void serialParse(B_tcpPacket_t *pkt){
 		break;
 	}
 
-	// New way (deprecated)
-//	switch(pkt->senderID){
-//		  case DCMB_ID:
-//		    if(pkt->data[0] == DCMB_MC2_STATE_ID){
-//			  accValue = pkt->data[2];
-//			  regenValue = pkt->data[3];
-//			  motorState = pkt->data[1] & MOTOR; //Note MOTOR = 0b10000
-//		   	  fwdRevState = pkt->data[1] & FWD_REV; //FWD_REV = 0b1000
-//		   	  vfmUpState = pkt->data[1] & VFM_UP; //VFM_UP = 0b100
-//		   	  vfmDownState = pkt->data[1] & VFM_DOWN; //VFM_DOWN = 0b10
-//		   	  lastDcmbPacket = xTaskGetTickCount();
-//	      }
-//	}
-	// Old way (still supported if you need to do it this way)
-	/*switch(pkt->sender){
-	  case 0x04:
-	    if(pkt->payload[4] == 0x00){
-		  accValue = pkt->payload[6];
-		  regenValue = pkt->payload[7];
-		  motorState = pkt->payload[5] & MOTOR; //Note MOTOR = 0b10000
-	   	  fwdRevState = pkt->payload[5] & FWD_REV; //FWD_REV = 0b1000
-	   	  vfmUpState = pkt->payload[5] & VFM_UP; //VFM_UP = 0b100
-	   	  vfmDownState = pkt->payload[5] & VFM_DOWN; //VFM_DOWN = 0b10
-	   	  lastDcmbPacket = xTaskGetTickCount();
-      }
-	}*/
 }
 
 /** To read PWM diff capture from motor
