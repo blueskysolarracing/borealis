@@ -54,6 +54,7 @@
 #define TCP_ID BMS_ID
 #define LTC6810_INTERVAL 100 //Interval of reading LTC6810 measurements
 
+#define PWR_EN_HACK 1 //Hack where the gate of Q3 is connected to 12V to only turn on Q2 when 12V is present. Also, EN_PWR is set as an input instead of output as it should.
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -492,7 +493,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, EN_PWR_Pin|EN_BLN_PWR_Pin|MCU_LED_Pin|RS485_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, EN_BLN_PWR_Pin|MCU_LED_Pin|RS485_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PC13 LTC6810_CS_Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_13|LTC6810_CS_Pin;
@@ -514,8 +515,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BBMB_INT_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : EN_PWR_Pin EN_BLN_PWR_Pin MCU_LED_Pin RS485_EN_Pin */
-  GPIO_InitStruct.Pin = EN_PWR_Pin|EN_BLN_PWR_Pin|MCU_LED_Pin|RS485_EN_Pin;
+  /*Configure GPIO pin : EN_PWR_Pin */
+  GPIO_InitStruct.Pin = EN_PWR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(EN_PWR_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : EN_BLN_PWR_Pin MCU_LED_Pin RS485_EN_Pin */
+  GPIO_InitStruct.Pin = EN_BLN_PWR_Pin|MCU_LED_Pin|RS485_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -662,7 +669,9 @@ void LTC6810Handler(TimerHandle_t xTimer){
 void PWR_CHECK_Timer(TimerHandle_t xTimer){
 	uint8_t WKUP_signal = HAL_GPIO_ReadPin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin);
 
-	HAL_GPIO_WritePin(EN_PWR_GPIO_Port, EN_PWR_Pin, WKUP_signal);
+	if (PWR_EN_HACK == 0){ //If we have the hack on power enable (Vbatt transistor gate connected to 12V input)
+		HAL_GPIO_WritePin(EN_PWR_GPIO_Port, EN_PWR_Pin, WKUP_signal);
+	}
 
 	/*
 	 * As per ASC regulations, at startup and when the car is sleeping, the BMS needs to be powered by the 12V supplemental battery.

@@ -1572,23 +1572,19 @@ static void pedalTask(const void* p) {
 
 		// setting global motorTargetPower, motorState
 		taskENTER_CRITICAL();
-		// Prioritize regen if both are pressed
 
-		if (accelValue > accel_reading_threshold) {
-			// Will not change motorState if in cruise
-			if (motorState != CRUISE){
-				if (CRUISE_MODE == CONSTANT_SPEED){ //Only update if motor is in constant speed cruise mode (keep current power else)
-					motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
-				}
+		//Pedal has not effect when the motor is in cruise mode
+		if (motorState != CRUISE){
+			if (accelValue >= accel_reading_threshold) {
+				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
-			}
-		} else if (motorState != CRUISE) { //Don't turn off if the motor is in cruise
-			if (ignitionState == IGNITION_ON) {
+			} else { //Not in cruise and pedal isn't pressed, turn off motor
 				motorTargetPower = (uint16_t) 0;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
+		}
 
 		//Turn off motor if needed. Overrides original motorState
 		if (ignitionState != IGNITION_ON){
@@ -1807,8 +1803,8 @@ void steeringWheelTask(const void *pv){
 
     //Cruise - (Try to change) Motor state and send to MCMB
 	if (steeringData[1] & (1 << 4)){
-		if (motorState != CRUISE){ //If pressed and not already in cruise, try to put in cruise
-	    	if ((motorState != REGEN) && (motorState != OFF)){
+		if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), try to put in cruise
+	    	if ((motorState != REGEN) && (motorState != OFF) && (motorState != STANDBY)){
 	    		motorState = CRUISE; // change global motorState
 	    		default_data.P2_motor_state = CRUISE;
 	    	}
