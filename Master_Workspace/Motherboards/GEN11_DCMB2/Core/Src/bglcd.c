@@ -437,8 +437,9 @@ void drawP1BMSFault(){
 	if(faultCell != 0xFF){
 		x = 70;
 		char cellString[10] = {0};
-		sprintf(cellString, "(CELL %d)\0", faultCell);
+		sprintf(cellString, " (CELL %d)\0", faultCell);
 		ptr = cellString;
+
 		while(*ptr != '\0'){
 			glcd_tiny_draw_char_xy_white(x, correct_Y(y), *ptr);
 			x+=6;

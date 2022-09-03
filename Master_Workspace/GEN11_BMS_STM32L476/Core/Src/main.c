@@ -39,7 +39,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
-#define MY_ID 3 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
+#define MY_ID 1 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
 //BMS with 4 cells is ID 0. This is needed to send a fake nominal voltage of 3.7V to BBMB so as to not trip the system.
 
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//

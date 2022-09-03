@@ -2170,6 +2170,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			lastDcmbPacket = xTaskGetTickCount();
 		}
 		break;
+
 	  case BBMB_ID:
 		if(pkt->data[0] == BBMB_BUS_METRICS_ID){ //Get battery voltage to determine whether regen may be used
 			batteryVoltage = arrayToFloat(&pkt->data[4]);

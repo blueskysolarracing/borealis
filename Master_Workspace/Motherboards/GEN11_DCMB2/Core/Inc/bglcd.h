@@ -58,6 +58,7 @@ struct disp_detailed_frame{
 	 */
 	uint8_t faultType;
 	uint8_t faultCell;
+	uint8_t faultTherm;
 };
 
 extern struct disp_common common_data;

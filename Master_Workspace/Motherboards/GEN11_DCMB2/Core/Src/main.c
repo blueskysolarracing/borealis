@@ -1669,6 +1669,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			 batteryState = pkt->data[1];
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
+			 detailed_data.faultType = pkt->data[4];
+			 detailed_data.faultCell = pkt->data[5];
+			 detailed_data.faultTherm = pkt->data[6];
+
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 

@@ -157,7 +157,7 @@ void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
 void sendNewBMSRequest();
-void battery_faulted_routine();
+void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor);
 
 /* USER CODE END PFP */
 
@@ -1374,7 +1374,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				for (int i = 1; i < 4; i ++){ //3 thermistors
 					float temperature = arrayToFloat( &(pkt->data[4 * i]) );
 					if ( temperature > HV_BATT_OT_THRESHOLD ){
-						battery_faulted_routine();
+						battery_faulted_routine(0, 0, pkt->data[1]*3 + i - 1);
 					}
 				}
 
@@ -1389,8 +1389,11 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
 				for (int i = 1; i < 6; i ++){ //5 cells
 					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-					if ( (voltage > HV_BATT_OV_THRESHOLD) || ((voltage < HV_BATT_UV_THRESHOLD)) ){
-						battery_faulted_routine();
+					if ((voltage > HV_BATT_OV_THRESHOLD)){
+						battery_faulted_routine(1, pkt->data[1]*5 + i - 1, 0);
+
+					} else if (voltage < HV_BATT_UV_THRESHOLD){
+						battery_faulted_routine(2, pkt->data[1]*5 + i - 1, 0);
 					}
 				}
 
@@ -1559,7 +1562,7 @@ void measurementSender(TimerHandle_t xTimer){
 
 	//Check overcurrent protection
 	if (HV_current >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
-		battery_faulted_routine();
+		battery_faulted_routine(3, 0, 0);
 	}
 
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
@@ -1617,14 +1620,15 @@ void sendNewBMSRequest(){
 	B_tcpSendToBMS(btcp_bms, BMS_Request, sizeof(BMS_Request));
 }
 
-void battery_faulted_routine(){
+void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor){
 	//Call this function when the battery has faulted (OV, UV, OT, OC)
 
 	//Update globals
 	taskENTER_CRITICAL();
 	relayCtrlMessage = 1; //Command to open relays
 	batteryState = FAULTED;
-	uint8_t buf[4 * 1] = {BBMB_RELAYS_STATE_ID, FAULTED, OPEN, relay.array_relay_state};
+	uint8_t buf[4 * 2] = {	BBMB_RELAYS_STATE_ID, FAULTED, OPEN, relay.array_relay_state,
+							fault_type, fault_cell, fault_thermistor, 0};
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 	taskEXIT_CRITICAL();
 
