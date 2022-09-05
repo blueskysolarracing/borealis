@@ -90,8 +90,9 @@ float PSM_FIR_get_average(struct PSM_FIR_Filter* filter, uint8_t voltage_or_curr
 			accumulator += filter->buf_voltage[i];
 		}
 
-		return accumulator / filter->live_buf_length_voltage;
-
+		float average = accumulator / filter->live_buf_length_voltage;
+		filter->avg_voltage = average;
+		return average;
 
 	} else if (voltage_or_current == CURRENT) {
 
@@ -101,7 +102,9 @@ float PSM_FIR_get_average(struct PSM_FIR_Filter* filter, uint8_t voltage_or_curr
 			accumulator += filter->buf_current[i];
 		}
 
-		return accumulator / filter->live_buf_length_current;
+		float average = accumulator / filter->live_buf_length_current;
+		filter->avg_current = average;
+		return average;
 	}
 }
 

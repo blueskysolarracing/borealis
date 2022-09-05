@@ -41,7 +41,7 @@
 #define PWR_DWN_ENABLE 0 //Set to 1 to shutdown ADE7912s between measurements (WILL ADD ~100ms DELAY AS THE ISOLATED CONVERTERS NEED TO TURN ON). Saves ~10mA @ 3.3V
 #define WRITE_PROTECTION_ENABLE 1 //Set to 1 to disable write protection between reads/writes (saves time)
 #define PSM_SEND_INTERVAL 250 //250ms between measurements
-#define PSM_FIR_FILTER_SAMPLING_FREQ 100 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
+#define PSM_FIR_FILTER_SAMPLING_FREQ 125 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
 
 /* FIR averaging filter struct
  * The PSM library makes available the struct and functions needed to implement a FIFO buffer-based FIR averaging filter.

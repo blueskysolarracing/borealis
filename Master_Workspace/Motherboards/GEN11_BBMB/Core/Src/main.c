@@ -129,6 +129,11 @@ uint32_t BMS_tick_count_last_packet;
 
 //--- Battery ---/
 uint8_t batteryState;
+
+//--- Discharge test ---//
+float cellUnderTestVoltage = -1;
+float cellUnderTestSOC = -1;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -158,6 +163,8 @@ void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
 void sendNewBMSRequest();
 void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor);
+
+void dischargeTest(TimerHandle_t xTimer);
 
 /* USER CODE END PFP */
 
@@ -310,6 +317,7 @@ int main(void)
   configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
   configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
+  configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
 
 
   //--- RELAYS ---//
@@ -1336,14 +1344,14 @@ void serialParse(B_tcpPacket_t *pkt){
 					relayCtrlMessage = 1;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
 
-					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->payload[3]};
+					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->data[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 
 				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.battery_relay_state == OPEN)){ //Try to close relays
 					relayCtrlMessage = 2;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
 
-					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->payload[3]};
+					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->data[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 				}
 
@@ -1397,6 +1405,9 @@ void serialParse(B_tcpPacket_t *pkt){
 					}
 				}
 
+				//Update global for discharge test
+				if (pkt->data[1] == 0) cellUnderTestVoltage = arrayToFloat(&(pkt->data[4]));
+
 			//BMS SoC
 			} else if (pkt->data[0] == BMS_CELL_SOC_ID){
 				//Re-send on main bus
@@ -1405,7 +1416,8 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Update data received tracker
 				taskENTER_CRITICAL(); BMS_data_received[2] = RECEIVED; taskEXIT_CRITICAL(); //Need - 2 on index because BMS_CELL_SOC_ID == 0x04
 
-				//BBMB has nothing to do with SoC
+				//Update global for discharge test (cell #0 of BMS #0)
+				if (pkt->data[1] == 0) cellUnderTestSOC = arrayToFloat(&(pkt->data[4]));
 			}
 			break;
 
@@ -1420,8 +1432,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 	}
 }
-
-
 
 void relayTask(void * argument){
 	uint8_t buf_relay[10];
@@ -1602,6 +1612,13 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	}
 
 	taskEXIT_CRITICAL();
+}
+
+void dischargeTest(TimerHandle_t xTimer){
+	//Used to output CSV-formatted strings on UART2 to test discharge characteristics
+	char buf[100];
+
+	sprintf(buf, "%f, %f, %f\n", battery_current, cellUnderTestVoltage, cellUnderTestSOC);
 }
 
 void sendNewBMSRequest(){

@@ -50,6 +50,15 @@
 
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 
+//--- MOTOR ---//
+enum CRUISE_MODE {
+	CONSTANT_POWER,
+	CONSTANT_SPEED
+};
+
+#define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
+/* ^ Need to update in MCMB as well ^ */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -103,6 +112,10 @@ struct PSM_Peripheral psmPeriph;
 double voltageCurrent_Motor[2] = {0, 0};
 double voltageCurrent_Supp[2] = {0, 0};
 uint8_t busMetrics[20] = {0};
+
+struct PSM_FIR_Filter psmFilter;
+float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ] = {0};
+float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ] = {0};
 
 //--- COMMS ---//
 B_uartHandle_t *buart;
@@ -231,14 +244,11 @@ void StartDefaultTask(void const * argument);
 static void motorTmr(TimerHandle_t xTimer);
 static void spdTmr(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
-/* ============================================================*/
-
-//Cruise control task
-void cruiseControlTaskHandler(void* parameters);
-
-//Tasks for temperature reading and PSM and heartbeat
+void PSMTaskHandler(TimerHandle_t xTimer);
+void measurementSender(TimerHandle_t xTimer);
 void tempSenseTaskHandler(void* parameters);
-void PSMTaskHandler(void* parameters);
+void cruiseControlTaskHandler(void* parameters);
+/* ============================================================*/
 
 // function which writes to the MCP4146 potentiometer on the MC^2
 void MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr);
@@ -275,7 +285,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Resevt of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -313,9 +323,11 @@ int main(void)
 
   //uint8_t SPI_START_VAL = 0b00010001;
 
+  //---- COMMS ---//
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
   btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
 
+  //--- MOTOR ---//
   mitsuba.mainPort = GPIOJ;
   mitsuba.mainPin = GPIO_PIN_5;
 
@@ -354,30 +366,11 @@ int main(void)
 
   motor = mitsubaMotor_init(&mitsuba);
 
-
-//  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
-//  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // ECO
-//  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2, GPIO_PIN_SET); // CS0
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET); // CS1
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); // VFM RESET
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET); // MT3
-//  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET); // MT2
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET); // MT1
-//  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
-//
-//
-//  // Note both regenValue and accValue are zero at the moment
-//
-//  //Gen11 regen write below:
+  //Gen11 regen write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //
 //  //Gen11 accel write below:
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
@@ -397,14 +390,21 @@ int main(void)
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
+  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
+  psmFilter.buf_current = (int) PSM_FIR_HV_Current;
+  psmFilter.buf_voltage = (int) PSM_FIR_HV_Voltage;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ;
+
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
 
   //--- FREERTOS ---//
-  xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
-  xTimerStart(xTimerCreate("spdTimer", 100, pdTRUE, NULL, spdTmr), 0);
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  configASSERT(xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0));
+  configASSERT(xTimerStart(xTimerCreate("spdTimer", 100, pdTRUE, NULL, spdTmr), 0));
+  configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
+  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
   //MX_TIM5_Init(); //CubeMX fails to generate this line, thus call manually
@@ -441,28 +441,28 @@ int main(void)
 #endif
   /* add threads, ... */
 
-  BaseType_t status;
-//  TaskHandle_t tempSense_handle;
+//  BaseType_t status;
+////  TaskHandle_t tempSense_handle;
+////
+////	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
+////				"tempSenseTask", /* Text name for the task. */
+////				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
+////				"none", /* Parameter passed into the task. */
+////				4, /* Priority at which the task is created. */
+////				&tempSense_handle /* Used to pass out the created task's handle. */
+////							  );
+////	configASSERT(status == pdPASS); // Error checking
 //
-//	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
-//				"tempSenseTask", /* Text name for the task. */
-//				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
-//				"none", /* Parameter passed into the task. */
-//				4, /* Priority at which the task is created. */
-//				&tempSense_handle /* Used to pass out the created task's handle. */
-//							  );
-//	configASSERT(status == pdPASS); // Error checking
-
-	TaskHandle_t PSM_handle;
-
-	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
-				"PSMTask",  //Text name for the task.
-				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
-				"none",  //Parameter passed into the task.
-				4,  //Priority at which the task is created.
-				&PSM_handle  //Used to pass out the created task's handle.
-							);
-	configASSERT(status == pdPASS);// Error checking
+//	TaskHandle_t PSM_handle;
+//
+//	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
+//				"PSMTask",  //Text name for the task.
+//				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+//				"none",  //Parameter passed into the task.
+//				4,  //Priority at which the task is created.
+//				&PSM_handle  //Used to pass out the created task's handle.
+//							);
+//	configASSERT(status == pdPASS);// Error checking
 
 	TaskHandle_t cruiseControl_handle;
 
@@ -946,7 +946,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -2048,7 +2048,13 @@ static void motorTmr(TimerHandle_t xTimer){
 				} else {
 					res = motor->setForward(motor);
 				}
-				// TODO: call pid controller update
+
+				//Update motor power
+				if (CRUISE_MODE == CONSTANT_POWER){
+					res = motor->setAccel(motor, targetPower);
+				} else if (CRUISE_MODE == CONSTANT_SPEED){
+					// TODO: call pid controller update
+				}
 			}
 
 			break;
@@ -2115,7 +2121,7 @@ static void spdTmr(TimerHandle_t xTimer){
 	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
 	float kmPerHour = meterPerSecond / 1000.0 * 3600.0;
 
-	// Send speed to DCMB
+	// Send frequency to DCMB (for now)
 	buf[1] = (uint8_t) round(kmPerHour);
 
 	globalKmPerHour = kmPerHour; // used for debugger live expression
@@ -2130,7 +2136,7 @@ void tempSenseTaskHandler(void* parameters) {
 		vTaskDelay(pdMS_TO_TICKS(1000));
 
 		buf[1] = temperature;
-//		B_tcpSend(btcp, buf, 4);
+//		B_tcpSend(btcp, buf, 4); // Temperature sense is not implemented hardware wise
 	}
 }
 
@@ -2172,6 +2178,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			lastDcmbPacket = xTaskGetTickCount();
 		}
 		break;
+
 	  case BBMB_ID:
 		if(pkt->data[0] == BBMB_BUS_METRICS_ID){ //Get battery voltage to determine whether regen may be used
 			batteryVoltage = arrayToFloat(&pkt->data[4]);
@@ -2179,32 +2186,6 @@ void serialParse(B_tcpPacket_t *pkt){
 		break;
 	}
 
-	// New way (deprecated)
-//	switch(pkt->senderID){
-//		  case DCMB_ID:
-//		    if(pkt->data[0] == DCMB_MC2_STATE_ID){
-//			  accValue = pkt->data[2];
-//			  regenValue = pkt->data[3];
-//			  motorState = pkt->data[1] & MOTOR; //Note MOTOR = 0b10000
-//		   	  fwdRevState = pkt->data[1] & FWD_REV; //FWD_REV = 0b1000
-//		   	  vfmUpState = pkt->data[1] & VFM_UP; //VFM_UP = 0b100
-//		   	  vfmDownState = pkt->data[1] & VFM_DOWN; //VFM_DOWN = 0b10
-//		   	  lastDcmbPacket = xTaskGetTickCount();
-//	      }
-//	}
-	// Old way (still supported if you need to do it this way)
-	/*switch(pkt->sender){
-	  case 0x04:
-	    if(pkt->payload[4] == 0x00){
-		  accValue = pkt->payload[6];
-		  regenValue = pkt->payload[7];
-		  motorState = pkt->payload[5] & MOTOR; //Note MOTOR = 0b10000
-	   	  fwdRevState = pkt->payload[5] & FWD_REV; //FWD_REV = 0b1000
-	   	  vfmUpState = pkt->payload[5] & VFM_UP; //VFM_UP = 0b100
-	   	  vfmDownState = pkt->payload[5] & VFM_DOWN; //VFM_DOWN = 0b10
-	   	  lastDcmbPacket = xTaskGetTickCount();
-      }
-	}*/
 }
 
 /** To read PWM diff capture from motor
@@ -2260,40 +2241,83 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	}
 }
 
-void PSMTaskHandler(void* parameters){
-	uint8_t busMetrics[3 * 4] = {0};
-	uint8_t suppBatteryMetrics[2 * 4] = {0};
-	double voltageCurrent_Motor_local[2] = {0, 0};
-	double voltageCurrent_Supp_local[2] = {0, 0};
+void PSMTaskHandler(TimerHandle_t xTimer){
+	double HV_data[2];
 
-	busMetrics[0] = MCMB_BUS_METRICS_ID;
-	suppBatteryMetrics[0] = MCMB_SUPP_BATT_VOLTAGE_ID;
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data, 2);
 
-	while (1) {
-		//Motor on channel #1
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_Motor_local, 2);
-		floatToArray((float) voltageCurrent_Motor_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
-		floatToArray((float) voltageCurrent_Motor_local[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+	taskENTER_CRITICAL();
 
-		//Supplemental battery on channel #2
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
-		floatToArray((float) voltageCurrent_Supp_local[0], suppBatteryMetrics + 4); // fills 4 - 7 of suppBatteryMetrics
+	psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
+	psmFilter.push(&psmFilter, (float) HV_data[1], CURRENT);
 
-		//Send to bus
-		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
-		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
-
-		taskENTER_CRITICAL();
-		//Place in global variables
-		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
-		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
-		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
-		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
-		batteryVoltage = (float) voltageCurrent_Motor_local[0];
-		taskEXIT_CRITICAL();
-		vTaskDelay(1000);
-	}
+	taskEXIT_CRITICAL();
 }
+
+void measurementSender(TimerHandle_t xTimer){
+//Motor
+	uint8_t busMetrics_HV[3 * 4];
+	busMetrics_HV[0] = MCMB_BUS_METRICS_ID;
+
+	//Get HV average
+	taskENTER_CRITICAL();
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
+	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+	taskEXIT_CRITICAL();
+
+	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+
+	B_tcpSend(btcp, busMetrics_HV, sizeof(busMetrics_HV));
+
+//Supp
+	double voltageCurrent_supp[2];
+	uint8_t busMetrics_supp[2 * 4] = {0};
+	busMetrics_supp[0] = MCMB_SUPP_BATT_VOLTAGE_ID;
+
+	taskENTER_CRITICAL();
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_supp, 2);
+	taskEXIT_CRITICAL();
+
+	floatToArray((float) voltageCurrent_supp[0], busMetrics_supp + 4); // fills 4 - 7 of busMetrics_supp
+
+	B_tcpSend(btcp, busMetrics_supp, sizeof(busMetrics_supp));
+}
+
+//void PSMTaskHandler(void* parameters){
+//	uint8_t busMetrics[3 * 4] = {0};
+//	uint8_t suppBatteryMetrics[2 * 4] = {0};
+//	double voltageCurrent_Motor_local[2] = {0, 0};
+//	double voltageCurrent_Supp_local[2] = {0, 0};
+//
+//	busMetrics[0] = MCMB_BUS_METRICS_ID;
+//	suppBatteryMetrics[0] = MCMB_SUPP_BATT_VOLTAGE_ID;
+//
+//	while (1) {
+//		//Motor on channel #1
+//		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_Motor_local, 2);
+//		floatToArray((float) voltageCurrent_Motor_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+//		floatToArray((float) voltageCurrent_Motor_local[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+//
+//		//Supplemental battery on channel #2
+//		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
+//		floatToArray((float) voltageCurrent_Supp_local[0], suppBatteryMetrics + 4); // fills 4 - 7 of suppBatteryMetrics
+//
+//		//Send to bus
+//		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+//		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
+//
+//		taskENTER_CRITICAL();
+//		//Place in global variables
+//		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
+//		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
+//		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
+//		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
+//		batteryVoltage = (float) voltageCurrent_Motor_local[0];
+//		taskEXIT_CRITICAL();
+//		vTaskDelay(1000);
+//	}
+//}
 
 void HeartbeatHandler(TimerHandle_t xTimer){
 	//Send periodic heartbeat so we know the board is still running

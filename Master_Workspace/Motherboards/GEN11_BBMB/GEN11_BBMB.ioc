@@ -590,4 +590,3 @@ VP_TIM3_VS_ControllerModeGated.Signal=TIM3_VS_ControllerModeGated
 VP_TIM7_VS_ClockSourceINT.Mode=Enable_Timer
 VP_TIM7_VS_ClockSourceINT.Signal=TIM7_VS_ClockSourceINT
 board=custom
-isbadioc=false
