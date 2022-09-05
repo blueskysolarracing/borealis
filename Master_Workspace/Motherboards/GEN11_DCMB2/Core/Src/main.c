@@ -167,7 +167,7 @@ uint16_t motorTargetPower = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
 uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
-uint8_t ecoPwrState = 0;
+uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
@@ -1927,9 +1927,12 @@ void sidePanelTask(const void *pv){
 				if (sidePanelData & (1 << 1)){
 					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on
 					default_data.P2_DRL_state = 1;
+					default_data.light = 1;
+
 				} else {
 					bufh[1] = 0b00000100; //AUX0 == 0 -> DRL off
 					default_data.P2_DRL_state = 0;
+					default_data.light = 0;
 				}
 				B_tcpSend(btcp, bufh, sizeof(bufh));
 
@@ -1942,9 +1945,11 @@ void sidePanelTask(const void *pv){
 
 			//AUX2 (ECO/PWR motor state control in GEN11)
 				if (sidePanelData & (1 << 3)){
-					ecoPwrState = 1;
+					ecoPwrState = 1; //1 is PWR
+					default_data.eco = 1;
 				} else {
-					ecoPwrState = 0;
+					ecoPwrState = 0; //0 is ECO
+					default_data.eco = 0;
 				}
 
 			//--- Update states ---//

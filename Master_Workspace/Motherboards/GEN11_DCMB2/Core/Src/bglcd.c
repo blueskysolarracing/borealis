@@ -213,7 +213,7 @@ void drawP1DefaultNew(/*int value[4]*/){
 	// draw icons
 	y = 52;
 	uint8_t x = 10;
-	if(default_data.eco){
+	if(~default_data.eco){
 		for(int i = 0; i < 12; i++){
 			for(int j = 0; j < 12; j++){
 				if(leaf[i][j])
