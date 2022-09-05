@@ -178,7 +178,6 @@ void drawP1DefaultNew(/*int value[4]*/){
 						(short)(default_data.P1_speed_kph)};
 
 	char labelsP1[3][14] = {0};
-	char speed[5] = {0};
 	int labelsP1L = 3;
 	char* labelspeed = "km/h";
 
@@ -195,8 +194,6 @@ void drawP1DefaultNew(/*int value[4]*/){
 	if(value[2] >= 0) sprintf(labelsP1[2], "Batt:  +%4dW\0", value[2]);
 	else sprintf(labelsP1[2], "Batt:  -%4dW\0", abs(value[2]));
 
-	sprintf(speed, "%4d", value[3]);
-
 	// start drawing at y = 5
 	uint8_t y = 5;
 
@@ -210,35 +207,12 @@ void drawP1DefaultNew(/*int value[4]*/){
 			j++;
 		}
 		// go next rows, these value are just what I think will look good
-		y+=8;
-	}
-
-	// draw divider line
-	glcd_draw_line(81, 0,  81, 63, BLACK);
-	int x = 0;
-	// draw km/h
-	while(labelspeed[x] != 0){
-		glcd_tiny_draw_char_xy(94+(x*6), correct_Y(52), labelspeed[x]);
-		x++;
-	}
-
-	// now write the big speed
-	if(value[3] < 100){
-		glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-		glcd_draw_char_xy(85, correct_Y(16), speed[2]);
-		glcd_draw_char_xy(105, correct_Y(16), speed[3]);
-	}
-	else{
-		glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
-		for(int i = 1; i < 4; i++){
-			glcd_draw_char_xy(85+((i-1)*13), correct_Y(19), speed[i]);
-		}
-		// speed >= 100, case for three digits
+		y+=15;
 	}
 
 	// draw icons
 	y = 52;
-	x = 10;
+	uint8_t x = 10;
 	if(default_data.eco){
 		for(int i = 0; i < 12; i++){
 			for(int j = 0; j < 12; j++){
@@ -250,11 +224,11 @@ void drawP1DefaultNew(/*int value[4]*/){
 	x = 32;
 	if(default_data.direction){
 		glcd_fill_rect(x, correct_Y(y+1), 13, 11, 1);
-		glcd_tiny_draw_char_xy_white(x+4, correct_Y(y+2), 'F');
+		glcd_tiny_draw_char_xy_white(x+4, correct_Y(y+1), 'F');
 	}
 	else{
 		glcd_fill_rect(x, correct_Y(y+1), 13, 11, 1);
-		glcd_tiny_draw_char_xy_white(x+4, correct_Y(y+2), 'R');
+		glcd_tiny_draw_char_xy_white(x+4, correct_Y(y+1), 'R');
 	}
 	x = 54;
 	if(default_data.light){
@@ -266,6 +240,31 @@ void drawP1DefaultNew(/*int value[4]*/){
 		}
 	}
 
+
+	// draw divider line
+	glcd_draw_line(81, 0,  81, 63, BLACK);
+	x = 0;
+	// draw km/h
+	while(labelspeed[x] != 0){
+		glcd_tiny_draw_char_xy(94+(x*6), correct_Y(52), labelspeed[x]);
+		x++;
+	}
+
+	// now write the big speed
+	if(value[3] < 100){
+		glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
+		if(value[3] >= 10)glcd_draw_char_xy(85, correct_Y(16), (value[3]/10) + '0');
+		glcd_draw_char_xy(105, correct_Y(16), (value[3]%10) + '0');
+	}
+	else{
+		glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
+		char valueS[4] = {0};
+		sprintf(valueS, "%3d", value[3]);
+		for(int i = 0; i < 3; i++){
+			glcd_draw_char_xy(85+(i*13), correct_Y(19), valueS[i]);
+		}
+		// speed >= 100, case for three digits
+	}
 
 	glcd_write();
 }
