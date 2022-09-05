@@ -223,11 +223,11 @@ void drawP1DefaultNew(/*int value[4]*/){
 	}
 	x = 32;
 	if(default_data.direction){
-		glcd_fill_rect(x, correct_Y(y+1), 13, 11, 1);
+		glcd_fill_rect(x, correct_Y(y-1), 13, 11, 1);
 		glcd_tiny_draw_char_xy_white(x+4, correct_Y(y+1), 'F');
 	}
 	else{
-		glcd_fill_rect(x, correct_Y(y+1), 13, 11, 1);
+		glcd_fill_rect(x, correct_Y(y-1), 13, 11, 1);
 		glcd_tiny_draw_char_xy_white(x+4, correct_Y(y+1), 'R');
 	}
 	x = 54;
