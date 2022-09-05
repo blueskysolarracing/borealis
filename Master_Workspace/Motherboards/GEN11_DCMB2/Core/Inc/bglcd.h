@@ -25,6 +25,8 @@ struct disp_default_frame{
 	uint8_t	P1_left_indicator_status;
 	// 0 rev, 1 fwd
 	uint8_t direction;
+	uint8_t eco;
+	uint8_t light;
 
 	uint8_t	P2_DRL_state;
 	uint8_t	P2_motor_state;
