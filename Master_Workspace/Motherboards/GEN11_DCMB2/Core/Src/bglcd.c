@@ -517,7 +517,8 @@ void drawP1(uint8_t sel){
 
 	switch(sel){
 	case 0:
-		drawP1Default(/*defaultTest*/);
+//		drawP1Default(/*defaultTest*/);
+		drawP1DefaultNew();
 		break;
 	case 1:
 		drawP1Detailed(/*defaultDetailed*/);

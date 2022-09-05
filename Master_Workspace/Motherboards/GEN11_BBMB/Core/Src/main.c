@@ -49,12 +49,12 @@
 #define HV_BATT_UV_THRESHOLD 	2.50 	//Should be set to 2.50V
 #define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
 
-#define NUM_BATT_CELLS 			29 //Number of series parallel groups in battery pack
-#define NUM_BMS					6 //Number of BMS to read from
-#define NUM_BATT_TEMP_SENSORS 	3 * 6 //Number of temperature sensors in battery pack
-#define BMS_READ_INTERVAL 		200//(Other intervals defined in psm.h and btcp.h). It also implicitely calculates a new SoC estimation on the BMS.
-#define BMS_FLT_CHECK_INTERVAL 	10 //Interval at which to read the BMS_FLT pin
-#define PROTECTION_ENABLE 		1 //Flag to enable (1) or disable (0) relay control
+#define NUM_BATT_CELLS 			29 		//Number of series parallel groups in battery pack
+#define NUM_BMS					6 		//Number of BMS to read from
+#define NUM_BATT_TEMP_SENSORS 	3 * 6 	//Number of temperature sensors in battery pack
+#define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h). It also implicitely calculates a new SoC estimation on the BMS.
+#define BMS_FLT_CHECK_INTERVAL 	10 		//Interval at which to read the BMS_FLT pin
+#define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
 
 /* USER CODE END PD */
 
@@ -114,8 +114,8 @@ double voltageCurrent_LV[2] = {0};
 double voltageCurrent_HV[2] = {0};
 
 struct PSM_FIR_Filter psmFilter;
-float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ] = {0};
-float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ] = {0};
+float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
+float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
 
 //--- RELAYS ---//
 struct relay_periph relay;
@@ -240,7 +240,7 @@ int main(void)
   PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
   psmFilter.buf_current = (int) PSM_FIR_HV_Current;
   psmFilter.buf_voltage = (int) PSM_FIR_HV_Voltage;
-  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_BBMB;
 
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
@@ -314,7 +314,7 @@ int main(void)
   configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
 
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
   configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
   configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
