@@ -1325,7 +1325,7 @@ void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
-				taskENTER_CRITICAL();	relay.array_relay_state = pkt->data[3];	taskEXIT_CRITICAL();
+				vTaskSuspendAll();	relay.array_relay_state = pkt->data[3];	xTaskResumeAll();
 			}
 
 			break;
@@ -1338,7 +1338,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			//Relays
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
-				taskENTER_CRITICAL();
+				vTaskSuspendAll();
 
 				if ((pkt->data[2] == OPEN) && (relay.battery_relay_state == CLOSED)){ //Open relays and resend
 					relayCtrlMessage = 1;
@@ -1355,7 +1355,7 @@ void serialParse(B_tcpPacket_t *pkt){
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 				}
 
-				taskEXIT_CRITICAL();
+				xTaskResumeAll();
 
 			//Horn
 			} else if (pkt->data[0] == DCMB_STEERING_WHEEL_ID){
@@ -1376,7 +1376,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Update data received tracker
-				taskENTER_CRITICAL(); BMS_data_received[0] = RECEIVED; taskEXIT_CRITICAL();
+				vTaskSuspendAll(); BMS_data_received[0] = RECEIVED; xTaskResumeAll();
 
 				//Check for overtemperature for each cell and call routine when battery has faulted
 				for (int i = 1; i < 4; i ++){ //3 thermistors
@@ -1392,7 +1392,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Update data received tracker
-				taskENTER_CRITICAL(); BMS_data_received[1] = RECEIVED; taskEXIT_CRITICAL();
+				vTaskSuspendAll(); BMS_data_received[1] = RECEIVED; xTaskResumeAll();
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
 				for (int i = 1; i < 6; i ++){ //5 cells
@@ -1414,7 +1414,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Update data received tracker
-				taskENTER_CRITICAL(); BMS_data_received[2] = RECEIVED; taskEXIT_CRITICAL(); //Need - 2 on index because BMS_CELL_SOC_ID == 0x04
+				vTaskSuspendAll(); BMS_data_received[2] = RECEIVED; xTaskResumeAll(); //Need - 2 on index because BMS_CELL_SOC_ID == 0x04
 
 				//Update global for discharge test (cell #0 of BMS #0)
 				if (pkt->data[1] == 0) cellUnderTestSOC = arrayToFloat(&(pkt->data[4]));
@@ -1547,12 +1547,12 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
 
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 
 	psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
 	psmFilter.push(&psmFilter, (float) HV_data[1], CURRENT);
 
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 }
 
 void measurementSender(TimerHandle_t xTimer){
@@ -1561,14 +1561,14 @@ void measurementSender(TimerHandle_t xTimer){
 	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
 
 	//Get HV average
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
 	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
 
 	//Update battery pack current global variable (used for BMS communication)
 	battery_current = HV_current;
 
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 
 	//Check overcurrent protection
 	if (HV_current >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
@@ -1584,9 +1584,9 @@ void measurementSender(TimerHandle_t xTimer){
 	uint8_t busMetrics_LV[3 * 4] = {0};
 	busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
 
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_LV, 2);
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 
 	floatToArray((float) voltageCurrent_LV[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
 	floatToArray((float) voltageCurrent_LV[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
@@ -1598,7 +1598,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	/*Used to request BMS readings. The rest is handled by serialParse.
 	*/
 
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 	//If all data from a BMS has been received, we are ready to read the next
 	if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
 		sendNewBMSRequest();
@@ -1611,7 +1611,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 		sendNewBMSRequest();
 	}
 
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 }
 
 void dischargeTest(TimerHandle_t xTimer){
@@ -1641,13 +1641,13 @@ void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fau
 	//Call this function when the battery has faulted (OV, UV, OT, OC)
 
 	//Update globals
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 	relayCtrlMessage = 1; //Command to open relays
 	batteryState = FAULTED;
 	uint8_t buf[4 * 2] = {	BBMB_RELAYS_STATE_ID, FAULTED, OPEN, relay.array_relay_state,
 							fault_type, fault_cell, fault_thermistor, 0};
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 
 	//Open relays
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);

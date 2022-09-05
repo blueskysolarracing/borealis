@@ -171,6 +171,11 @@ uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
+uint8_t brakePressed = 0;
+typedef enum {
+	BRAKE_PRESSED,
+	BRAKE_RELEASED,
+} BRAKESTATE;
 
 //--- SIDE PANEL BOARD ---//
 typedef enum {
@@ -178,7 +183,6 @@ typedef enum {
 	IGNITION_OFF,
 } IGNITIONSTATE;
 
-uint8_t sidePanelData;
 uint8_t ignitionState = IGNITION_OFF;
 
 //--- STEERING WHEEL ---//
@@ -1379,6 +1383,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -1435,6 +1440,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : brakeDetect_Pin */
+  GPIO_InitStruct.Pin = brakeDetect_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(brakeDetect_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : GPIO_IN0_Pin */
   GPIO_InitStruct.Pin = GPIO_IN0_Pin;
@@ -1540,16 +1551,37 @@ static void pedalTask(const void* p) {
 	float accel_reading_upper_bound = 61000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_lower_bound = 24250.0; //ADC reading corresponding to 100% power request
 	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
-
+	uint8_t brakeState = BRAKE_RELEASED;
+	uint8_t prevBrakeState = brakeState;
 	while (1) {
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
-			taskENTER_CRITICAL();
+			vTaskSuspendAll();
 			HAL_ADC_Start(&hadc1);
 			HAL_ADC_PollForConversion(&hadc1, 10);
 			float currentVal = HAL_ADC_GetValue(&hadc1);
 			accelReading += currentVal;
-			taskEXIT_CRITICAL();
+			xTaskResumeAll();
+		}
+
+		// Check if brake is pressed
+		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
+			brakeState = BRAKE_PRESSED;
+		} else {
+			brakeState = BRAKE_RELEASED;
+		}
+		// send command to turn on/off brake lights if brakeState has changed
+		if (brakeState != prevBrakeState) {
+			prevBrakeState = brakeState;
+		    uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			if (brakeState == BRAKE_PRESSED) {
+				// turn on brake lights
+				bufh2[1] = 0b01001000;
+			} else {
+				// turn off brake lights
+				bufh2[1] = 0b00001000;
+			}
+		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
 		}
 
 		//Compute value on 0-256 scale
@@ -1562,8 +1594,6 @@ static void pedalTask(const void* p) {
 			accelValue = 256;
 		}
 
-		//Check if we need to turn on braking lights
-
 		//Try to catch if accel pedal cable is cut
 		//Since pedal pot is pull-up, if the cable is cut, the ADC reading will be very low
 		if ((accelReading/ADC_NUM_AVG) < 5000){
@@ -1571,11 +1601,11 @@ static void pedalTask(const void* p) {
 		}
 
 		// setting global motorTargetPower, motorState
-		taskENTER_CRITICAL();
+		vTaskSuspendAll();
 
 		//Pedal has not effect when the motor is in cruise mode
 		if (motorState != CRUISE){
-			if (accelValue >= accel_reading_threshold) {
+			if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
 				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
@@ -1593,7 +1623,7 @@ static void pedalTask(const void* p) {
 			default_data.P2_motor_state = OFF;
 		}
 
-		taskEXIT_CRITICAL();
+		xTaskResumeAll();
 
 		//Reset variables for next averaging
 		accelReading = 0;
@@ -1619,7 +1649,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 void serialParse(B_tcpPacket_t *pkt){
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 
 	switch(pkt->sender){
 	case PPTMB_ID:
@@ -1724,7 +1754,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		 break;
 	}
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 }
 
 void steeringWheelTask(const void *pv){
@@ -1741,7 +1771,7 @@ void steeringWheelTask(const void *pv){
   for(;;){
 	  B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
 
-	  taskENTER_CRITICAL();
+	  vTaskSuspendAll();
 	//Save old data
 	for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
 
@@ -1759,10 +1789,10 @@ void steeringWheelTask(const void *pv){
 
 	//------- Send to RS485 bus -------//
     uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
-    taskEXIT_CRITICAL();
+    xTaskResumeAll();
     B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
 
-    taskENTER_CRITICAL();
+    vTaskSuspendAll();
 	//---------- Process data ----------//
 	// Navigation <- Not implemented
 	// Cruise <- Not implemented
@@ -1777,11 +1807,11 @@ void steeringWheelTask(const void *pv){
     	bufh1[1] = 0b00000010;
     	default_data.P1_left_indicator_status = 1;
 	}
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 
     B_tcpSend(btcp, bufh1, sizeof(bufh1));
 
-    taskENTER_CRITICAL();
+    vTaskSuspendAll();
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
     //Right indicator - SEND TO BBMB
 	if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Retract lights
@@ -1791,11 +1821,11 @@ void steeringWheelTask(const void *pv){
     	bufh2[1] = 0b00000011;
     	default_data.P2_right_indicator_status = 1;
     }
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 
     B_tcpSend(btcp, bufh2, sizeof(bufh2));
 
-    taskENTER_CRITICAL();
+    vTaskSuspendAll();
     //Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
 
     //Encoder - Set car motor global values
@@ -1878,27 +1908,32 @@ void steeringWheelTask(const void *pv){
 	}
 	oldRightButton = (steeringData[2] & (1 << 3));
 
-	taskEXIT_CRITICAL(); // exit critical section
+	xTaskResumeAll(); // exit critical section
     }
 }
 
 void sidePanelTask(const void *pv){
 // {0xa5, 0x04, sidePanelData, CRC};
 // sidePanelData is formatted as [IGNITION, CAMERA, FWD/REV, FAN, AUX2, AUX1, AUX0, ARRAY]
-
+	uint8_t sidePanelData = 0;
 	uint8_t firstTime = 1;
+	uint8_t firstBatteryState = -1; //unknown at this moment. Will be set to OPEN, CLOSED
+	uint8_t toggleIgnitionRequired = 0;
+	uint8_t firstArrayState = -1; //unknown at this moment. Will be set to OPEN, CLOSED
+	uint8_t toggleArrayRequired = 0;
+
 	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
 
 	for(;;){
 		//e = B_uartRead(spbBuart);
 		B_uartReadFullMessage(spbBuart,  rxBuf, expectedLen, BSSR_SERIAL_START);
-		taskENTER_CRITICAL(); // data into global variable -> enter critical section
-
 		if (rxBuf[0] == BSSR_SERIAL_START && rxBuf[1] == 0x04){
 			if (sidePanelData != rxBuf[2]){
 				sidePanelData = rxBuf[2];
 				//Only update if different (it should be different)
+
+				vTaskSuspendAll(); // data into global variable -> enter critical section
 
 			//------- Send acknowledge -------//
 				uint8_t buf_to_spb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
@@ -1956,13 +1991,17 @@ void sidePanelTask(const void *pv){
 			//ARRAY
 				uint8_t bufh3[4] = {DCMB_RELAYS_STATE_ID, batteryState, batteryRelayState, arrayRelayState};
 				// will not respond to toggle the first time this runs. Forces user to toggle for safety reasons.
-				if (!firstTime) {
+				if (firstTime) {
+					firstArrayState = (sidePanelData & (1 << 0))? OPEN : CLOSED;
+					toggleArrayRequired = (firstArrayState == OPEN) ? 1 : 0;
+				} else {
 					if (sidePanelData & (1 << 0)){ //Array switch is ON (try to close relays)
-						if (batteryState != FAULTED){
+						if (!toggleArrayRequired && batteryState != FAULTED){
 							bufh3[3] = CLOSED;
 						}
 					} else { //Array switch is OFF (open relays)
 						bufh3[3] = OPEN;
+						toggleArrayRequired = 0;
 					}
 				}
 
@@ -1977,22 +2016,28 @@ void sidePanelTask(const void *pv){
 
 			//IGNITION
 				// will not respond to ignition the first time this runs. Forces user to toggle ignition for safety reasons.
-				if (!firstTime) {
+				if (firstTime) {
+					firstBatteryState = (sidePanelData & (1 << 7))? OPEN : CLOSED;
+					toggleIgnitionRequired = (firstBatteryState == OPEN) ? 1 : 0;
+				} else {
 					if (sidePanelData & (1 << 7)){ //Ignition ON
-						ignitionState = IGNITION_ON;
-						bufh3[2] = CLOSED;
-
+						if (!toggleIgnitionRequired) {
+							ignitionState = IGNITION_ON;
+							bufh3[2] = CLOSED;
+						}
 					} else { //Ignition OFF
 						ignitionState = IGNITION_OFF;
 						default_data.P2_motor_state = OFF;
 						bufh3[2] = OPEN;
+						toggleIgnitionRequired = 0;
 					}
-					B_tcpSend(btcp, bufh3, sizeof(bufh3));
 				}
+				B_tcpSend(btcp, bufh3, sizeof(bufh3));
+				firstTime = 0;
+				xTaskResumeAll();
 			}
 		}
-		taskEXIT_CRITICAL(); // exit critical section
-		firstTime = 0;
+
 	}
 }
 
@@ -2019,7 +2064,7 @@ void displayTask(const void *pv){
 			uint8_t local_display_sel;
 			uint32_t tick_cnt;
 
-			taskENTER_CRITICAL();
+			vTaskSuspendAll();
 			tick_cnt = xTaskGetTickCount();
 
 			//Update connection status indicator
@@ -2052,7 +2097,7 @@ void displayTask(const void *pv){
 				default_data.P2_motor_state = OFF;
 			}
 
-			taskEXIT_CRITICAL();
+			xTaskResumeAll();
 			drawP1(local_display_sel);
 			drawP2(local_display_sel);
 			osDelay(100);
