@@ -33,12 +33,12 @@
 		<link>
 			<name>btcp_inc</name>
 			<type>2</type>
-			<location>C:/Users/Raymond/Documents/code/stm_/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
+			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
 		</link>
 		<link>
 			<name>btcp_src</name>
 			<type>2</type>
-			<location>C:/Users/Raymond/Documents/code/stm_/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+			<location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
 		</link>
 	</linkedResources>
 </projectDescription>

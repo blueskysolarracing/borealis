@@ -1,8 +1,5 @@
 #include "pack_data.h"
 
-
-
-
 // Note: arrayToFloat and floatToArray are not cross platform
 // They only work on hardware where floating point values are stored in IEEE 754 format.
 // STM32 uses IEEE 754 format

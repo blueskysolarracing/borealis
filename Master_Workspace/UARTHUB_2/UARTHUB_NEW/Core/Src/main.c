@@ -91,7 +91,10 @@ osThreadId defaultTaskHandle;
 
 #define NUM_UART 5
 UART_HandleTypeDef* huarts[NUM_UART] = {&huart2, &huart3, &huart4, &huart7, &huart8};
- B_uartHandle_t* buarts[NUM_UART];
+//#define NUM_UART 2
+//UART_HandleTypeDef* huarts[NUM_UART] = {&huart3, &huart4}; //only enable port 1 and 4
+
+B_uartHandle_t* buarts[NUM_UART];
  B_tcpHandle_t* btcps[NUM_UART];
 /* USER CODE END PV */
 
@@ -209,29 +212,11 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 4096);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-  //TODO : disable all except 2 and 4, and test if transmission still works
-
-//  BaseType_t status;
-//  status = xTaskCreate(uartRxParser, "UartRxParser1", 4096, (void*)0, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser2", 4096, (void*)1, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser3", 4096, (void*)2, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser4", 4096, (void*)3, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-//
-//  status = xTaskCreate(uartRxParser, "UartRxParser5", 4096, (void*)4, 4, NULL);
-//  configASSERT(status == pdPASS); // Error checking
-
 
   for (int i = 0; i < NUM_UART; i++) {
 	  buarts[i] = B_uartStart(huarts[i]);
@@ -316,7 +301,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+  RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
@@ -343,7 +328,7 @@ void PeriphCommonClock_Config(void)
   PeriphClkInitStruct.PLL2.PLL2N = 9;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
   PeriphClkInitStruct.PLL2.PLL2Q = 2;
-  PeriphClkInitStruct.PLL2.PLL2R = 2;
+  PeriphClkInitStruct.PLL2.PLL2R = 1;
   PeriphClkInitStruct.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_3;
   PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOMEDIUM;
   PeriphClkInitStruct.PLL2.PLL2FRACN = 3072;
@@ -961,7 +946,7 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 34999;
+  htim7.Init.Prescaler = 32499;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 2000;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -1710,7 +1695,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
   else if (htim == &htim7){
-  	HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
+  	HAL_GPIO_TogglePin(GPIOH, LED1_Pin);
   }
   /* USER CODE END Callback 1 */
 }

@@ -1,6 +1,7 @@
 #include "bmisc.h"
 #include "main.h"
 #include "cmsis_os.h"
+#include "protocol_ids.h"
 
 /*
  * Need to initialize relayPeriph in main.c like so:
@@ -24,12 +25,10 @@
  */
 
 void open_relays(struct relay_periph* relay){
+
 	//Open the power relays around the battery to disconnect the battery from the HV system
 	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Make sure the precharge relay is open (should be at this point)
 	osDelay(ACTUATION_DELAY);
-
-	HAL_GPIO_WritePin(relay->DISCHARGE_GPIO_Port, relay->DISCHARGE_Pin, GPIO_PIN_RESET); //Enable battery discharge circuit to safely discharge bus capacitance
-	osDelay(DISCHARGE_TIME);
 
 	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_RESET); //Open high-side relay
 	osDelay(ACTUATION_DELAY);
@@ -51,4 +50,6 @@ void close_relays(struct relay_periph* relay){
 
 	HAL_GPIO_WritePin(relay->ON_SIG_GPIO_Port, relay->ON_SIG_Pin, GPIO_PIN_SET); //Close high-side relay
 	osDelay(ACTUATION_DELAY + 500); //500ms added to prevent inrush current from tripping PSM measurements
+
+	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Open pre-charge relay
 }

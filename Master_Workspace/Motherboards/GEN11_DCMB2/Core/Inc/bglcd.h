@@ -23,6 +23,10 @@ struct disp_common{
 struct disp_default_frame{
 	uint8_t P1_speed_kph;
 	uint8_t	P1_left_indicator_status;
+	// 0 rev, 1 fwd
+	uint8_t direction;
+	uint8_t eco;
+	uint8_t light;
 
 	uint8_t	P2_DRL_state;
 	uint8_t	P2_motor_state;
@@ -41,11 +45,32 @@ struct disp_detailed_frame{
 	short	P2_HV_voltage;
 	short	P2_LV_current;
 	short	P2_max_batt_temp;
+
+	uint8_t	P2_BB;
+	uint8_t	P2_MC;
+	uint8_t	P2_BMS;
+	uint8_t	P2_PPT;
+	uint8_t	P2_RAD;
+
+	/* Fault Type:
+	 * 0: OVERTEMPERATURE
+	 * 1: OVERVOLTAGE
+	 * 2: UNDERVOLTAGE
+	 * 3: OVERCURRENT
+	 */
+	uint8_t faultType;
+	uint8_t faultCell;
+	uint8_t faultTherm;
 };
 
 extern struct disp_common common_data;
 extern struct disp_default_frame default_data;
 extern struct disp_detailed_frame detailed_data;
+
+enum DRIVING_DIRECTION {
+	REVERSE,
+	FORWARD
+};
 
 void drawP1Default(/*int value[4]*/);
 void drawP1Detailed(/*int value[9]*/);
@@ -61,4 +86,5 @@ void drawP2Deactivate();
 void drawP2IgnitionOff(/*int value[4]*/);
 void drawP2BMSFault(/*int value[4]*/);
 void drawP2(uint8_t sel);
+void drawLogo();
 #endif /* BGLCD_H_ */

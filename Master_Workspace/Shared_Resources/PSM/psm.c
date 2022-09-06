@@ -15,10 +15,10 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 	switch (PSM_ID){
 		case 1: //PSM in battery box
 			//PHub out
-			PSM->VDCOS_CH1 = 1.026454 / (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //1.026454;
-			PSM->CDCOS_CH1 = 0.597499 / ((1.2) / 8388607 / 4); //0.597499;
-			PSM->VM_CH1 = 1 * (1.2) / 8388607 * (1 + 664*(1/24 + 1/480)); //24kR; 19.195782
-			PSM->CM_CH1 = 40.576234 * (1.2) / 8388607 / 4; //40.576234
+			PSM->VDCOS_CH1 = 1.026454 / ((1.2) / 8388607.0 * (1.0 + 664.0*(1/24.0 + 1/480.0))) + 132672.8;// - 6795690; //1.026454;
+			PSM->CDCOS_CH1 = 473183.0 - 58575.0 - 17917.0; //0.597499 / ((1.2) / 8388607.0 / 4.0); //0.597499;
+			PSM->VM_CH1 = 0.9694 * (1.2) / 8388607.0 * (1.0 + 664.0*(1/24.0 + 1/480.0)); //24kR; 19.195782
+			PSM->CM_CH1 = 40.576234 * (1.2) / 8388607.0 / 4.0; //40.576234
 
 			//HV battery
 			PSM->VDCOS_CH2 = 14.8 / ((1.2) / 8388607.0 * (1.0 + 664.0*(1.0/2.2 + 1.0/480.0))); //14.8
@@ -30,9 +30,9 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 
 		case 2: //PSM in motor box
 			//Motor (to be calibrated)
-			PSM->VDCOS_CH1 = 10.979409 / ((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480))); //10.979409;
-			PSM->CDCOS_CH1 = 0.01 / ((1.2) / 8388607 / 0.5); //0.573845;
-			PSM->VM_CH1 = 0.649339 * (1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)); //2.2kR; 0.649339
+			PSM->VDCOS_CH1 = 10.979409 / ((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480))) + 88474.0; //10.979409;
+			PSM->CDCOS_CH1 = 0.01 / ((1.2) / 8388607 / 0.5) + 298494.6; //0.573845;
+			PSM->VM_CH1 = 0.65189 * (1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)); //2.2kR; 0.649339
 			PSM->CM_CH1 = 40.9836 * (1.2) / 8388607 / 0.5; //0.5mR; 5.066971
 
 			//Supp battery voltage (to be calibrated)
@@ -65,6 +65,96 @@ void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 			PSM->CM_CH4 = 40.676654 * (1.2) / 8388607 / 2; //2mR; 40.676654
 
 			break;
+	}
+}
+
+void PSM_FIR_Init(struct PSM_FIR_Filter* filter){
+	filter->get_average = PSM_FIR_get_average;
+	filter->pop = PSM_FIR_pop;
+	filter->push = PSM_FIR_push;
+
+	filter->live_index_voltage = 0;
+	filter->live_index_current = 0;
+
+	filter->live_buf_length_voltage = 0;
+	filter->live_buf_length_current = 0;
+}
+
+float PSM_FIR_get_average(struct PSM_FIR_Filter* filter, uint8_t voltage_or_current){
+	if (voltage_or_current == VOLTAGE){
+		if (filter->live_buf_length_voltage == 0) return 0; //If no data has been added to the buffer
+
+		float accumulator = 0;
+
+		for (int i = 0; i < filter->live_buf_length_voltage; i++){
+			accumulator += filter->buf_voltage[i];
+		}
+
+		float average = accumulator / filter->live_buf_length_voltage;
+		filter->avg_voltage = average;
+		return average;
+
+	} else if (voltage_or_current == CURRENT) {
+
+		float accumulator = 0;
+
+		for (int i = 0; i < filter->live_buf_length_current; i++){
+			accumulator += filter->buf_current[i];
+		}
+
+		float average = accumulator / filter->live_buf_length_current;
+		filter->avg_current = average;
+		return average;
+	}
+}
+
+float PSM_FIR_pop(struct PSM_FIR_Filter* filter, uint8_t voltage_or_current){
+	if (voltage_or_current == VOLTAGE){
+		if (filter->live_buf_length_voltage == 0) return 0; //If empty
+
+		if (filter->live_index_voltage == 0){ //Wrap around if the last added value is at index 0
+			filter->live_index_voltage = filter->buf_size - 1;
+			return filter->buf_voltage[0];
+		} else {
+			filter->live_index_voltage--;
+			return filter->buf_voltage[filter->live_index_voltage + 1];
+		}
+
+	} else if (voltage_or_current == CURRENT) {
+		if (filter->live_buf_length_current == 0) return 0; //If empty
+
+		if (filter->live_index_current == 0){ //Wrap around if the last added value is at index 0
+			filter->live_index_current = filter->buf_size - 1;
+			return filter->buf_current[0];
+		} else {
+			filter->live_index_current--;
+			return filter->buf_voltage[filter->live_index_current + 1];
+		}
+	}
+}
+
+void PSM_FIR_push(struct PSM_FIR_Filter* filter, float new_val, uint8_t voltage_or_current){
+	if (voltage_or_current == VOLTAGE){
+		 //Tracks live content as buffer fills up after startup
+		if (filter->live_buf_length_voltage < filter->buf_size) filter->live_buf_length_voltage++;
+
+		 //Wrap around circular buffer
+		if (filter->live_index_voltage == filter->buf_size - 1)	filter->live_index_voltage = 0;
+		else filter->live_index_voltage++;
+
+		//Add new value
+		filter->buf_voltage[filter->live_index_voltage] = new_val;
+
+	} else if (voltage_or_current == CURRENT){
+		 //Tracks live content as buffer fills up after startup
+		if (filter->live_buf_length_current < filter->buf_size) filter->live_buf_length_current++;
+
+		 //Wrap around circular buffer
+		if (filter->live_index_current == filter->buf_size - 1)	filter->live_index_current = 0;
+		else filter->live_index_current++;
+
+		//Add new value
+		filter->buf_current[filter->live_index_current] = new_val;
 	}
 }
 
@@ -105,7 +195,7 @@ void writeOnePSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 			break;
 	}
 
-	if(HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+	if (HAL_SPI_Transmit(spiInterface, instruction, 2, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		//successful transmission
 	} else{
 		//data could not be written! transmit some error message to the computer
@@ -208,7 +298,7 @@ void readFromPSM(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UA
 	}
 
 	//send read instruction to ade7912 in specified PSM channel
-	if(HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+	if (HAL_SPI_Transmit(spiInterface, &instruction, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		//successful transmission
 		//store received data into buffer
 		HAL_SPI_Receive(spiInterface, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
@@ -410,9 +500,6 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
 
 	uint8_t configCommand = 0; //byte to be written to CONFIG register
 	uint8_t dataIn[6] = {0};//data received from ade7912
-//	uint8_t dataOut[16] = {0}; //data to be sent through UART
-//	uint8_t dataOut[17] = {0}; // New dataOut for BlueSky Protocol
-//	uint8_t dataOutLen = sizeof(dataOut) / sizeof(dataOut[0]); //dataOut length in bytes
 	uint32_t IWV_val, V1WV_val; //for storing data from IWV and V1WV registers of ade7912 respectively
 	double voltage = 0, current = 0;
 	double voltageOffset = 0, currentOffset = 0, voltageMultiplier = 1, currentMultiplier = 1;
@@ -448,13 +535,18 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
 			break;
 	}
 
-	//disable write protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, channelNumber);
+	if (WRITE_PROTECTION_ENABLE){
+		//disable write protection
+		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, channelNumber);
+	}
 
 	//enable master ade7912 clock output by setting CLKOUT_EN = 1
 	if (masterPSM){
-		//disable write protection
-		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
+		if (WRITE_PROTECTION_ENABLE){
+			//disable write protection
+			writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
+		}
+
 		readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
 
 		if (CLKOUT){	configCommand |= 1; //CLKOUT_EN = 1	}
@@ -487,12 +579,8 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
         readFromPSM(PSM, spiInterface, uartInterface, V1WV, dataIn, 3, channelNumber);
         V1WV_val = (dataIn[0] << 16) + (dataIn[1] << 8) + dataIn[3];
 
-        //current += (IWV_val - currentOffset)*currentMultiplier;
         current += currentMultiplier*(IWV_val - currentOffset);
-        //voltage += (V1WV_val - voltageOffset)*voltageMultiplier;
         voltage += voltageMultiplier*(V1WV_val - voltageOffset);
-//        current += (IWV_val - currentOffset)*((1.2) / 8388607 / 0.5);
-//        voltage += (V1WV_val - voltageOffset)*((1.2) / 8388607 * (1 + 664*(1/2.2 + 1/480)));
     }
     //get averages of current and voltage measurements
     voltage /= NUM_AVG;
@@ -502,8 +590,6 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     	dataOut[0] = voltage;
     	dataOut[1] = current;
     }
-
-    HAL_UART_Transmit(uartInterface, dataOut+1, dataOutLen-1, MAX_UART_TRANSMIT_TIMEOUT);
 
     //power down ade7912
     if (PWR_DWN_ENABLE){
@@ -520,9 +606,11 @@ void PSMRead(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_H
     }
 
 	//re-enable write-protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
-	if(masterPSM){
-		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
+	if (WRITE_PROTECTION_ENABLE){
+		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
+		if (masterPSM){
+			writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
+		}
 	}
 
 	//disable LVDS by outputting logic low to LVDS EN pin

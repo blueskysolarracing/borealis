@@ -44,6 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 SPI_HandleTypeDef hspi2;
 
@@ -58,8 +59,9 @@ uint32_t pedals_readings[2];
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI2_Init(void);
-static void MX_USART2_UART_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -98,8 +100,9 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_SPI2_Init();
-  MX_USART2_UART_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
   //PSM-related variables
@@ -121,9 +124,8 @@ int main(void)
 	psmPeriph.DreadyPin = DReady_Pin;
 	psmPeriph.DreadyPort = DReady_GPIO_Port;
 
-	//Uncomment for PSM #1
-	PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
-	configPSM(&psmPeriph, &hspi2, &huart2, "12", 1000);
+	PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
+	configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000); //2000ms timeout
 
 	//Uncomment for PSM #2
 //	PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID
@@ -144,12 +146,15 @@ int main(void)
 
 	  double PSM_Measurement[2] = {-1, -1};
 
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_Measurement, 2);
+
 	  //Uncomment for PSM #1
 //	  /* CHANNEL #1 */ PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_Measurement, 2);
 //	  /* CHANNEL #2 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 2, PSM_Measurement, 2);
 
-	  //Uncomment for PSM #2
+//	  Uncomment for PSM #2
 //	  /* CHANNEL #1 */ PSMRead(&psmPeriph, &hspi2, &huart2, 0, 1, 1, PSM_Measurement, 2);
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_Measurement, 2);
 
 	  //Uncomment for PSM #3
 //	  /* CHANNEL #1 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 1, PSM_Measurement, 2);
@@ -158,14 +163,14 @@ int main(void)
 //	  /* CHANNEL #4 */ PSMRead(&psmPerioh, &hspi2, &huart2, 1, 2, 4, PSM_Measurement, 2);
 
 
-      HAL_ADC_Start(&hadc1);
+//      HAL_ADC_Start(&hadc1);
       HAL_ADC_PollForConversion(&hadc1, 1);
-      pedals_readings[0] = HAL_ADC_GetValue(&hadc1);
-      pedals_readings[1] = HAL_ADC_GetValue(&hadc1);
-
-      char string[50];
-      sprintf(string, "Accel: %d\nRegen: %d\n\n", pedals_readings[0], pedals_readings[1]);
-      HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
+//      pedals_readings[0] = HAL_ADC_GetValue(&hadc1);
+//      pedals_readings[1] = HAL_ADC_GetValue(&hadc1);
+//
+//      char string[50];
+//      sprintf(string, "Accel: %d\nRegen: %d\n\n", pedals_readings[0], pedals_readings[1]);
+//      HAL_UART_Transmit(&huart2, string, sizeof(string), 10);
 
 //	  char string[50];
 //	  sprintf(string, "xx%lf, %lf\n", PSM_Measurement[0], PSM_Measurement[1]);
@@ -400,6 +405,22 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
 
 }
 

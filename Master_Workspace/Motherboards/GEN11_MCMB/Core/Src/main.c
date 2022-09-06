@@ -42,11 +42,22 @@
 /* USER CODE BEGIN PD */
 #define MOTOR 16
 #define FWD_REV 8
+#define ECO_PWR 1
 #define VFM_UP 4
 #define VFM_DOWN 2
-#define VFM_RESET 1
+
+#define WHEEL_DIA 0.555625 //In meters
 
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
+
+//--- MOTOR ---//
+enum CRUISE_MODE {
+	CONSTANT_POWER,
+	CONSTANT_SPEED
+};
+
+#define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
+/* ^ Need to update in MCMB as well ^ */
 
 /* USER CODE END PD */
 
@@ -121,6 +132,11 @@ typedef enum {
 	STANDBY
 } MOTORSTATE;
 
+enum motorPowerState {
+	ECO,
+	POWER
+};
+
 MOTORSTATE motorState; //see below for description
 //	[0] OFF (not reacting to any input)
 //	[1] PEDAL (motor power controlled by accelerator pedal)
@@ -133,6 +149,7 @@ float batteryVoltage = 0;
 // These are values from 5 digital buttons
 //uint8_t motorOnOff = 0; // 1 means motor is on, 0 means off (deprecated)
 uint8_t vfmUpState = 0;
+uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER (default to ECO)
 uint8_t gearUp = 0;
 uint8_t fwdRevState = 0;
 uint8_t vfmDownState = 0;
@@ -248,7 +265,6 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr);
 float PIDControllerUpdate(float setpoint, float measured);
 float speedToFrequency(uint8_t targetSpeed);
 
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -306,9 +322,11 @@ int main(void)
 
   //uint8_t SPI_START_VAL = 0b00010001;
 
+  //---- COMMS ---//
   buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
   btcp = B_tcpStart(MCMB_ID, &buart, buart, 1, &hcrc);
 
+  //--- MOTOR ---//
   mitsuba.mainPort = GPIOJ;
   mitsuba.mainPin = GPIO_PIN_5;
 
@@ -347,30 +365,11 @@ int main(void)
 
   motor = mitsubaMotor_init(&mitsuba);
 
-
-//  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5, GPIO_PIN_SET); // Main
-//  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // Motor LED
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_1, GPIO_PIN_SET); // FwdRev (high is forward)
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_15, GPIO_PIN_SET); // VFM UP
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_14, GPIO_PIN_SET); // VFM Down
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_0, GPIO_PIN_SET); // ECO
-//  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_2, GPIO_PIN_SET); // CS0
-//  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET); // CS1
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_13, GPIO_PIN_SET); // VFM RESET
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET); // MT3
-//  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_2, GPIO_PIN_SET); // MT2
-//  HAL_GPIO_WritePin(GPIOI, GPIO_PIN_9, GPIO_PIN_SET); // MT1
-//  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // MT0
-//
-//
-//  // Note both regenValue and accValue are zero at the moment
-//
-//  //Gen11 regen write below:
+  //Gen11 regen write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //
 //  //Gen11 accel write below:
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-
 
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
@@ -396,7 +395,7 @@ int main(void)
 
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
-  xTimerStart(xTimerCreate("spdTimer", 500, pdTRUE, NULL, spdTmr), 0);
+  xTimerStart(xTimerCreate("spdTimer", 100, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
@@ -1882,7 +1881,7 @@ uint16_t ADC_poll_read(ADC_HandleTypeDef *hadcPtr) {
 
 // This function maps the ADC value to the actual ADC input voltage
 float ADCMapToVolt(float ADCValue) {
-	float ADCResolution = 4096; //ADC resolution should be 2^12 = 4096
+	float ADCResolution = 4096.0; //ADC resolution should be 2^12 = 4096
 	float ADCRefVoltage = 3.3;
 	return ADCValue / ADCResolution * ADCRefVoltage;
 }
@@ -1967,35 +1966,49 @@ float speedToFrequency(uint8_t targetSpeed){
 
 
 static void motorTmr(TimerHandle_t xTimer){
+	int res = -1; //res will be used for debugging
+
 	//TODO: use software timer to handle tickcount overflow
 	if(xTaskGetTickCount() >= (lastDcmbPacket + 4000)){  //if serialParse stops being called (this means uart connection is lost)
 
 		motor->turnOff(motor);
 		gearUp = 0;
 		gearDown = 0;
+		if (motor->isAccel(motor)) {
+			res = motor->setAccel(motor, 0); // turns off accel
+		}
+		if (motor->isRegen(motor)) {
+			res = motor->setRegen(motor, 0); // turns off regen
+		}
 		return;
 	}
 
 	switch (motorState) {
 		case OFF:
 			motor->turnOff(motor);
+			if (motor->isAccel(motor)) {
+				res = motor->setAccel(motor, 0); // turns off accel
+			}
+			if (motor->isRegen(motor)) {
+				res = motor->setRegen(motor, 0); // turns off regen
+			}
 			return; //return instead of break here, since no need for VFM gear change
 		case STANDBY:
 			if (!motor->isOn(motor)) {
-				motor->turnOn(motor);
+				res = motor->turnOn(motor);
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 
 				if (motor->isAccel(motor)) {
-					motor->setAccel(motor, 0); // turns off accel
+					res = motor->setAccel(motor, 0); // turns off accel
 				}
 				if (motor->isRegen(motor)) {
-					motor->setRegen(motor, 0); // turns off regen
+					res = motor->setRegen(motor, 0); // turns off regen
 				}
 			}
 			break;
@@ -2006,62 +2019,75 @@ static void motorTmr(TimerHandle_t xTimer){
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 				if (motor->isRegen(motor)) {
-					motor->setRegen(motor, 0);
+					res = motor->setRegen(motor, 0);
 				}
-				motor->setAccel(motor, targetPower); 
+				res = motor->setAccel(motor, targetPower);
 			}
 			break;
 
 		case CRUISE:
 			if (!motor->isOn(motor)) {
-				motor->turnOn(motor);
+				res = motor->turnOn(motor);
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
-				// TODO: call pid controller update
+
+				//Update motor power
+				if (CRUISE_MODE == CONSTANT_POWER){
+					res = motor->setAccel(motor, targetPower);
+				} else if (CRUISE_MODE == CONSTANT_SPEED){
+					// TODO: call pid controller update
+				}
 			}
 
 			break;
 
 		case REGEN:
 			if (!motor->isOn(motor)) {
-				motor->turnOn(motor);
+				res = motor->turnOn(motor);
 			}
 			if (motor->isOn(motor)) {
 				if (fwdRevState) {
-					motor->setReverse(motor);
+					res = motor->setReverse(motor);
 				} else {
-					motor->setForward(motor);
+					res = motor->setForward(motor);
 				}
 				if (motor->isAccel(motor)) {
-					motor->setAccel(motor, 0);
+					res = motor->setAccel(motor, 0);
 				}
 				if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
-					motor->setRegen(motor, 0); // for safety, turn off regen
+					res = motor->setRegen(motor, 0); // for safety, turn off regen
 				} else {
-					motor->setRegen(motor, targetPower); 
+					res = motor->setRegen(motor, targetPower);
 				}
 			}
 			break;
 	}
-
-	// Commented out since mechnical side does not support gear changes for vfm
-	/*if (gearUp && !gearDown) {
-		motor->gearUp(motor);
-		gearUp = 0;
-	} else if (gearDown) {
-		motor->gearDown(motor);
-		gearDown = 0;
-	}*/
+	//Set ECO/PWR mode
+	if (motor->isOn(motor)) {
+		if (ecoPwrState == ECO){
+			res = motor->setEco(motor);
+		} else if (ecoPwrState == POWER){
+			res = motor->setPwr(motor);
+		}
+		// Commented out since mechnical side does not support gear changes for vfm
+		/*if (gearUp && !gearDown) {
+			res = motor->gearUp(motor);
+			gearUp = 0;
+		} else if (gearDown) {
+			res = motor->gearDown(motor);
+			gearDown = 0;
+		}*/
+	}
 }
 
 // New implementation GEN11
@@ -2074,7 +2100,6 @@ static void spdTmr(TimerHandle_t xTimer){
 		//Note: if 1 second passed and still no pwm interrupt, the car's wheel is turning once every 16 seconds or more
 		//This is very slow and we will simply set frequency to zero to avoid diffCapture growing too large or even becoming infinite
 		pwm_in.frequency = 0.0;
-
 	}
 	else {
 		pwm_in.frequency = 1000000.0 / pwm_in.diffCapture;
@@ -2085,17 +2110,11 @@ static void spdTmr(TimerHandle_t xTimer){
 	// Can divide by 16 and multiply by 60 for Rotation per min
 
 	// Get KM per Hour
-	float meterPerSecond = pwm_in.frequency / 16 * 1.7156;
-			// Note: 1.7156 = 0.5461 * pi  is the circumference of the wheel
-	uint8_t kmPerHour = meterPerSecond / 1000 * 3600;
+	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
+	float kmPerHour = meterPerSecond / 1000.0 * 3600.0;
+
 	// Send frequency to DCMB (for now)
-	//buf[1] = pwm_in.frequency;
-	// Send motor speed to DCMB
-	buf[1] = kmPerHour;
-	//temp for testing
-//	static i = 0; i++;
-//	if (i > 99) i = 0;
-//	buf[1] = i;
+	buf[1] = (uint8_t) round(kmPerHour);
 
 	globalKmPerHour = kmPerHour; // used for debugger live expression
 
@@ -2109,7 +2128,7 @@ void tempSenseTaskHandler(void* parameters) {
 		vTaskDelay(pdMS_TO_TICKS(1000));
 
 		buf[1] = temperature;
-//		B_tcpSend(btcp, buf, 4);
+//		B_tcpSend(btcp, buf, 4); // Temperature sense is not implemented hardware wise
 	}
 }
 
@@ -2138,6 +2157,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			//for 5 digital buttons (4 now):
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
+			ecoPwrState = pkt->data[2] & ECO_PWR; //ECO_PWR = 0b0001
+
 //			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
 //			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
 //			if (vfmDownState != 0) {
@@ -2149,6 +2170,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			lastDcmbPacket = xTaskGetTickCount();
 		}
 		break;
+
 	  case BBMB_ID:
 		if(pkt->data[0] == BBMB_BUS_METRICS_ID){ //Get battery voltage to determine whether regen may be used
 			batteryVoltage = arrayToFloat(&pkt->data[4]);
@@ -2156,32 +2178,6 @@ void serialParse(B_tcpPacket_t *pkt){
 		break;
 	}
 
-	// New way (deprecated)
-//	switch(pkt->senderID){
-//		  case DCMB_ID:
-//		    if(pkt->data[0] == DCMB_MC2_STATE_ID){
-//			  accValue = pkt->data[2];
-//			  regenValue = pkt->data[3];
-//			  motorState = pkt->data[1] & MOTOR; //Note MOTOR = 0b10000
-//		   	  fwdRevState = pkt->data[1] & FWD_REV; //FWD_REV = 0b1000
-//		   	  vfmUpState = pkt->data[1] & VFM_UP; //VFM_UP = 0b100
-//		   	  vfmDownState = pkt->data[1] & VFM_DOWN; //VFM_DOWN = 0b10
-//		   	  lastDcmbPacket = xTaskGetTickCount();
-//	      }
-//	}
-	// Old way (still supported if you need to do it this way)
-	/*switch(pkt->sender){
-	  case 0x04:
-	    if(pkt->payload[4] == 0x00){
-		  accValue = pkt->payload[6];
-		  regenValue = pkt->payload[7];
-		  motorState = pkt->payload[5] & MOTOR; //Note MOTOR = 0b10000
-	   	  fwdRevState = pkt->payload[5] & FWD_REV; //FWD_REV = 0b1000
-	   	  vfmUpState = pkt->payload[5] & VFM_UP; //VFM_UP = 0b100
-	   	  vfmDownState = pkt->payload[5] & VFM_DOWN; //VFM_DOWN = 0b10
-	   	  lastDcmbPacket = xTaskGetTickCount();
-      }
-	}*/
 }
 
 /** To read PWM diff capture from motor
@@ -2238,27 +2234,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 }
 
 void PSMTaskHandler(void* parameters){
-//	int i = 0;
-//	int x = 0;
-//
-//	while (1) {
-//		if (!motor->isOn(motor)) {
-//			motor->turnOn(motor);
-//		}
-//		if (motor->isOn(motor)) {
-//			motor->setAccel(motor, x);
-//			x += 25;
-//		}
-//		//vTaskDelay(5000);
-//
-//		i++;
-//		if (x > 255){
-//			motor->setAccel(motor, 0);
-//			break;
-//		}
-//	} // for testing
-
-
 	uint8_t busMetrics[3 * 4] = {0};
 	uint8_t suppBatteryMetrics[2 * 4] = {0};
 	double voltageCurrent_Motor_local[2] = {0, 0};
@@ -2275,20 +2250,20 @@ void PSMTaskHandler(void* parameters){
 
 		//Supplemental battery on channel #2
 		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
-		floatToArray((float) voltageCurrent_Supp_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+		floatToArray((float) voltageCurrent_Supp_local[0], suppBatteryMetrics + 4); // fills 4 - 7 of suppBatteryMetrics
 
 		//Send to bus
 		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
 		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
 
+		vTaskSuspendAll();
 		//Place in global variables
-		taskENTER_CRITICAL();
 		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
 		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
 		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
 		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
 		batteryVoltage = (float) voltageCurrent_Motor_local[0];
-		taskEXIT_CRITICAL();
+		xTaskResumeAll();
 		vTaskDelay(1000);
 	}
 }
