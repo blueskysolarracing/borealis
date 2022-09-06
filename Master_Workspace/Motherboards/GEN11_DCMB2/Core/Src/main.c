@@ -155,6 +155,8 @@ uint32_t MCMB_last_packet_tick_count 	= 0;
 uint32_t BMS_last_packet_tick_count 	= 0;
 uint32_t Chase_last_packet_tick_count 	= 0;
 
+uint8_t BBMBFirstPacketReceived = 0;
+
 //--- MOTOR ---//
 typedef enum {
 	OFF,
@@ -1553,7 +1555,10 @@ static void pedalTask(const void* p) {
 	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
-	while (1) {
+    uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+	uint8_t firstTime = 1;
+
+    while (1) {
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
 			vTaskSuspendAll();
@@ -1571,9 +1576,10 @@ static void pedalTask(const void* p) {
 			brakeState = BRAKE_RELEASED;
 		}
 		// send command to turn on/off brake lights if brakeState has changed
-		if (brakeState != prevBrakeState) {
+		// Need to wait until BBMB is known to be alive and then send first command
+		if (BBMBFirstPacketReceived && (firstTime || brakeState != prevBrakeState)) {
+			firstTime = 0;
 			prevBrakeState = brakeState;
-		    uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 			if (brakeState == BRAKE_PRESSED) {
 				// turn on brake lights
 				bufh2[1] = 0b01001000;
@@ -1583,6 +1589,9 @@ static void pedalTask(const void* p) {
 			}
 		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
 		}
+
+
+
 
 		//Compute value on 0-256 scale
 		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
@@ -1683,7 +1692,7 @@ void serialParse(B_tcpPacket_t *pkt){
 	case BBMB_ID:
 		 //Update connection status
 		 BBMB_last_packet_tick_count = xTaskGetTickCount();
-
+		 BBMBFirstPacketReceived = 1;
 		 if (pkt->data[0] == BBMB_BUS_METRICS_ID){ //HV bus
 			common_data.battery_power = 		(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Battery power
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
