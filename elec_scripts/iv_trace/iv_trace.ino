@@ -48,8 +48,10 @@ long readVcc() { // from https://code.google.com/p/tinkerit/wiki/SecretVoltmeter
 void readVoltAndCurr(){
     voltPinValue = analogRead(voltPin);         // read value from voltage pin
     currentPinValue = analogRead(currentPin);   // read value from current pin 
-    ldVoltage = 6.030*(float(voltPinValue)/1023.0)*internalVolt;   // calculate load voltage, calibrated
-    ldCurrent = (float(currentPinValue)/1023.0)*internalVolt*1.034;    // calculate load current, calibrated
+    ldVoltage = 1.01*6.030*(float(voltPinValue)/1023.0)*internalVolt;   // calculate load voltage, calibrated
+    ldCurrent = 0.95*(float(currentPinValue)/1023.0)*internalVolt*1.034;    // calculate load current, calibrated
+
+    // NOTE: Tested with PSU; Voltage accurate when PSU was in CV - accuracy issues with CC
 
     // Print load voltage and current
     Serial.print(ldVoltage);
@@ -144,11 +146,15 @@ void loop() {
   if (haveLine) {
     // start trace by writing in "start_IV"
     if (strncmp(line, "start_IV", 8) == 0) {     
-      // Step from 0 to 6 A, incrementing by 25mA          
-      for(float current = 0; current <= 6; current += 0.025){
+      // Step from 0 to 6.41 A, incrementing by 25mA          
+      for(float current = 0; current <= 6.41; current += 0.025){
         CC(current);
       }
       Serial.print(maxPower);   //print max power after the sweep 
+      delay(1000);              // delay for 1 second
+    }
+    else if(strncmp(line, "temptest", 8) == 0){
+      readVoltAndCurr();
     }
   }
 }
