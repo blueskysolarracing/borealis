@@ -1341,24 +1341,18 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			//Relays
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
-//				vTaskSuspendAll();
-
 				if ((pkt->data[2] == OPEN) && (relay.battery_relay_state == CLOSED)){ //Open relays and resend
 					relayCtrlMessage = 1;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
-
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->data[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 
 				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.battery_relay_state == OPEN)){ //Try to close relays
 					relayCtrlMessage = 2;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
-
 					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->data[3]};
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 				}
-
-//				xTaskResumeAll();
 
 			//Horn
 			} else if (pkt->data[0] == DCMB_STEERING_WHEEL_ID){

@@ -1,4 +1,5 @@
-// Electric Load
+// Electronic Load
+
 
 #include <Wire.h>
 #include <Adafruit_MCP4725.h>
@@ -10,7 +11,7 @@ int currentPin = A0;
 
 int voltPinValue, currentPinValue, int_value;
 float voltPinVoltage, ldVoltage, ldCurrent, internalVolt;
-float maxPower = 0.0;
+float maxVoltage, maxCurrent, maxPower;
 long previousMillis = 0;
 int ledState = LOW;                 // ledState used to set the LED 
 long interval = 500;                // interval to flash LED
@@ -48,30 +49,35 @@ long readVcc() { // from https://code.google.com/p/tinkerit/wiki/SecretVoltmeter
 void readVoltAndCurr(){
     voltPinValue = analogRead(voltPin);         // read value from voltage pin
     currentPinValue = analogRead(currentPin);   // read value from current pin 
-    ldVoltage = 6.030*(float(voltPinValue)/1023.0)*internalVolt;   // calculate load voltage, calibrated
-    ldCurrent = (float(currentPinValue)/1023.0)*internalVolt*1.034;    // calculate load current, calibrated
+    ldVoltage = 1.01*6.030*(float(voltPinValue)/1023.0)*internalVolt;   // calculate load voltage, calibrated
+    ldCurrent = 0.95*(float(currentPinValue)/1023.0)*internalVolt*1.034;    // calculate load current, calibrated
 
-    // Print load voltage and current
-    Serial.print(ldVoltage);
-    Serial.print(", ");
-    Serial.print(ldCurrent);
-    Serial.println(""); 
+    // NOTE: Tested with PSU; Voltage accurate when PSU was in CV - accuracy issues with CC
 
+    // Save the max voltage
+    if(ldVoltage > maxVoltage){
+      maxVoltage = ldVoltage;
+    }
+    // Save the max current
+    if(ldCurrent > maxCurrent){
+      maxCurrent = ldCurrent;
+    }
+    // Save the max power
     float tempPower = ldVoltage * ldCurrent;         
     if(tempPower > maxPower){
         maxPower = tempPower;
     }
 
-    delay(25);  // wait 25 ms inbetween measurements
+    delay(100);  // wait 300 ms inbetween measurements -> for sweeping measurements
 }
 
 // CONSTANT CURRENT MODE
 void CC(int DesiredmA){ 
-  // Serial.println(DesiredmA);
-  readVoltAndCurr();                             
+                         
   float value=(DesiredmA/5.0)*4095.0*setCurrCalFactor;      // calculate value to set the right current
   int_value = int(value);                                   // convert float to integer
   dac.setVoltage(int_value, false);                         // value from 0 to 4095
+  readVoltAndCurr();
 }
 
 // //CONSTANT POWER MODE
@@ -144,11 +150,27 @@ void loop() {
   if (haveLine) {
     // start trace by writing in "start_IV"
     if (strncmp(line, "start_IV", 8) == 0) {     
-      // Step from 0 to 6 A, incrementing by 25mA          
-      for(float current = 0; current <= 6; current += 0.025){
+      // Initialize maximums to 0   
+      maxVoltage = 0.0; 
+      maxCurrent = 0.0;
+      maxPower = 0.0;     
+      Serial.println("Sweeping..."); 
+      // Step from 0 to 6.41 A, incrementing by 25mA
+      for(float current = 0; current <= 6.41; current += 0.025){
         CC(current);
       }
+      Serial.print("Voltage, Current, Power");
+      Serial.println("");
+      Serial.print(maxVoltage);
+      Serial.print(", ");
+      Serial.print(maxCurrent);
+      Serial.print(", ");
       Serial.print(maxPower);   //print max power after the sweep 
+      Serial.println("");
+      delay(5000);              // delay for 5 seconds inbetween sweeps
+    }
+    else if(strncmp(line, "temptest", 8) == 0){ // temporary test code
+      readVoltAndCurr();
     }
   }
 }
