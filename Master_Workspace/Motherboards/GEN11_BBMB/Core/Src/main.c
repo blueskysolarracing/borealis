@@ -48,11 +48,12 @@
 #define HV_BATT_OV_THRESHOLD 	4.20	//Should be set to 4.20V
 #define HV_BATT_UV_THRESHOLD 	2.50 	//Should be set to 2.50V
 #define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
+#define BATT_OVERCURRENT_CNT_THRESHOLD 5
 
 #define NUM_BATT_CELLS 			29 		//Number of series parallel groups in battery pack
 #define NUM_BMS					6 		//Number of BMS to read from
 #define NUM_BATT_TEMP_SENSORS 	3 * 6 	//Number of temperature sensors in battery pack
-#define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h). It also implicitely calculates a new SoC estimation on the BMS.
+#define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h). It also implicitly calculates a new SoC estimation on the BMS.
 #define BMS_FLT_CHECK_INTERVAL 	10 		//Interval at which to read the BMS_FLT pin
 #define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
 
@@ -116,6 +117,8 @@ double voltageCurrent_HV[2] = {0};
 struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
 float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
+
+uint8_t battery_overcurrent_cnt; //Variable to hold number of overcurrent faults detected to implement threshold to reduce sensitivity
 
 //--- RELAYS ---//
 struct relay_periph relay;
@@ -1338,7 +1341,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			//Relays
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
-				vTaskSuspendAll();
+//				vTaskSuspendAll();
 
 				if ((pkt->data[2] == OPEN) && (relay.battery_relay_state == CLOSED)){ //Open relays and resend
 					relayCtrlMessage = 1;
@@ -1355,7 +1358,7 @@ void serialParse(B_tcpPacket_t *pkt){
 					B_tcpSend(btcp_main, buf, sizeof(buf));
 				}
 
-				xTaskResumeAll();
+//				xTaskResumeAll();
 
 			//Horn
 			} else if (pkt->data[0] == DCMB_STEERING_WHEEL_ID){
@@ -1571,7 +1574,11 @@ void measurementSender(TimerHandle_t xTimer){
 	xTaskResumeAll();
 
 	//Check overcurrent protection
-	if (HV_current >= HV_BATT_OC_DISCHARGE){ //Overcurrent protection --> Put car into safe state
+	if (HV_current >= HV_BATT_OC_DISCHARGE){
+		battery_overcurrent_cnt++;
+	}
+
+	if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
 		battery_faulted_routine(3, 0, 0);
 	}
 

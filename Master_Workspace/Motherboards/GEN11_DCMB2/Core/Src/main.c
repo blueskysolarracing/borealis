@@ -1590,9 +1590,6 @@ static void pedalTask(const void* p) {
 		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
 		}
 
-
-
-
 		//Compute value on 0-256 scale
 		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
 

@@ -213,7 +213,7 @@ void drawP1DefaultNew(/*int value[4]*/){
 	// draw icons
 	y = 52;
 	uint8_t x = 10;
-	if(~default_data.eco){
+	if(default_data.eco == 0){
 		for(int i = 0; i < 12; i++){
 			for(int j = 0; j < 12; j++){
 				if(leaf[i][j])
@@ -1030,7 +1030,7 @@ void drawP2(uint8_t sel){
 	switch(sel){
 	case 0:
 		drawP2Default(/*defaultTest*/);
-//		testAlpha();
+//		drawP2DefaultNew(/*defaultTest*/);
 		break;
 	case 1:
 		drawP2Detailed(/*defaultDetailed*/);
