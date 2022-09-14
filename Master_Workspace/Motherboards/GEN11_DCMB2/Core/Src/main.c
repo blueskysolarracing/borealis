@@ -1807,11 +1807,11 @@ void steeringWheelTask(const void *pv){
     //Left indicator - SEND TO BBMB
     uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Retract lights
-    	bufh1[1] = 0b01000010;
-    	default_data.P1_left_indicator_status = 0;
-	} else {
     	bufh1[1] = 0b00000010;
     	default_data.P1_left_indicator_status = 1;
+	} else {
+    	bufh1[1] = 0b01000010;
+    	default_data.P1_left_indicator_status = 0;
 	}
 	xTaskResumeAll();
 
