@@ -148,11 +148,9 @@ float batteryVoltage = 0;
 
 // These are values from 5 digital buttons
 //uint8_t motorOnOff = 0; // 1 means motor is on, 0 means off (deprecated)
-uint8_t vfmUpState = 0;
 uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER (default to ECO)
 uint8_t gearUp = 0;
 uint8_t fwdRevState = 0;
-uint8_t vfmDownState = 0;
 uint8_t gearDown = 0;
 uint8_t vfmResetState = 0;
 
@@ -2072,21 +2070,20 @@ static void motorTmr(TimerHandle_t xTimer){
 			}
 			break;
 	}
-	//Set ECO/PWR mode
+	//Set ECO/PWR mode and change gears
 	if (motor->isOn(motor)) {
 		if (ecoPwrState == ECO){
 			res = motor->setEco(motor);
 		} else if (ecoPwrState == POWER){
 			res = motor->setPwr(motor);
 		}
-		// Commented out since mechnical side does not support gear changes for vfm
-		/*if (gearUp && !gearDown) {
+		if (gearUp && !gearDown) {
 			res = motor->gearUp(motor);
 			gearUp = 0;
 		} else if (gearDown) {
 			res = motor->gearDown(motor);
 			gearDown = 0;
-		}*/
+		}
 	}
 }
 
@@ -2149,6 +2146,7 @@ void cruiseControlTaskHandler(void* parameters){
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 	  case DCMB_ID:
+		lastDcmbPacket = xTaskGetTickCount();
 		if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
 			motorState = pkt->data[1];
 			targetPower = unpacku16(&pkt->data[4]);
@@ -2158,16 +2156,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
 			ecoPwrState = pkt->data[2] & ECO_PWR; //ECO_PWR = 0b0001
+			gearUp = ((pkt->data[2] & VFM_UP) != 0) ? 1 : 0; //VFM_UP = 0b100
+			gearDown = ((pkt->data[2] & VFM_DOWN) != 0) ? 1 : 0; //VFM_DOWN = 0b10
 
-//			vfmUpState = pkt->data[2] & VFM_UP; //VFM_UP = 0b100
-//			vfmDownState = pkt->data[2] & VFM_DOWN; //VFM_DOWN = 0b10
-//			if (vfmDownState != 0) {
-//				gearDown = 1;
-//			}
-//			else if (vfmUpState != 0) {
-//				gearUp = 1;
-//			}
-			lastDcmbPacket = xTaskGetTickCount();
 		}
 		break;
 

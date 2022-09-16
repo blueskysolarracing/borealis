@@ -157,13 +157,10 @@ static int mitsubaMotor_turnOn(MotorInterface* interface)
 static void mitsubaMotor_turnOnTimerCallback(TimerHandle_t xTimer)
 {
 	MitsubaMotor* self = (MitsubaMotor*)pvTimerGetTimerID(xTimer);
-	taskENTER_CRITICAL();
 	if (HAL_GPIO_ReadPin(self->mainPort, self->mainPin) == GPIO_PIN_RESET) {
 		// only set isOn to 1 if the motor has not been turned off during the 5 seconds
 		self->isOn = 1;
 	}
-	taskEXIT_CRITICAL();
-
 }
 
 static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface)
