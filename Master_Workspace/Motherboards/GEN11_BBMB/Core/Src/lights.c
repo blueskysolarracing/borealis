@@ -45,12 +45,12 @@ void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right){
 		setup_motor(lights->TMC5160_SPI);
 	}
 
-	if (left_or_right == 0){ //left
+	if (left_or_right == LEFT){ //left
 		HAL_TIM_PWM_Stop(lights->left_ind_TIM, lights->left_ind_CH);
 		if (USE_RETRACTABLE_LIGHTS){	rotate(1, 0, lights->TMC5160_SPI);	} // clockwise: in for left
 	}
 
-	else{ //right
+	else { //right
 		HAL_TIM_PWM_Stop(lights->right_ind_TIM, lights->right_ind_CH);
 		if (USE_RETRACTABLE_LIGHTS){	rotate(0, 1, lights->TMC5160_SPI);	} // anti-clockwise: in for right
 	}

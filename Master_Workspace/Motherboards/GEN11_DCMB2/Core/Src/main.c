@@ -323,6 +323,9 @@ int main(void)
   //--- DRIVER DISPLAYS ---//
   glcd_init();
 
+  //--- VFM ---//
+  default_data.P2_VFM = 1;
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -1705,6 +1708,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			 batteryState = pkt->data[1];
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
+			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
+			 if (batteryRelayState == OPEN) default_data.P2_VFM = 1;
+
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
 			 detailed_data.faultTherm = pkt->data[6];
@@ -1806,12 +1812,12 @@ void steeringWheelTask(const void *pv){
 	//INDICATOR LIGHTS - SEND TO BBMB
     //Left indicator - SEND TO BBMB
     uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
-	if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Retract lights
-    	bufh1[1] = 0b00000010;
-    	default_data.P1_left_indicator_status = 1;
-	} else {
+	if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Extend lights (ON)
     	bufh1[1] = 0b01000010;
     	default_data.P1_left_indicator_status = 0;
+	} else { //OFF
+    	bufh1[1] = 0b00000010;
+    	default_data.P1_left_indicator_status = 1;
 	}
 	xTaskResumeAll();
 
@@ -1820,10 +1826,10 @@ void steeringWheelTask(const void *pv){
     vTaskSuspendAll();
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
     //Right indicator - SEND TO BBMB
-	if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Retract lights
+	if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Extend lights (ON)
     	bufh2[1] = 0b01000011;
     	default_data.P2_right_indicator_status = 0;
-	} else {
+	} else { //OFF
     	bufh2[1] = 0b00000011;
     	default_data.P2_right_indicator_status = 1;
     }
@@ -1867,32 +1873,22 @@ void steeringWheelTask(const void *pv){
 
     //Up button pressed
 	if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-//		if (default_data.P2_VFM < MAX_VFM){ //Bound VFM setting
-//			default_data.P2_VFM++;
-//		}
-//		vfmUpState = 1;
-		/*
-		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
-		 */
+		if (default_data.P2_VFM < MAX_VFM && (batteryRelayState == CLOSED)){ //Bound VFM setting
+			default_data.P2_VFM++;
+		}
+		vfmUpState = 1;
 
 	} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
-    	//vfmUpState = 0; //reset this in motorDataTimer
-		/*
-		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
-		 */
+    	vfmUpState = 0; //reset this in motorDataTimer
 	}
 	oldUpButton = (steeringData[2] & (1 << 0));
 
     //Down button pressed
 	if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
-		if (default_data.P2_VFM > 0){ //Bound VFM setting
+		if (default_data.P2_VFM > 1){ //Bound VFM setting
     		default_data.P2_VFM--;
 		}
 		vfmDownState = 1;
-
-		/*
-		 * DISABLED BECAUSE THERE IS NO SPACE FOR COILS TO MOVE IN MECH ASSEMBLY
-		 */
 
 	} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
 		// nothing to do because vfmDownState = 0;  will be reset in motorDataTimer

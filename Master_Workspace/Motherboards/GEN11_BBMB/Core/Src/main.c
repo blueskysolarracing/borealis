@@ -1547,7 +1547,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	vTaskSuspendAll();
 
 	psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
-	psmFilter.push(&psmFilter, (float) HV_data[1], CURRENT);
+	psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
 
 	xTaskResumeAll();
 }

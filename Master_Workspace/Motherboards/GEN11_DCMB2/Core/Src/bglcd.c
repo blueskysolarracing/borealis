@@ -59,119 +59,7 @@ void drawLogo(){
 }
 
 // p1 stuff start
-
 void drawP1Default(/*int value[4]*/){
-	short value[4] = {	common_data.solar_power,
-						common_data.motor_power,
-						common_data.battery_power,
-						(short)(default_data.P1_speed_kph)};
-
-	char* labelsP1[] = {"Solar:", "Motor:", "Battery:"};
-	int labelsP1L = 3;
-	char* labelspeed = "km/h";
-
-	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
-	glcd_clear_buffer();
-
-	// start drawing at y = 5
-	uint8_t y = 5;
-
-	// draw the labels
-	for(int i = 0; i < labelsP1L; i++){
-		char* label = labelsP1[i];
-		int j = 0;
-		// char by char cuz draw xy only with char
-		while(label[j] != 0){
-			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
-			j++;
-		}
-		glcd_tiny_draw_char_xy(72, correct_Y(y), 'w');
-		// go next rows, these value are just what I think will look good
-		y+=23;
-	}
-
-	// draw direction
-	if(default_data.direction == FORWARD){
-		glcd_tiny_draw_char_xy(110, correct_Y(4), 'F');
-		glcd_tiny_draw_char_xy(116, correct_Y(4), 'W');
-		glcd_tiny_draw_char_xy(122, correct_Y(4), 'D');
-	}
-	else{
-		glcd_tiny_draw_char_xy(110, correct_Y(4), 'R');
-		glcd_tiny_draw_char_xy(116, correct_Y(4), 'E');
-		glcd_tiny_draw_char_xy(122, correct_Y(4), 'V');
-	}
-
-	// draw divider line
-	glcd_draw_line(81, 0,  81, 63, BLACK);
-	int x = 0;
-	// draw km/h
-	while(labelspeed[x] != 0){
-		glcd_tiny_draw_char_xy(94+(x*6), correct_Y(52), labelspeed[x]);
-		x++;
-	}
-
-
-	// draw the numbers
-	char valueS[4][4];
-
-	// get it in strings
-	for(int i = 0; i < 4; i++){
-		// sign
-		short v = value[i];
-		if(v<0){
-			valueS[i][0] = '-';
-			v *= -1;
-		}
-		else{
-			valueS[i][0] = '+';
-		}
-		// hundred
-		if(v/100 != 0){
-			valueS[i][1] = '0' + v/100;
-		}
-		else{
-			valueS[i][1] = ' ';
-		}
-		// tenth
-		if((v/10)%10 != 0 || valueS[i][1] != ' '){
-			valueS[i][2] = '0' + (v/10)%10;
-		}
-		else{
-			valueS[i][2] = ' ';
-		}
-		// ones
-		valueS[i][3] = '0' + v%10;
-	}
-
-	// write the 3 small values
-	y = 5;
-	for(int i = 0; i < 3; i++){
-		for(int j = 0; j < 4; j++){
-			glcd_tiny_draw_char_xy(48+(j*6), correct_Y(y), valueS[i][j]);
-		}
-		y+=23;
-	}
-
-	// now write the big speed
-	if(value[3] < 100){
-		glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
-		if(valueS[3][2] != ' ')glcd_draw_char_xy(85, correct_Y(16), valueS[3][2]);
-		glcd_draw_char_xy(105, correct_Y(16), valueS[3][3]);
-	}
-	else{
-		glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
-		for(int i = 1; i < 4; i++){
-			glcd_draw_char_xy(85+((i-1)*13), correct_Y(19), valueS[3][i]);
-		}
-		// speed >= 100, case for three digits
-	}
-
-
-	glcd_write();
-}
-
-void drawP1DefaultNew(/*int value[4]*/){
 	short value[4] = {	common_data.solar_power,
 						common_data.motor_power,
 						common_data.battery_power,
@@ -476,7 +364,9 @@ void drawP1BMSFault(){
 		break;
 	case 3:
 		faultType = "OVERCURRENT";
+		faultNum = 2;
 		faultTypeL = 11;
+		faultCell = 0xFF;
 		break;
 	}
 
@@ -489,8 +379,8 @@ void drawP1BMSFault(){
 	if(faultCell != 0xFF){
 		x = 70;
 		char cellString[11] = {0};
-		if(faultNum) sprintf(cellString, " (CELL %d)\0", faultCell);
-		else sprintf(cellString, " (THERM %d)\0", faultCell);
+		if (faultNum == 0) sprintf(cellString, " (THERM %d)\0", faultCell);
+		else if (faultNum == 1) sprintf(cellString, " (CELL %d)\0", faultCell);
 		ptr = cellString;
 
 		while(*ptr != '\0'){
@@ -517,8 +407,7 @@ void drawP1(uint8_t sel){
 
 	switch(sel){
 	case 0:
-//		drawP1Default(/*defaultTest*/);
-		drawP1DefaultNew();
+		drawP1Default();
 		break;
 	case 1:
 		drawP1Detailed(/*defaultDetailed*/);
