@@ -450,8 +450,6 @@ void drawP2Default(/*int value[4]*/){
 						default_data.P2_motor_state,
 						default_data.P2_VFM,
 						common_data.battery_soc};
-	char* labelsP2[] = {"DRL:"};
-	int labelsP2L = 1;
 
 	if(value[3] > 99) value[3] = 99;
 
@@ -459,15 +457,6 @@ void drawP2Default(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	uint8_t y = 5;
-	for(int i = 0; i < labelsP2L; i++){
-		char* label = labelsP2[i];
-		int j = 0;
-		while(label[j] != 0){
-			glcd_tiny_draw_char_xy(49+j*6, correct_Y(y), label[j]);
-			j++;
-		}
-		y+=23;
-	}
 
 	glcd_draw_line(44, 0,  44, 63, BLACK);
 	glcd_tiny_draw_char_xy(19, correct_Y(52), '%');
@@ -477,12 +466,6 @@ void drawP2Default(/*int value[4]*/){
 	// write the 2 on off
 	y = 3;
 	glcd_set_font(JetBrains_Mono13x20, 13, 20, 'A', 'Z');
-	char* status = "OFF";
-	if(value[0]) status = " ON";
-	for(int j = 0; j < 3; j++){
-		if(value[0] && j == 0) continue;
-		glcd_draw_char_xy(75+(j*13), correct_Y(y), status[j]);
-	}
 
 	char* state;
 	uint8_t stateL;
