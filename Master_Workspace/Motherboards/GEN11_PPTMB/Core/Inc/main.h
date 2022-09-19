@@ -77,6 +77,8 @@ void Error_Handler(void);
 #define PSM_CS_2_GPIO_Port GPIOG
 #define LED2_Pin GPIO_PIN_14
 #define LED2_GPIO_Port GPIOE
+#define PPT_12V_EN_Pin GPIO_PIN_5
+#define PPT_12V_EN_GPIO_Port GPIOJ
 #define LED0_Pin GPIO_PIN_6
 #define LED0_GPIO_Port GPIOH
 #define LED1_Pin GPIO_PIN_9
