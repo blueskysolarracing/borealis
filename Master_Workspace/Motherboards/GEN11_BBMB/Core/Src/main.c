@@ -132,6 +132,9 @@ uint32_t BMS_tick_count_last_packet;
 
 //--- Battery ---/
 uint8_t batteryState;
+uint8_t batteryFaultType = 4; //Default to fault type 4, which doesn't correspond to any fault
+uint8_t batteryFaultCell = 0;
+uint8_t batteryFaultTherm = 0;
 
 //--- Discharge test ---//
 float cellUnderTestVoltage = -1;
@@ -1344,20 +1347,17 @@ void serialParse(B_tcpPacket_t *pkt){
 				if ((pkt->data[2] == OPEN) && (relay.battery_relay_state == CLOSED)){ //Open relays and resend
 					relayCtrlMessage = 1;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
-					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, OPEN, pkt->data[3]};
-					B_tcpSend(btcp_main, buf, sizeof(buf));
 
 				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.battery_relay_state == OPEN)){ //Try to close relays
 					relayCtrlMessage = 2;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
-					uint8_t buf[4] = {BBMB_RELAYS_STATE_ID, batteryState, CLOSED, pkt->data[3]};
-					B_tcpSend(btcp_main, buf, sizeof(buf));
 				}
 
 			//Horn
 			} else if (pkt->data[0] == DCMB_STEERING_WHEEL_ID){
 				if ((pkt->data[2] & 0b00001000) >> 3){ //Turn on horn
 					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_SET);
+
 				} else { //Turn off horn
 					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_RESET);
 				}
@@ -1438,10 +1438,15 @@ void relayTask(void * argument){
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
 			if (buf_relay[0] == 1){
-				open_relays(&relay);
 				relay.battery_relay_state = OPEN;
 
-				if (relay.array_relay_state == OPEN){ //Both relays are opened, so discharge HV bus
+				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
+									  batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
+				B_tcpSend(btcp_main, buf, sizeof(buf));
+
+				open_relays(&relay);
+
+				if (relay.array_relay_state == OPEN){ //Both battery and array relays are opened, so discharge HV bus
 					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
 					osDelay(DISCHARGE_TIME);
 					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
@@ -1450,6 +1455,10 @@ void relayTask(void * argument){
 			} else if (buf_relay[0] == 2){
 				close_relays(&relay);
 				relay.battery_relay_state = CLOSED;
+
+				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
+									  batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
+				B_tcpSend(btcp_main, buf, sizeof(buf));
 			}
 		}
 	}
@@ -1645,16 +1654,14 @@ void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fau
 	vTaskSuspendAll();
 	relayCtrlMessage = 1; //Command to open relays
 	batteryState = FAULTED;
-	uint8_t buf[4 * 2] = {	BBMB_RELAYS_STATE_ID, FAULTED, OPEN, relay.array_relay_state,
-							fault_type, fault_cell, fault_thermistor, 0};
+	batteryFaultType  = fault_type;
+	batteryFaultCell  = fault_cell;
+	batteryFaultTherm = fault_thermistor;
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 	xTaskResumeAll();
 
 	//Open relays
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
-
-	//Broadcast to rest of car
-	B_tcpSend(btcp_main, buf, sizeof(buf)); //Will update driver displays, alert chase car...
 
 	//Change BMS power from battery module to 12V supplemental
 	HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_RESET);
