@@ -1623,6 +1623,13 @@ static void pedalTask(const void* p) {
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
+		// Braking exits CRUISE mode if enabled.
+		} else {
+			if (brakeState == BRAKE_PRESSED) {
+				motorTargetPower = (uint16_t) 0;
+				motorState = STANDBY;
+				default_data.P2_motor_state = STANDBY;
+			}
 		}
 
 		//Turn off motor if needed. Overrides original motorState
