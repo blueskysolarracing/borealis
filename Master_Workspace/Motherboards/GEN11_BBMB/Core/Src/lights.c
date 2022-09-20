@@ -17,13 +17,12 @@ void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, f
 		setup_motor(lights->TMC5160_SPI);
 	}
 
-	lights->ind_master_TIM->Instance->ARR = 63999; //Period of 1s (60 blinks per second) assuming 64MHz clock and 999 prescaler.
-	lights->ind_master_TIM->Instance->CCR1 = 32000; //On-time of 50%
-	lights->left_ind_TIM->Instance->ARR = 63; //Period of 1ms assuming 64MHz clock and 999 prescaler
-	//(Slave ARR + 1) has to be a multiple of (Master ARR + 1) for timing to match
+	lights->ind_master_TIM->Instance->ARR = 31999; //Period of 1s (60 blinks per second) assuming 32MHz clock and 999 prescaler.
+	lights->ind_master_TIM->Instance->CCR1 = 16000; //On-time of 50%
+	lights->left_ind_TIM->Instance->ARR = 31; //Period of 1ms assuming 32MHz clock and 999 prescaler
+	lights->right_ind_TIM->Instance->ARR = 31; //Period of 1ms assuming 32MHz clock and 999 prescaler
 
-	//turn on master timer
-	HAL_TIM_PWM_Start(lights->ind_master_TIM, lights->ind_master_CH);
+	//(Slave ARR + 1) has to be a multiple of (Master ARR + 1) for timing to match
 
 	if (left_or_right == LEFT){
 		if (USE_RETRACTABLE_LIGHTS){	rotate(0, LEFT, lights->TMC5160_SPI); 	}// anti-clockwise: out for left
@@ -32,9 +31,15 @@ void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, f
 
 	} else if (left_or_right == RIGHT){
 		if (USE_RETRACTABLE_LIGHTS){	rotate(1, RIGHT, lights->TMC5160_SPI); 	}// clockwise: out for right
-		lights->right_ind_TIM->Instance->CCR2 = pwm_duty_cycle * lights->left_ind_TIM->Instance->ARR;
+		lights->right_ind_TIM->Instance->CCR2 = pwm_duty_cycle * lights->right_ind_TIM->Instance->ARR;
 		HAL_TIM_PWM_Start(lights->right_ind_TIM, lights->right_ind_CH);
+
+	} else { //Bad command
+		return;
 	}
+
+	//turn on master timer
+	HAL_TIM_PWM_Start(lights->ind_master_TIM, lights->ind_master_CH);
 }
 
 void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right){
@@ -48,16 +53,15 @@ void turn_off_indicators(struct lights_stepper_ctrl* lights, int left_or_right){
 	if (left_or_right == LEFT){ //left
 		HAL_TIM_PWM_Stop(lights->left_ind_TIM, lights->left_ind_CH);
 		if (USE_RETRACTABLE_LIGHTS){	rotate(1, 0, lights->TMC5160_SPI);	} // clockwise: in for left
-	}
 
-	else { //right
+	} else if (left_or_right == RIGHT) { //right
 		HAL_TIM_PWM_Stop(lights->right_ind_TIM, lights->right_ind_CH);
 		if (USE_RETRACTABLE_LIGHTS){	rotate(0, 1, lights->TMC5160_SPI);	} // anti-clockwise: in for right
 	}
 }
 
 void turn_on_DRL(struct lights_stepper_ctrl* lights, float pwm_duty_cycle){
-	lights->DRL_TIM->Instance->ARR = 63; //1ms period
+	lights->DRL_TIM->Instance->ARR = 31; //1ms period
 	lights->DRL_TIM->Instance->CCR1 = pwm_duty_cycle * lights->DRL_TIM->Instance->ARR;
 
 	if (USE_RETRACTABLE_LIGHTS){
@@ -82,7 +86,7 @@ void turn_off_DRL(struct lights_stepper_ctrl* lights){
 }
 
 void turn_on_brake_lights(struct lights_stepper_ctrl* lights, float pwm_duty_cycle){
-	lights->BRK_TIM->Instance->ARR = 63; //Period of 1ms
+	lights->BRK_TIM->Instance->ARR = 31; //Period of 1ms
 	lights->BRK_TIM->Instance->CCR2 = pwm_duty_cycle * lights->BRK_TIM->Instance->ARR;
 	HAL_TIM_PWM_Start(lights->BRK_TIM, lights->BRK_CH); // Channel 2 is brake lights
 }
@@ -106,12 +110,12 @@ void turn_off_hazard_lights(struct lights_stepper_ctrl* lights){
 }
 
 void turn_on_fault_indicator(struct lights_stepper_ctrl* lights, float pwm_duty_cycle){
-	lights->FLT_master_TIM->Instance->ARR = 31999; //Period of 0.5s (120 blinks per second) assuming 64MHz clock and 999 prescaler.
-	lights->FLT_master_TIM->Instance->CCR1 = 16000; //On-time of 50%
+	lights->FLT_master_TIM->Instance->ARR = 15999; //Period of 0.5s (120 blinks per second) assuming 32MHz clock and 999 prescaler.
+	lights->FLT_master_TIM->Instance->CCR1 = 8000; //On-time of 50%
 	//(Slave ARR + 1) has to be a multiple of (Master ARR + 1) for timing to match
 	HAL_TIM_PWM_Start(lights->FLT_master_TIM, lights->FLT_master_CH);
 
-	lights->FLT_TIM->Instance->ARR = 31; //Period of 0.5ms assuming 64MHz clock and 999 prescaler
+	lights->FLT_TIM->Instance->ARR = 15; //Period of 0.5ms assuming 32MHz clock and 999 prescaler
 	lights->FLT_TIM->Instance->CCR1 = pwm_duty_cycle * lights->FLT_TIM->Instance->ARR;
 
 	HAL_TIM_PWM_Start(lights->FLT_TIM, lights->FLT_CH);
