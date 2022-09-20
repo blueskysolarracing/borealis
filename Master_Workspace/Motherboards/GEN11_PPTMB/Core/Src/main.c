@@ -791,8 +791,10 @@ void serialParse(B_tcpPacket_t *pkt){
 					//Disable 12V power to PPT if the battery is disconnected from HV bus (to prevent gating without output biased by anything)
 					//Note that PPTMB design has PPT_12V_EN GPIO signal on Nuke pin 50. However, no signal is routed there so we shorted that pin to pin 48 on PPTMB-specific Nucleo.
 					if ((pkt->data[1] == FAULTED) || (relay.battery_relay_state == OPEN)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+					//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
+					else if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
 				}
-
+				break;
 		}
 	}
 }
@@ -808,6 +810,11 @@ void relayTask(void * argument){
 				//For opening relays, notify everyone as soon as the command is received
 				relay.array_relay_state = OPEN;
 
+				//Turn off power to MPPTs, which stops operation
+				HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+				osDelay(500); //Wait for 12V-12V converter to turn off
+
+				//Send new relay state to bus
 				uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
 								  4, 0, 0, 0}; //Send fault type of "4" which doesn't correspond to any fault
 				B_tcpSend(btcp, buf, sizeof(buf));
@@ -823,6 +830,9 @@ void relayTask(void * argument){
 				uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
 								  0, 0, 0, 0};
 				B_tcpSend(btcp, buf, sizeof(buf));
+
+				//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
+				if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
 			}
 		}
 	}
