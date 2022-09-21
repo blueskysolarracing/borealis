@@ -511,6 +511,71 @@ void drawP2Default(/*int value[4]*/){
 	glcd_write();
 }
 
+void drawP2DefaultLow(/*int value[4]*/){
+	uint8_t value[2] = {default_data.P2_low_supp_volt,
+						common_data.battery_soc};
+
+	if(value[1] > 99) value[1] = 99;
+
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+
+	uint8_t y = 5;
+	uint8_t x = 0;
+
+	glcd_draw_line(44, 0,  44, 63, BLACK);
+	glcd_tiny_draw_char_xy(19, correct_Y(52), '%');
+
+    glcd_tiny_set_font(Font5x7,5,7,32,127);
+    char* low = "LOW SUPP.";
+    char* volt = "VOLTAGE";
+
+    // draw the labels
+	int j = 0;
+	x = 59;
+	y = 41;
+	// char by char cuz draw xy only with char
+	while(low[j] != '\0'){
+		glcd_tiny_draw_char_xy(59+j*6, correct_Y(y), low[j]);
+		j++;
+	}
+
+	y = 52;
+	while(volt[j] != '\0'){
+		glcd_tiny_draw_char_xy(65+j*6, correct_Y(y), volt[j]);
+		j++;
+	}
+
+
+
+    // draw attention icon
+    x = 44;
+    y = 5;
+    for(int i = 0; i < 28; i++){
+		for(int j = 0; j < 32; j++){
+			if(leaf[i][j])
+				glcd_set_pixel(x+j, y+i, 1);
+		}
+	}
+    x = 75;
+    y = 9;
+    glcd_set_font(JetBrains_Mono13x21_Symbol, 13, 21, ' ', '9');
+	char valueS[4] = {0};
+	sprintf(valueS, "%3d", value[0]);
+	for(int i = 0; i < 3; i++){
+		glcd_draw_char_xy(x+(i*13), correct_Y(y), valueS[i]);
+	}
+	glcd_set_font(JetBrains_Mono13x20, 13, 20, 'A', 'Z');
+	glcd_draw_char_xy(115, correct_Y(y), 'V');
+
+	// now write the big battery
+	glcd_set_font(Liberation_Sans20x28_Numbers, 20, 28, '.', '9');
+	if((value[1]/10) != 0) glcd_draw_char_xy(0, 16, '0' + value[1]/10);
+	glcd_draw_char_xy(21, 16, '0' + value[1]%10);
+
+	glcd_write();
+}
+
 void drawP2Detailed(/*int value[5]*/){
 	short value[4] = {	common_data.LV_power,
 						common_data.LV_voltage,

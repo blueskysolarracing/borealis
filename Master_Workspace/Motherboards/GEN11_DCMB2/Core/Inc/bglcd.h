@@ -32,6 +32,7 @@ struct disp_default_frame{
 	uint8_t	P2_motor_state;
 	uint8_t	P2_VFM;
 	uint8_t	P2_right_indicator_status;
+	uint8_t P2_low_supp_volt;
 };
 
 struct disp_detailed_frame{
