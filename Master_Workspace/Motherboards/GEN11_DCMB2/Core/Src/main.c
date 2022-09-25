@@ -1555,7 +1555,7 @@ static void pedalTask(const void* p) {
 	float accel_r_0 = 0.3494; //Resistance when pedal is unpressed (kR)
 	float accel_reading_upper_bound = 61000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_lower_bound = 24250.0; //ADC reading corresponding to 100% power request
-	float accel_reading_threshold = 25.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float accel_reading_threshold = 35.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
