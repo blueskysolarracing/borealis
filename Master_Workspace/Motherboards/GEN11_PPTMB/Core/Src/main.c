@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "PSM.h"
+#include "psm.h"
 #include "bmisc.h"
 #include "buart.h"
 #include "btcp.h"
@@ -661,7 +661,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, HV_data_string3, 2);
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data_HV, 2);
 
-	vTaskSuspend();
+	vTaskSuspendAll();
 
 	psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGE);
 	psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENT);
@@ -675,7 +675,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGE);
 	psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENT);
 
-	vTaskResume();
+	xTaskResumeAll();
 }
 
 void measurementSender(TimerHandle_t xTimer){
@@ -685,7 +685,7 @@ void measurementSender(TimerHandle_t xTimer){
 	busMetrics_HV[0] = PPTMB_BUS_METRICS_ID;
 	busMetrics_PPT[0] = PPTMB_PPT_METRICS_ID;
 
-	vTaskSuspend();
+	vTaskSuspendAll();
 	//Get HV average
 	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGE);
 	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENT);
@@ -700,7 +700,7 @@ void measurementSender(TimerHandle_t xTimer){
 	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGE);
 	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENT);
 
-	vTaskResume();
+	xTaskResumeAll();
 
 	//Build HV packet
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
@@ -768,19 +768,19 @@ void serialParse(B_tcpPacket_t *pkt){
 			//Relay state
 			if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 
-				vTaskSuspend();
+				vTaskSuspendAll();
 				if ((pkt->data[3] == OPEN) && (relay.array_relay_state == CLOSED)){ //Open relays and resend
 					relayCtrlMessage = 1;
-					vTaskResume();
+					xTaskResumeAll();
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
-					vTaskSuspend();
+					vTaskSuspendAll();
 				} else if ((pkt->data[3] == CLOSED) && (relay.array_relay_state == OPEN)){ //Try to close relays
 					relayCtrlMessage = 2;
-					vTaskResume();
+					xTaskResumeAll();
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
-					vTaskSuspend();
+					vTaskSuspendAll();
 				}
-				vTaskResume();
+				xTaskResumeAll();
 			}
 			break;
 		case BBMB_ID:
