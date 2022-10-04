@@ -17,8 +17,8 @@ void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, f
 		setup_motor(lights->TMC5160_SPI);
 	}
 
-	lights->ind_master_TIM->Instance->ARR = 31999; //Period of 1s (60 blinks per second) assuming 32MHz clock and 999 prescaler.
-	lights->ind_master_TIM->Instance->CCR1 = 16000; //On-time of 50%
+	lights->ind_master_TIM->Instance->ARR = 25599; //Period of 1s (60 blinks per second) assuming 32MHz clock and 999 prescaler.
+	lights->ind_master_TIM->Instance->CCR1 = 12800; //On-time of 50%
 	lights->left_ind_TIM->Instance->ARR = 31; //Period of 1ms assuming 32MHz clock and 999 prescaler
 	lights->right_ind_TIM->Instance->ARR = 31; //Period of 1ms assuming 32MHz clock and 999 prescaler
 
