@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "PSM.h"
+#include "psm.h"
 #include "bmisc.h"
 #include "buart.h"
 #include "btcp.h"
@@ -37,7 +37,6 @@
 /* USER CODE BEGIN PD */
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 #define TCP_ID PPTMB_ID
-#define PROTECTION_ENABLE 1
 
 /* USER CODE END PD */
 
@@ -66,10 +65,11 @@ B_tcpHandle_t *btcp;
 
 uint8_t heartbeat[2] = {PPTMB_HEARTBEAT_ID, 0};
 
-//--- RELAYS ---//
+//--- RELAYS & BATTERY ---//
 struct relay_periph relay;
 QueueHandle_t relayCtrl = NULL;
 uint8_t relayCtrlMessage;
+uint8_t batteryState = FAULTED; //Assume battery is faulted
 
 //--- PSM ---//
 struct PSM_Peripheral psmPeriph;
@@ -154,6 +154,9 @@ int main(void)
   //--- NUKE LED ---//
   HAL_TIM_Base_Start_IT(&htim7);
 
+  //--- PPT POWER ---//
+  HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET); //Turn off 12V supply to PPT (to prevent gating while the battery isn't connected)
+
   //--- RDB ---//
   relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
   relay.DISCHARGE_Pin = RELAY_DISCHARGE_Pin;
@@ -215,34 +218,11 @@ int main(void)
   psmFilter_HV.buf_current = (int) PSM_FIR_current_HV;
   psmFilter_HV.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
-
   //--- COMMS ---//
   buart = B_uartStart(&huart4);
   btcp = B_tcpStart(PPTMB_ID, &buart, buart, 1, &hcrc);
 
-  //--- RELAYS ---//
-  if (PROTECTION_ENABLE == 0){ //No protection, so close relays immediately
-	  //Close battery relays
-	  relayCtrlMessage = 2;
-	  xQueueSend(relayCtrl, &relayCtrlMessage, 10);
-  }
-
-  //HACK HACK HACK HACK
-	HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET); //Make sure battery discharge circuit is disabled
-	osDelay(ACTUATION_DELAY);
-
-	HAL_GPIO_WritePin(relay.GND_SIG_GPIO_Port, relay.GND_SIG_Pin, GPIO_PIN_SET); //Close low-side relay
-	osDelay(ACTUATION_DELAY);
-
-	HAL_GPIO_WritePin(relay.PRE_SIG_GPIO_Port, relay.PRE_SIG_Pin, GPIO_PIN_SET); //Close pre-charge relay to safely charge bus capacitance and avoid high dI/dt
-	osDelay(PRECHARGE_TIME);
-
-	HAL_GPIO_WritePin(relay.ON_SIG_GPIO_Port, relay.ON_SIG_Pin, GPIO_PIN_SET); //Close high-side relay
-	osDelay(ACTUATION_DELAY + 500); //500ms added to prevent inrush current from tripping PSM measurements
-
-	HAL_GPIO_WritePin(relay.PRE_SIG_GPIO_Port, relay.PRE_SIG_Pin, GPIO_PIN_RESET); //Open pre-charge relay
-
-
+  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -259,6 +239,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+#ifdef DEFAULT_TASK
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -268,6 +250,17 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+#endif
+  BaseType_t status;
+  TaskHandle_t relayTaskHandle;
+  status = xTaskCreate(relayTask,  /* Function that implements the task. */
+			"relayTask", /* Text name for the task. */
+			200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
+			"none", /* Parameter passed into the task. */
+			4, /* Priority at which the task is created. */
+			&relayTaskHandle /* Used to pass out the created task's handle. */
+						  );
+  configASSERT(status);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -362,8 +355,8 @@ static void MX_CRC_Init(void)
   hcrc.Instance = CRC;
   hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
   hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
-  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
-  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
   hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
   if (HAL_CRC_Init(&hcrc) != HAL_OK)
   {
@@ -592,6 +585,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
@@ -609,6 +603,9 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(PSM_CS_2_GPIO_Port, PSM_CS_2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin, GPIO_PIN_RESET);
@@ -650,6 +647,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(PSM_CS_2_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PPT_12V_EN_Pin */
+  GPIO_InitStruct.Pin = PPT_12V_EN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(PPT_12V_EN_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LED0_Pin LED1_Pin */
   GPIO_InitStruct.Pin = LED0_Pin|LED1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -671,7 +675,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, HV_data_string3, 2);
 	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data_HV, 2);
 
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 
 	psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGE);
 	psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENT);
@@ -685,7 +689,7 @@ void PSMTaskHandler(TimerHandle_t xTimer){
 	psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGE);
 	psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENT);
 
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 }
 
 void measurementSender(TimerHandle_t xTimer){
@@ -695,7 +699,7 @@ void measurementSender(TimerHandle_t xTimer){
 	busMetrics_HV[0] = PPTMB_BUS_METRICS_ID;
 	busMetrics_PPT[0] = PPTMB_PPT_METRICS_ID;
 
-	taskENTER_CRITICAL();
+	vTaskSuspendAll();
 	//Get HV average
 	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGE);
 	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENT);
@@ -710,7 +714,7 @@ void measurementSender(TimerHandle_t xTimer){
 	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGE);
 	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENT);
 
-	taskEXIT_CRITICAL();
+	xTaskResumeAll();
 
 	//Build HV packet
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
@@ -773,35 +777,41 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 void serialParse(B_tcpPacket_t *pkt){
-	while(1){
-		switch(pkt->senderID){
-			case DCMB_ID:
-				//Relay state
-				if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
-					taskENTER_CRITICAL();
+	switch(pkt->senderID){
+		case DCMB_ID:
+			//Relay state
+			if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 
-					if ((pkt->data[3] == OPEN) && (relay.array_relay_state == CLOSED)){ //Open relays and resend
-						relayCtrlMessage = 1;
-						xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
-
-						uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, pkt->data[1], pkt->data[2], OPEN,
-										  pkt->data[4], pkt->data[5], pkt->data[6], pkt->data[7]};
-						B_tcpSend(btcp, buf, sizeof(buf));
-
-					} else if ((pkt->data[3] == CLOSED) && (relay.array_relay_state == OPEN)){ //Try to close relays
-						relayCtrlMessage = 2;
-						xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
-
-						uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, pkt->data[1], pkt->data[2], CLOSED,
-										  pkt->data[4], pkt->data[5], pkt->data[6], pkt->data[7]};
-						B_tcpSend(btcp, buf, sizeof(buf));
-					}
-
-					taskEXIT_CRITICAL();
+				vTaskSuspendAll();
+				if ((pkt->data[3] == OPEN) && (relay.array_relay_state == CLOSED)){ //Open relays and resend
+					relayCtrlMessage = 1;
+					xTaskResumeAll();
+					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
+					vTaskSuspendAll();
+				} else if ((pkt->data[3] == CLOSED) && (relay.array_relay_state == OPEN)){ //Try to close relays
+					relayCtrlMessage = 2;
+					xTaskResumeAll();
+					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
+					vTaskSuspendAll();
 				}
-				break;
-		}
+				xTaskResumeAll();
+			}
+			break;
+		case BBMB_ID:
+			//Relay state
+			if (pkt->data[0] == BBMB_RELAYS_STATE_ID){
+				batteryState = pkt->data[1];
+				relay.battery_relay_state = pkt->data[2];
+
+				//Disable 12V power to PPT if the battery is disconnected from HV bus (to prevent gating without output biased by anything)
+				//Note that PPTMB design has PPT_12V_EN GPIO signal on Nuke pin 50. However, no signal is routed there so we shorted that pin to pin 48 on PPTMB-specific Nucleo.
+				if ((pkt->data[1] == FAULTED) || (relay.battery_relay_state == OPEN)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+				//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
+				else if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+			}
+			break;
 	}
+
 }
 
 void relayTask(void * argument){
@@ -812,18 +822,32 @@ void relayTask(void * argument){
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
 			if (buf_relay[0] == 1){
-				open_relays(&relay);
+				//For opening relays, notify everyone as soon as the command is received
 				relay.array_relay_state = OPEN;
 
-				if (relay.battery_relay_state == OPEN){ //Both relays are opened, so discharge HV bus
-					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
-					osDelay(DISCHARGE_TIME);
-					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
-				}
+				//Turn off power to MPPTs, which stops operation
+				HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+				osDelay(500); //Wait for 12V-12V converter to turn off
+
+				//Send new relay state to bus
+				uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
+								  4, 0, 0, 0}; //Send fault type of "4" which doesn't correspond to any fault
+				B_tcpSend(btcp, buf, sizeof(buf));
+
+				open_relays(&relay);
 
 			} else if (buf_relay[0] == 2){
 				close_relays(&relay);
+
+				//Only after the relays are fully closed do you update the bus and internal variables
 				relay.array_relay_state = CLOSED;
+
+				uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
+								  0, 0, 0, 0};
+				B_tcpSend(btcp, buf, sizeof(buf));
+
+				//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
+				if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
 			}
 		}
 	}
