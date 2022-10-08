@@ -111,7 +111,10 @@ osThreadId defaultTaskHandle;
 struct PSM_Peripheral psmPeriph;
 double voltageCurrent_Motor[2] = {0, 0};
 double voltageCurrent_Supp[2] = {0, 0};
-uint8_t busMetrics[20] = {0};
+
+struct PSM_FIR_Filter psmFilter;
+float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB] = {0};
+float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB] = {0};
 
 //--- COMMS ---//
 B_uartHandle_t *buart;
@@ -245,7 +248,8 @@ void cruiseControlTaskHandler(void* parameters);
 
 //Tasks for temperature reading and PSM and heartbeat
 void tempSenseTaskHandler(void* parameters);
-void PSMTaskHandler(void* parameters);
+void PSMTaskHandler(TimerHandle_t xTimer);
+void measurementSender(TimerHandle_t xTimer);
 
 // function which writes to the MCP4146 potentiometer on the MC^2
 void MCP4161_Pot_Write(uint16_t wiperValue, GPIO_TypeDef *CSPort, uint16_t CSPin, SPI_HandleTypeDef *hspiPtr);
@@ -387,6 +391,11 @@ int main(void)
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
+  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
+  psmFilter.buf_current = (int) PSM_FIR_HV_Current;
+  psmFilter.buf_voltage = (int) PSM_FIR_HV_Voltage;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
+
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
   }
@@ -395,10 +404,12 @@ int main(void)
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 100, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
 
   //HAL_TIM_Base_Start(&htim2); //not sure what this is for
-  //MX_TIM5_Init(); //CubeMX fails to generate this line, thus call manually
-  //HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_3);
+  MX_TIM5_Init(); //CubeMX fails to generate this line, thus call manually
+  HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_3);
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
 
   //HAL_GPIO_WritePin(GPIOH, GPIO_PIN_12, GPIO_PIN_SET);
@@ -443,16 +454,16 @@ int main(void)
 //							  );
 //	configASSERT(status == pdPASS); // Error checking
 
-	TaskHandle_t PSM_handle;
-
-	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
-				"PSMTask",  //Text name for the task.
-				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
-				"none",  //Parameter passed into the task.
-				4,  //Priority at which the task is created.
-				&PSM_handle  //Used to pass out the created task's handle.
-							);
-	configASSERT(status == pdPASS);// Error checking
+//	TaskHandle_t PSM_handle;
+//
+//	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
+//				"PSMTask",  //Text name for the task.
+//				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+//				"none",  //Parameter passed into the task.
+//				4,  //Priority at which the task is created.
+//				&PSM_handle  //Used to pass out the created task's handle.
+//							);
+//	configASSERT(status == pdPASS);// Error checking
 
 	TaskHandle_t cruiseControl_handle;
 
@@ -2223,40 +2234,95 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		pwm_in.lastInterrupt = xTaskGetTickCount();
 	}
 }
+//
+//void PSMTaskHandler(void* parameters){
+//	uint8_t busMetrics[3 * 4] = {0};
+//	uint8_t suppBatteryMetrics[2 * 4] = {0};
+//	double voltageCurrent_Motor_local[2] = {0, 0};
+//	double voltageCurrent_Supp_local[2] = {0, 0};
+//
+//	busMetrics[0] = MCMB_BUS_METRICS_ID;
+//	suppBatteryMetrics[0] = MCMB_SUPP_BATT_VOLTAGE_ID;
+//
+//	while (1) {
+//		//Motor on channel #1
+//		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_Motor_local, 2);
+//		floatToArray((float) voltageCurrent_Motor_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
+//		floatToArray((float) voltageCurrent_Motor_local[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+//
+//		//Supplemental battery on channel #2
+//		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
+//		floatToArray((float) voltageCurrent_Supp_local[0], suppBatteryMetrics + 4); // fills 4 - 7 of suppBatteryMetrics
+//
+//		//Send to bus
+//		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
+//		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
+//
+//		vTaskSuspendAll();
+//		//Place in global variables
+//		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
+//		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
+//		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
+//		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
+//		batteryVoltage = (float) voltageCurrent_Motor_local[0];
+//		xTaskResumeAll();
+//		vTaskDelay(1000);
+//
+//
+//		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data, 2);
+//
+//		vTaskSuspendAll();
+//
+//		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
+//		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
+//
+//		xTaskResumeAll();
+//	}
+//}
 
-void PSMTaskHandler(void* parameters){
-	uint8_t busMetrics[3 * 4] = {0};
-	uint8_t suppBatteryMetrics[2 * 4] = {0};
-	double voltageCurrent_Motor_local[2] = {0, 0};
-	double voltageCurrent_Supp_local[2] = {0, 0};
+void PSMTaskHandler(TimerHandle_t xTimer){
+	double HV_data[2];
 
-	busMetrics[0] = MCMB_BUS_METRICS_ID;
-	suppBatteryMetrics[0] = MCMB_SUPP_BATT_VOLTAGE_ID;
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data, 2);
 
-	while (1) {
-		//Motor on channel #1
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_Motor_local, 2);
-		floatToArray((float) voltageCurrent_Motor_local[0], busMetrics + 4); // fills 4 - 7 of busMetrics
-		floatToArray((float) voltageCurrent_Motor_local[1], busMetrics + 8); // fills 8 - 11 of busMetrics
+	vTaskSuspendAll();
 
-		//Supplemental battery on channel #2
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, voltageCurrent_Supp_local, 2);
-		floatToArray((float) voltageCurrent_Supp_local[0], suppBatteryMetrics + 4); // fills 4 - 7 of suppBatteryMetrics
+	psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
+	psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
 
-		//Send to bus
-		B_tcpSend(btcp, busMetrics, sizeof(busMetrics));
-		B_tcpSend(btcp, suppBatteryMetrics, sizeof(suppBatteryMetrics));
+	xTaskResumeAll();
+}
 
-		vTaskSuspendAll();
-		//Place in global variables
-		voltageCurrent_Motor[0] = voltageCurrent_Motor_local[0];
-		voltageCurrent_Motor[1] = voltageCurrent_Motor_local[1];
-		voltageCurrent_Supp[0] = voltageCurrent_Supp_local[0];
-		voltageCurrent_Supp[1] = voltageCurrent_Supp_local[1];
-		batteryVoltage = (float) voltageCurrent_Motor_local[0];
-		xTaskResumeAll();
-		vTaskDelay(1000);
-	}
+void measurementSender(TimerHandle_t xTimer){
+//Battery
+	uint8_t busMetrics_HV[3 * 4] = {0};
+	busMetrics_HV[0] = MCMB_BUS_METRICS_ID;
+
+	//Get HV average
+	vTaskSuspendAll();
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
+	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+
+	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+
+	B_tcpSend(btcp, busMetrics_HV, sizeof(busMetrics_HV));
+	xTaskResumeAll();
+
+
+//Supp
+	double supp_data[2];
+	uint8_t busMetrics_LV[3 * 4] = {0};
+	busMetrics_LV[0] = MCMB_LP_BUS_METRICS_ID;
+
+	vTaskSuspendAll();
+	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, supp_data, 2);
+	xTaskResumeAll();
+
+	floatToArray((float) supp_data[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
+	floatToArray((float) supp_data[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
+
+	B_tcpSend(btcp, busMetrics_LV, sizeof(busMetrics_LV));
 }
 
 void HeartbeatHandler(TimerHandle_t xTimer){
