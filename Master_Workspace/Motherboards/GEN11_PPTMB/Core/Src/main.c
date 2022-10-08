@@ -222,6 +222,7 @@ int main(void)
   buart = B_uartStart(&huart4);
   btcp = B_tcpStart(PPTMB_ID, &buart, buart, 1, &hcrc);
 
+  relayCtrl = xQueueCreate(4, sizeof(uint8_t)); //Holds instruction to open (1) or close relay (2)
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -238,6 +239,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+#ifdef DEFAULT_TASK
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -247,6 +250,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+#endif
   BaseType_t status;
   TaskHandle_t relayTaskHandle;
   status = xTaskCreate(relayTask,  /* Function that implements the task. */
@@ -256,7 +260,7 @@ int main(void)
 			4, /* Priority at which the task is created. */
 			&relayTaskHandle /* Used to pass out the created task's handle. */
 						  );
-  
+  configASSERT(status);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
