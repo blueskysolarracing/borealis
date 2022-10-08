@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include "pack_data.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
