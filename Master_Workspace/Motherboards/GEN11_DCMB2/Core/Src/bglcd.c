@@ -960,14 +960,10 @@ void drawP2BMSFault(/*int value[4]*/){
 
 void drawP2(uint8_t sel){
 	pToggle = 1;
-//	int defaultTest[4] = {1, 0, 1, 87};
-//	int defaultDetailed[5] = {1, 2, 3, 4, 5};
-//	int defaultBMSFault[4] = {89, 132, 13, 49};
 
 	switch(sel){
 	case 0:
 		drawP2Default(/*defaultTest*/);
-//		drawP2DefaultNew(/*defaultTest*/);
 		break;
 	case 1:
 		drawP2Detailed(/*defaultDetailed*/);
@@ -984,6 +980,8 @@ void drawP2(uint8_t sel){
 	case 5:
 		drawP2BMSFault(/*defaultBMSFault*/);
 		break;
+	case 6:
+		drawP2DefaultLow();
 	default:
 		drawP2Default(/*defaultTest*/);
 		break;
