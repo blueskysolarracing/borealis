@@ -247,6 +247,16 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  BaseType_t status;
+  TaskHandle_t relayTaskHandle;
+  status = xTaskCreate(relayTask,  /* Function that implements the task. */
+			"relayTask", /* Text name for the task. */
+			200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
+			"none", /* Parameter passed into the task. */
+			4, /* Priority at which the task is created. */
+			&relayTaskHandle /* Used to pass out the created task's handle. */
+						  );
+  
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
