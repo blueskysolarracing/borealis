@@ -244,8 +244,8 @@ int main(void)
 
   PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
   PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
-  psmFilter.buf_current = (int) PSM_FIR_HV_Current;
-  psmFilter.buf_voltage = (int) PSM_FIR_HV_Voltage;
+  psmFilter.buf_current = PSM_FIR_HV_Current;
+  psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_BBMB;
 
   if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout

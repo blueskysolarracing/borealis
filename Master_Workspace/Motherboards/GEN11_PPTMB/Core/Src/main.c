@@ -202,20 +202,20 @@ int main(void)
   PSM_FIR_Init(&psmFilter_string3); //Initialize FIR averaging filter for PSM
   PSM_FIR_Init(&psmFilter_HV); //Initialize FIR averaging filter for PSM
 
-  psmFilter_string1.buf_voltage = (int) PSM_FIR_voltage_string1;
-  psmFilter_string1.buf_current = (int) PSM_FIR_current_string1;
+  psmFilter_string1.buf_voltage = PSM_FIR_voltage_string1;
+  psmFilter_string1.buf_current = PSM_FIR_current_string1;
   psmFilter_string1.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
-  psmFilter_string2.buf_voltage = (int) PSM_FIR_voltage_string2;
-  psmFilter_string2.buf_current = (int) PSM_FIR_current_string2;
+  psmFilter_string2.buf_voltage = PSM_FIR_voltage_string2;
+  psmFilter_string2.buf_current = PSM_FIR_current_string2;
   psmFilter_string2.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
-  psmFilter_string3.buf_voltage = (int) PSM_FIR_voltage_string3;
-  psmFilter_string3.buf_current = (int) PSM_FIR_current_string3;
+  psmFilter_string3.buf_voltage = PSM_FIR_voltage_string3;
+  psmFilter_string3.buf_current = PSM_FIR_current_string3;
   psmFilter_string3.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
-  psmFilter_HV.buf_voltage = (int) PSM_FIR_voltage_HV;
-  psmFilter_HV.buf_current = (int) PSM_FIR_current_HV;
+  psmFilter_HV.buf_voltage = PSM_FIR_voltage_HV;
+  psmFilter_HV.buf_current = PSM_FIR_current_HV;
   psmFilter_HV.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
   //--- COMMS ---//
