@@ -37,6 +37,8 @@
 /* USER CODE BEGIN PD */
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 #define TCP_ID PPTMB_ID
+#define CONNECTION_EXPIRY_THRESHOLD 5000 //Number of ticks since last packet received before connection is considered "lost"
+
 
 /* USER CODE END PD */
 
@@ -107,13 +109,19 @@ void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 static void arrayRelayTask(void * argument);
 
+//Turn off 12V supply to PPT
+void shutDownPPTs() {HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);}
+
+//Turn on 12V supply to PPT
+void turnOnPPTs() { HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 TaskHandle_t PSM_handle;
 BaseType_t status;
-
+uint32_t BBMB_last_packet_tick_count = 0;
 /* USER CODE END 0 */
 
 /**
@@ -155,7 +163,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim7);
 
   //--- PPT POWER ---//
-  HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET); //Turn off 12V supply to PPT (to prevent gating while the battery isn't connected)
+  shutDownPPTs(); //Turn off 12V supply to PPT (to prevent gating while the battery isn't connected)
 
   //--- RDB ---//
   relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
@@ -605,7 +613,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(PSM_CS_2_GPIO_Port, PSM_CS_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+  shutDownPPTs();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin, GPIO_PIN_RESET);
@@ -779,6 +787,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 		case BBMB_ID:
+			BBMB_last_packet_tick_count = xTaskGetTickCount();
 			//Relay state
 			if (pkt->data[0] == BBMB_RELAYS_STATE_ID){
 
@@ -801,9 +810,9 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				//Disable 12V power to PPT if the battery is disconnected from HV bus (to prevent gating without output biased by anything)
 				//Note that PPTMB design has PPT_12V_EN GPIO signal on Nuke pin 50. However, no signal is routed there so we shorted that pin to pin 48 on PPTMB-specific Nucleo connector.
-				if ((batteryState == FAULTED) || (relay.battery_relay_state == OPEN)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+				if ((batteryState == FAULTED) || (relay.battery_relay_state == OPEN)) shutDownPPTs();
 				//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
-				else if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+				else if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) turnOnPPTs();
 				xTaskResumeAll();
 			}
 			break;
@@ -817,13 +826,13 @@ void arrayRelayTask(void * argument){
 	//When relays need to be opened, put a 1 in the queue. When they need to be closed, put a 2.
 
 	for(;;){
-		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
-			if (buf_relay[0] == RELAY_QUEUE_OPEN_ARRAY){
+		if (xQueueReceive(relayCtrl, &buf_relay, 50)){
+			if (buf_relay[0] == RELAY_QUEUE_OPEN_ARRAY && relay.array_relay_state != OPEN){
 				//For opening relays, notify everyone as soon as the command is received
 				relay.array_relay_state = OPEN;
 
 				//Turn off power to MPPTs, which stops operation
-				HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+				shutDownPPTs();
 				osDelay(500); //Wait for 12V-12V converter to turn off
 
 				//Send new relay state to bus
@@ -833,7 +842,7 @@ void arrayRelayTask(void * argument){
 
 				open_relays(&relay);
 
-			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_ARRAY){
+			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_ARRAY && relay.array_relay_state != CLOSED){
 				close_relays(&relay);
 
 				//Only after the relays are fully closed do you update the bus and internal variables
@@ -844,7 +853,29 @@ void arrayRelayTask(void * argument){
 				B_tcpSend(btcp, buf, sizeof(buf));
 
 				//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
-				if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+				if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) turnOnPPTs();
+			}
+		} else {// Nothing is retrieved from queue after waiting
+
+			uint32_t tick_cnt = xTaskGetTickCount();
+
+			// Automatically open array relays and shut down PPTs if no message has been heard from BBMB after CONNECTION_EXPIRY_THRESHOLD
+			if (((tick_cnt - BBMB_last_packet_tick_count) > CONNECTION_EXPIRY_THRESHOLD) && (relay.array_relay_state != OPEN)){
+
+
+				//For opening relays, notify everyone as soon as possible
+				relay.array_relay_state = OPEN;
+
+				//Turn off power to MPPTs, which stops operation
+				shutDownPPTs();
+				osDelay(500); //Wait for 12V-12V converter to turn off
+
+				//Send new relay state to bus
+				uint8_t buf[8] = {PPTMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
+								  4, 0, 0, 0}; //Send fault type of "4" which doesn't correspond to any fault
+				B_tcpSend(btcp, buf, sizeof(buf));
+
+				open_relays(&relay);
 			}
 		}
 	}
