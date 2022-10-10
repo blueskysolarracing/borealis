@@ -784,12 +784,12 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				vTaskSuspendAll();
 				if ((pkt->data[3] == OPEN) && (relay.array_relay_state == CLOSED)){ //Open relays and resend
-					relayCtrlMessage = OPEN_ARRAY_RELAY;
+					relayCtrlMessage = RELAY_QUEUE_OPEN_ARRAY;
 					xTaskResumeAll();
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
 					vTaskSuspendAll();
 				} else if ((pkt->data[3] == CLOSED) && (relay.array_relay_state == OPEN)){ //Try to close array relays
-					relayCtrlMessage = CLOSE_ARRAY_RELAY;
+					relayCtrlMessage = RELAY_QUEUE_CLOSE_ARRAY;
 					xTaskResumeAll();
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
 					vTaskSuspendAll();
@@ -818,7 +818,7 @@ void arrayRelayTask(void * argument){
 
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
-			if (buf_relay[0] == OPEN_ARRAY_RELAY){
+			if (buf_relay[0] == RELAY_QUEUE_OPEN_ARRAY){
 				//For opening relays, notify everyone as soon as the command is received
 				relay.array_relay_state = OPEN;
 
@@ -833,7 +833,7 @@ void arrayRelayTask(void * argument){
 
 				open_relays(&relay);
 
-			} else if (buf_relay[0] == CLOSE_ARRAY_RELAY){
+			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_ARRAY){
 				close_relays(&relay);
 
 				//Only after the relays are fully closed do you update the bus and internal variables

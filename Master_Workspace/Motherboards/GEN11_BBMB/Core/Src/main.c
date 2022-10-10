@@ -1347,19 +1347,19 @@ void serialParse(B_tcpPacket_t *pkt){
 			//Relays
 			} else if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
 				if ((pkt->data[2] == OPEN) && (relay.battery_relay_state == CLOSED)){ //Open relays and resend
-					relayCtrlMessage = OPEN_BATTERY_RELAY;
+					relayCtrlMessage = RELAY_QUEUE_OPEN_BATTERY;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open battery relays
 
 				} else if ((pkt->data[2] == CLOSED) && (batteryState == HEALTHY) && (relay.battery_relay_state == OPEN)){ //Try to close relays
-					relayCtrlMessage = CLOSE_BATTERY_RELAY;
+					relayCtrlMessage = RELAY_QUEUE_CLOSE_BATTERY;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close battery relays
 				}
 				if ((pkt->data[3] == OPEN) && (relay.array_relay_state == CLOSED)){ //Open relays and resend
-					relayCtrlMessage = OPEN_ARRAY_RELAY;
+					relayCtrlMessage = RELAY_QUEUE_OPEN_ARRAY;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open array relays
 
 				} else if ((pkt->data[3] == CLOSED) && (batteryState == HEALTHY) && (relay.array_relay_state == OPEN)){ //Try to close relays
-					relayCtrlMessage = CLOSE_ARRAY_RELAY;
+					relayCtrlMessage = RELAY_QUEUE_CLOSE_ARRAY;
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close array relays
 				}
 
@@ -1446,7 +1446,7 @@ void relayTask(void * argument){
 
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
-			if (buf_relay[0] == OPEN_BATTERY_RELAY){
+			if (buf_relay[0] == RELAY_QUEUE_OPEN_BATTERY){
 				relay.battery_relay_state = OPEN;
 
 				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
@@ -1460,7 +1460,7 @@ void relayTask(void * argument){
 					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
 				}
 
-			} else if (buf_relay[0] == CLOSE_BATTERY_RELAY){
+			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_BATTERY){
 				close_relays(&relay); // Note: we must close battery relay before PPTMB turns on mppt. Thus, close_relays() is called before B_tcpSend().
 				relay.battery_relay_state = CLOSED;
 
@@ -1468,13 +1468,13 @@ void relayTask(void * argument){
 									  batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
 				B_tcpSend(btcp_main, buf, sizeof(buf));
 
-			} else if (buf_relay[0] == OPEN_ARRAY_RELAY) {
+			} else if (buf_relay[0] == RELAY_QUEUE_OPEN_ARRAY) {
 				relay.array_relay_state = OPEN;
 				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
 										batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
 				B_tcpSend(btcp_main, buf, sizeof(buf));
 
-			} else if (buf_relay[0] == CLOSE_ARRAY_RELAY) {
+			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_ARRAY) {
 				relay.array_relay_state = CLOSED;
 				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
 										batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
@@ -1689,9 +1689,9 @@ void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fau
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 
 	//Open both battery and array relays, as per WSC regulation
-	relayCtrlMessage = OPEN_BATTERY_RELAY;
+	relayCtrlMessage = RELAY_QUEUE_OPEN_BATTERY;
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
-	relayCtrlMessage = OPEN_ARRAY_RELAY;
+	relayCtrlMessage = RELAY_QUEUE_OPEN_ARRAY;
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
 
 
