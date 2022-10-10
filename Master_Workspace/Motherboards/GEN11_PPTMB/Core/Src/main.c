@@ -105,7 +105,7 @@ void StartDefaultTask(void const * argument);
 void PSMTaskHandler(TimerHandle_t xTimer);
 void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
-static void relayTask(void * argument);
+static void arrayRelayTask(void * argument);
 
 /* USER CODE END PFP */
 
@@ -252,13 +252,13 @@ int main(void)
   /* add threads, ... */
 #endif
   BaseType_t status;
-  TaskHandle_t relayTaskHandle;
-  status = xTaskCreate(relayTask,  /* Function that implements the task. */
-			"relayTask", /* Text name for the task. */
+  TaskHandle_t arrayRelayTaskHandle;
+  status = xTaskCreate(arrayRelayTask,  /* Function that implements the task. */
+			"arrayRelayTask", /* Text name for the task. */
 			200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
 			"none", /* Parameter passed into the task. */
 			4, /* Priority at which the task is created. */
-			&relayTaskHandle /* Used to pass out the created task's handle. */
+			&arrayRelayTaskHandle /* Used to pass out the created task's handle. */
 						  );
   configASSERT(status);
   /* USER CODE END RTOS_THREADS */
@@ -778,50 +778,47 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
-		case DCMB_ID:
+		case BBMB_ID:
 			//Relay state
-			if (pkt->data[0] == DCMB_RELAYS_STATE_ID){
+			if (pkt->data[0] == BBMB_RELAYS_STATE_ID){
 
 				vTaskSuspendAll();
 				if ((pkt->data[3] == OPEN) && (relay.array_relay_state == CLOSED)){ //Open relays and resend
-					relayCtrlMessage = 1;
+					relayCtrlMessage = OPEN_ARRAY_RELAY;
 					xTaskResumeAll();
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Open relays
 					vTaskSuspendAll();
-				} else if ((pkt->data[3] == CLOSED) && (relay.array_relay_state == OPEN)){ //Try to close relays
-					relayCtrlMessage = 2;
+				} else if ((pkt->data[3] == CLOSED) && (relay.array_relay_state == OPEN)){ //Try to close array relays
+					relayCtrlMessage = CLOSE_ARRAY_RELAY;
 					xTaskResumeAll();
 					xQueueSend(relayCtrl, &relayCtrlMessage, 10); //Close relays
 					vTaskSuspendAll();
 				}
-				xTaskResumeAll();
-			}
-			break;
-		case BBMB_ID:
-			//Relay state
-			if (pkt->data[0] == BBMB_RELAYS_STATE_ID){
+
+
 				batteryState = pkt->data[1];
 				relay.battery_relay_state = pkt->data[2];
 
 				//Disable 12V power to PPT if the battery is disconnected from HV bus (to prevent gating without output biased by anything)
-				//Note that PPTMB design has PPT_12V_EN GPIO signal on Nuke pin 50. However, no signal is routed there so we shorted that pin to pin 48 on PPTMB-specific Nucleo.
-				if ((pkt->data[1] == FAULTED) || (relay.battery_relay_state == OPEN)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+				//Note that PPTMB design has PPT_12V_EN GPIO signal on Nuke pin 50. However, no signal is routed there so we shorted that pin to pin 48 on PPTMB-specific Nucleo connector.
+				if ((batteryState == FAULTED) || (relay.battery_relay_state == OPEN)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
 				//If the battery is OK and both sets of relays are closed, give 12V to PPTs, which starts operation
 				else if ((relay.array_relay_state == CLOSED) && (relay.battery_relay_state == CLOSED) && (batteryState == HEALTHY)) HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+				xTaskResumeAll();
 			}
 			break;
 	}
 
 }
 
-void relayTask(void * argument){
+void arrayRelayTask(void * argument){
 	uint8_t buf_relay[10];
 
 	//When relays need to be opened, put a 1 in the queue. When they need to be closed, put a 2.
 
 	for(;;){
 		if (xQueueReceive(relayCtrl, &buf_relay, 200)){
-			if (buf_relay[0] == 1){
+			if (buf_relay[0] == OPEN_ARRAY_RELAY){
 				//For opening relays, notify everyone as soon as the command is received
 				relay.array_relay_state = OPEN;
 
@@ -836,7 +833,7 @@ void relayTask(void * argument){
 
 				open_relays(&relay);
 
-			} else if (buf_relay[0] == 2){
+			} else if (buf_relay[0] == CLOSE_ARRAY_RELAY){
 				close_relays(&relay);
 
 				//Only after the relays are fully closed do you update the bus and internal variables
