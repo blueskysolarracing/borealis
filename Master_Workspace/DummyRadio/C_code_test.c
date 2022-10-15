@@ -16,11 +16,11 @@
  
 /*PAYLOAD LENGTH HAS TO BE A MULTIPLE OF 4*/ 
 //Data ID 00 
-#define BUS_METRICS_LENGTH 20 
+#define BUS_METRICS_LENGTH 12
 #define MC2_STATE_LENGTH 8 
 //Data ID 01 
 #define CELL_METRICS_LENGTH 20 //20 for each cell and there are 29 cell in total, single cell data send at once
-#define PPT_METRICS_LENGTH 52 //16 for each ppt and there are 3 ptt in total + 4 non repeating initial bytes 
+#define PPT_METRICS_LENGTH 28 //16 for each ppt and there are 3 ptt in total + 4 non repeating initial bytes 
 #define SPEED_PULSE_READING_LENGTH 4 
 #define BBOX_STARTUP_LENGTH 4 
 //Data ID 02 
@@ -30,12 +30,18 @@
 //Data ID 03 
 #define BMS_MCU_STATUS_LENGTH 16 
 #define LIGHT_STATE_LENGTH 4 
+#define SUPP_BATTERY_LENGTH 8
 //Data ID 04 
-#define HORN_STATE_LENGTH 4 
+#define STEERING_WHEEL_LENGTH 4 
 //Data ID 05
 #define BMS_DATA_REQUEST_LENGTH 8
+#define MOTOR_CONTROL_STATE_LENGTH 12
 //Data ID 06
-#define RELAY_STATE_LENGTH 4
+#define RELAY_STATE_LENGTH 8
+//Data ID 07
+#define PEDAL_ANGLE_LENGTH 12
+//Data ID 08
+#define SIDE_PANEL_LENGTH 4
 //Data ID 0B
 #define TEXT_STRING_LENGTH 4
 //Data ID 0D 
@@ -60,12 +66,18 @@ uint8_t PPTBox_Startup_Payload[PPTBOX_STARTUP_LENGTH];
 //Data ID 03 
 uint8_t BMS_MCU_Status_Payload[BMS_MCU_STATUS_LENGTH]; 
 uint8_t Light_State_Payload[LIGHT_STATE_LENGTH]; 
+uint8_t Supp_Battery_Metric_Payload[SUPP_BATTERY_LENGTH];
 //Data ID 04 
-uint8_t Horn_State_Payload[HORN_STATE_LENGTH];
+uint8_t Streeting_Wheel_Payload[STEERING_WHEEL_LENGTH];
 //Data ID 05
 uint8_t BMS_Data_request[BMS_DATA_REQUEST_LENGTH];
+uint8_t Motor_Control_State_Payload[MOTOR_CONTROL_STATE_LENGTH];
 //Data ID 06
 uint8_t Relay_State[RELAY_STATE_LENGTH];
+//Data ID 07
+uint8_t Pedal_Angle[PEDAL_ANGLE_LENGTH];
+//Data ID 08
+uint8_t Side_Panel[SIDE_PANEL_LENGTH];
 //Data ID 0B
 uint8_t Text_String[TEXT_STRING_LENGTH];
 //Data ID 0D 
@@ -154,13 +166,7 @@ void Bus_Metrics_Generator(uint8_t* p){
     *(p+3) = 0x01; 
     insertRandomValue(p, 4, 8, 0, 255); 
     *(p+12) = 0x00; 
-    *(p+13) = 0x00; 
-    *(p+14) = 0x00; 
-    *(p+15) = 0x00; 
-    *(p+16) = 0x00; 
-    *(p+17) = 0x00; 
-    *(p+18) = 0x00; 
-    *(p+19) = 0x00; 
+    
 } 
 void MC2_State_Generator(uint8_t* p){ 
     *p = 0x00; 
@@ -185,21 +191,27 @@ void PPT_Metrics_Generator(uint8_t* p){
     *(p+1) = 7; 
     *(p+2) = 0x00; 
     *(p+3) = 0x01; 
-    for(int i =0; i<3; i++){ 
-        *(p+4+i*16) = 0x00; 
-        *(p+5+i*16) = 0x00; 
-        *(p+6+i*16) = 0x00; 
-        *(p+7+i*16) = 0x00; 
-        insertRandomValue(p, 8+i*16, 4, 0, 255); 
-        *(p+12+i*16) = 0x00; 
-        *(p+13+i*16) = 0x00; 
-        *(p+14+i*16) = 0x00; 
-        *(p+15+i*16) = 0x00; 
-        *(p+16+i*16) = 0x00;
-        *(p+17+i*16) = 0x00; 
-        *(p+18+i*16) = 0x00; 
-        *(p+19+i*16) = 0x00; 
-    } 
+    *(p+4) = 0x00; 
+    *(p+5) = 0x00; 
+    *(p+6) = 0x00; 
+    *(p+7) = 0x00; 
+    insertRandomValue(p, 8, 4, 0, 255); 
+    *(p+12) = 0x00; 
+    *(p+13) = 0x00; 
+    *(p+14) = 0x00; 
+    *(p+15) = 0x00; 
+    *(p+16) = 0x00;
+    *(p+17) = 0x00; 
+    *(p+18) = 0x00; 
+    *(p+19) = 0x00;
+    *(p+20) = 0x00; 
+    *(p+21) = 0x00; 
+    *(p+22) = 0x00; 
+    *(p+23) = 0x00; 
+    *(p+24) = 0x00;
+    *(p+25) = 0x00; 
+    *(p+26) = 0x00; 
+    *(p+27) = 0x00;
 } 
 void Speed_Pulse_Reading_Generator(uint8_t* p){ 
     *p = 0x01; 
@@ -239,8 +251,12 @@ void Light_State_Generator(uint8_t* p){
     *p = 0x03; 
     insertRandomValue(p, 1, 3, 0, 1); 
 } 
+void Supp_Battery_Metric_Generator(uint8_t* p){
+    *p = 0x03; 
+    insertRandomValue(p, 1, 7, 0, 1); 
+}
 //Data ID 04 
-void Horn_State_Generator(uint8_t* p){ 
+void Streeting_Wheel_Generator(uint8_t* p){ 
     *p = 0x04; 
     insertRandomValue(p, 1, 1, 0, 1); 
     *(p+2) = 0x00; 
@@ -251,10 +267,24 @@ void BMS_Data_request_Generator(uint8_t* p){
     *p = 0x05;
     insertRandomValue(p,1,7,0,255); //insering random values for ID and current
 }
+void Motor_Control_State_Generator(uint8_t* p){
+    *p = 0x05; 
+    insertRandomValue(p, 1, 11, 0, 1); 
+}
 //Data ID 06
 void Relay_State_Generator(uint8_t* p){
-    *p = 0x05;
+    *p = 0x06;
     insertRandomValue(p,1,7,0,1); //inserting 0 or 1 for all the other values
+}
+//Data ID 07
+void Pedal_Angle_Generator(uint8_t* p){
+    *p = 0x07;
+    insertRandomValue(p,1,11,0,1);
+}
+//Data ID 08
+void Side_Panel_Generator(uint8_t* p){
+    *p = 0x08;
+    insertRandomValue(p,1,3,0,1);
 }
 //Data ID 0B
 void Text_String_Generator(uint8_t* p){
@@ -465,24 +495,49 @@ void PPTMB(){
                 dummySend(PPT_METRICS_LENGTH, PPTMB_ADDRESS, &PPTMB_SeqNum, PPT_Metrics_Payload); 
                 break; 
             } 
-            case 2: //Send LP Bus Metrics Data 
+            /*case 2: //Send LP Bus Metrics Data 
             { 
                 LP_Bus_Metrics_Generator(LP_Bus_Metrics_Payload); 
                 dummySend(LP_BUS_METRICS_LENGTH, PPTMB_ADDRESS, &PPTMB_SeqNum, LP_Bus_Metrics_Payload); 
                 break; 
-            } 
-            case 3: //Send Core Temp Data 
+            } */
+            /*case 3: //Send Core Temp Data 
             { 
                 Core_Temp_Generator(Core_Temp_Payload); 
                 dummySend(CORE_TEMP_LENGTH, PPTMB_ADDRESS, &PPTMB_SeqNum, Core_Temp_Payload); 
                 break; 
-            } 
-            case 4: //Send Heartbeat Data 
+            } */
+            /*case 4: //Send Heartbeat Data 
             { 
                 Heartbeat_Generator(Heartbeat_Payload); 
                 dummySend(HEARTBEAT_LENGTH, PPTMB_ADDRESS, &PPTMB_SeqNum, Heartbeat_Payload); 
                 break; 
+            } */
+            case 6: //send relay state
+            {
+                Relay_State_Generator(Relay_State);
+                dummySend(RELAY_STATE_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Relay_State); 
+                break;
+            }
+            case 11: //send text string
+            {
+                Text_String_Generator(Text_String);
+                dummySend(TEXT_STRING_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Text_String); 
+                break;
+            }
+            case 14: //Send Core Temp Data 
+            { 
+                Core_Temp_Generator(Core_Temp_Payload); 
+                dummySend(CORE_TEMP_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Core_Temp_Payload); 
+                break; 
             } 
+            case 15: //Send Heartbeat Data 
+            { 
+                Heartbeat_Generator(Heartbeat_Payload); 
+                dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Heartbeat_Payload); 
+                break; 
+            } 
+
         } 
     } 
 } 
@@ -510,22 +565,46 @@ void MCMB(){
                 dummySend(MOTOR_TEMPERATURE_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Motor_Temperature_Payload); 
                 break; 
             } 
-            case 3: //Send LP Bus Metrics Data 
+            /*case 3: //Send LP Bus Metrics Data 
             { 
                 LP_Bus_Metrics_Generator(LP_Bus_Metrics_Payload); 
                 dummySend(LP_BUS_METRICS_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, LP_Bus_Metrics_Payload); 
                 break; 
-            } 
-            case 4: //Send Core Temp Data 
+            } */
+            case 3: //Supp Battery metric
+            {
+                Supp_Battery_Metric_Generator(Supp_Battery_Metric_Payload);
+                dummySend(SUPP_BATTERY_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Supp_Battery_Metric_Payload); 
+                break;
+            }
+            /*case 4: //Send Core Temp Data 
             { 
                 Core_Temp_Generator(Core_Temp_Payload); 
                 dummySend(CORE_TEMP_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Core_Temp_Payload); 
                 break; 
-            } 
-            case 5: //Send Heartbeat Data 
+            } */
+            /*case 5: //Send Heartbeat Data 
             { 
                 Heartbeat_Generator(Heartbeat_Payload); 
                 dummySend(HEARTBEAT_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Heartbeat_Payload); 
+                break; 
+            } */
+            case 11: //send text string
+            {
+                Text_String_Generator(Text_String);
+                dummySend(TEXT_STRING_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Text_String); 
+                break;
+            }
+            case 14: //Send Core Temp Data 
+            { 
+                Core_Temp_Generator(Core_Temp_Payload); 
+                dummySend(CORE_TEMP_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Core_Temp_Payload); 
+                break; 
+            } 
+            case 15: //Send Heartbeat Data 
+            { 
+                Heartbeat_Generator(Heartbeat_Payload); 
+                dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Heartbeat_Payload); 
                 break; 
             } 
         } 
@@ -562,28 +641,70 @@ void DCMB(){
                 dummySend(LIGHT_STATE_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Light_State_Payload); 
                 break; 
             } 
-            case 4: //Send Horn State Data 
+            case 4: //Send Steering wheel Data 
             { 
-                Horn_State_Generator(Horn_State_Payload); 
-                dummySend(HORN_STATE_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Horn_State_Payload); 
+                Streeting_Wheel_Generator(Streeting_Wheel_Payload); 
+                dummySend(STEERING_WHEEL_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Streeting_Wheel_Payload); 
                 break; 
             } 
-            case 5: //Send LP Bus Metrics Data 
+            /*case 5: //Send LP Bus Metrics Data 
             { 
                 LP_Bus_Metrics_Generator(LP_Bus_Metrics_Payload); 
                 dummySend(LP_BUS_METRICS_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, LP_Bus_Metrics_Payload); 
                 break; 
-            } 
-            case 6: //Send Core Temp Data 
+            } */
+            case 5: //motor control state
+            {
+                Motor_Control_State_Generator(Motor_Control_State_Payload); 
+                dummySend(MOTOR_CONTROL_STATE_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Motor_Control_State_Payload); 
+                break; 
+            }
+            /*case 6: //Send Core Temp Data 
             { 
                 Core_Temp_Generator(Core_Temp_Payload); 
                 dummySend(CORE_TEMP_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Core_Temp_Payload); 
                 break; 
-            } 
-            case 7: //Send Heartbeat Data 
+            } */
+            /*case 7: //Send Heartbeat Data 
             { 
                 Heartbeat_Generator(Heartbeat_Payload); 
                 dummySend(HEARTBEAT_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Heartbeat_Payload); 
+                break; 
+            } */
+            case 6: //send relay state
+            {
+                Relay_State_Generator(Relay_State);
+                dummySend(RELAY_STATE_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Relay_State); 
+                break;
+            }
+            case 7: //pedals angle
+            {
+                Pedal_Angle_Generator(Pedal_Angle);
+                dummySend(PEDAL_ANGLE_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Pedal_Angle); 
+                break;
+            }
+            case 8: //side panel
+            {
+                Side_Panel_Generator(Side_Panel);
+                dummySend(SIDE_PANEL_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Side_Panel); 
+                break;    
+            }
+            case 11: //send text string
+            {
+                Text_String_Generator(Text_String);
+                dummySend(TEXT_STRING_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Text_String); 
+                break;
+            }
+            case 14: //Send Core Temp Data 
+            { 
+                Core_Temp_Generator(Core_Temp_Payload); 
+                dummySend(CORE_TEMP_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Core_Temp_Payload); 
+                break; 
+            } 
+            case 15: //Send Heartbeat Data 
+            { 
+                Heartbeat_Generator(Heartbeat_Payload); 
+                dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Heartbeat_Payload); 
                 break; 
             } 
         } 
@@ -652,11 +773,11 @@ void testPayloadGenerator(){
     } 
  
     //test Horn_State_Generator 
-    printf("Horn_State_Generator\n"); 
+    /*printf("Horn_State_Generator\n"); 
     for(int i=0; i<10; i++){ 
         Horn_State_Generator(Horn_State_Payload); 
         printPayload(Horn_State_Payload, HORN_STATE_LENGTH); 
-    } 
+    } */
  
     //test Core_Temp_Generator() 
     printf("test Core_Temp_Generator()\n"); 
