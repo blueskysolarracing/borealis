@@ -2311,18 +2311,18 @@ void measurementSender(TimerHandle_t xTimer){
 
 
 //Supp
-	double supp_data[2];
-	uint8_t busMetrics_LV[3 * 4] = {0};
-	busMetrics_LV[0] = MCMB_LP_BUS_METRICS_ID;
-
-	vTaskSuspendAll();
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, supp_data, 2);
-	xTaskResumeAll();
-
-	floatToArray((float) supp_data[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) supp_data[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
-
-	B_tcpSend(btcp, busMetrics_LV, sizeof(busMetrics_LV));
+//	double supp_data[2];
+//	uint8_t busMetrics_LV[3 * 4] = {0};
+//	busMetrics_LV[0] = MCMB_LP_BUS_METRICS_ID;
+//
+//	vTaskSuspendAll();
+//	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, supp_data, 2);
+//	xTaskResumeAll();
+//
+//	floatToArray((float) supp_data[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
+//	floatToArray((float) supp_data[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
+//
+//	B_tcpSend(btcp, busMetrics_LV, sizeof(busMetrics_LV));
 }
 
 void HeartbeatHandler(TimerHandle_t xTimer){
