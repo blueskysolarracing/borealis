@@ -7,6 +7,14 @@
 #define DISCHARGE_TIME 1000 //Delay to wait after setting dischange pin high to discharge bus capacitance
 #define ACTUATION_DELAY 500 //Delay to wait after opening/closing relay (Gigavac GX14 has max. 20ms actuation time: https://www.gigavac.com/sites/default/files/catalog/spec_sheet/gx14.pdf)
 
+
+enum RELAY_QUEUE_MESSAGE {
+	RELAY_QUEUE_OPEN_BATTERY,
+	RELAY_QUEUE_CLOSE_BATTERY,
+	RELAY_QUEUE_OPEN_ARRAY,
+	RELAY_QUEUE_CLOSE_ARRAY
+};
+
 struct relay_periph{
 	GPIO_TypeDef* PRE_SIG_GPIO_Port;
 	uint16_t PRE_SIG_Pin;
