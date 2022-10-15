@@ -51,6 +51,8 @@
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
+#define LOW_SUPP_VOLT_DISP_ALERT_EN 1 //Enable an alert that displays a warning that the supplemental battery is low (needed for ASC specifically)
+#define LOW_SUPP_VOLT_THRESHOLD 11.0 //Threshold at which to display low supplemental battery voltage
 
 //--- PEDALS ---//
 #define PEDAL_PULLUP 1.0 //Pullup resistance of pedal ADC input (kR)
@@ -1691,6 +1693,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
 
+		} else if (pkt->data[0] == MCMB_SUPP_BATT_VOLTAGE_ID){
+			default_data.P2_low_supp_volt = (uint8_t) round(10.0 * arrayToFloat(&(pkt->data[4])));
+
 		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
 		}
@@ -2090,6 +2095,13 @@ void displayTask(const void *pv){
 			if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
 
 			local_display_sel = display_selection;
+
+			//Check if need to display low supplemental battery voltage alert
+			if (LOW_SUPP_VOLT_DISP_ALERT_EN){
+				if (default_data.P2_low_supp_volt < 10.0 * LOW_SUPP_VOLT_THRESHOLD){
+					local_display_sel = 6;
+				}
+			}
 
 			//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
 			if (SLEEP_FRAME_EN) {
