@@ -613,33 +613,38 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(PSM_CS_2_GPIO_Port, PSM_CS_2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  shutDownPPTs();
+  HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, LED0_Pin|LED1_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : RELAY_HS_Pin LED2_Pin */
-  GPIO_InitStruct.Pin = RELAY_HS_Pin|LED2_Pin;
+  /*Configure GPIO pin : RELAY_HS_Pin */
+  GPIO_InitStruct.Pin = RELAY_HS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+  HAL_GPIO_Init(RELAY_HS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : RELAY_LS_Pin RELAY_DISCHARGE_Pin PSM_LVDS_EN_Pin PSM_CS_1_Pin
-                           PSM_CS_3_Pin PSM_CS_0_Pin */
-  GPIO_InitStruct.Pin = RELAY_LS_Pin|RELAY_DISCHARGE_Pin|PSM_LVDS_EN_Pin|PSM_CS_1_Pin
-                          |PSM_CS_3_Pin|PSM_CS_0_Pin;
+  /*Configure GPIO pins : RELAY_LS_Pin RELAY_DISCHARGE_Pin */
+  GPIO_InitStruct.Pin = RELAY_LS_Pin|RELAY_DISCHARGE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
   /*Configure GPIO pin : RELAY_PRECHARGE_Pin */
   GPIO_InitStruct.Pin = RELAY_PRECHARGE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(RELAY_PRECHARGE_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PSM_LVDS_EN_Pin PSM_CS_1_Pin PSM_CS_3_Pin PSM_CS_0_Pin */
+  GPIO_InitStruct.Pin = PSM_LVDS_EN_Pin|PSM_CS_1_Pin|PSM_CS_3_Pin|PSM_CS_0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PSM_DReady_Pin */
   GPIO_InitStruct.Pin = PSM_DReady_Pin;
@@ -654,6 +659,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(PSM_CS_2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : LED2_Pin */
+  GPIO_InitStruct.Pin = LED2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED2_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PPT_12V_EN_Pin */
   GPIO_InitStruct.Pin = PPT_12V_EN_Pin;
