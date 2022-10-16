@@ -1943,7 +1943,7 @@ void sidePanelTask(const void *pv){
 		//e = B_uartRead(spbBuart);
 		B_uartReadFullMessage(spbBuart,  rxBuf, expectedLen, BSSR_SERIAL_START);
 		if (rxBuf[0] == BSSR_SERIAL_START && rxBuf[1] == 0x04){
-			if (sidePanelData != rxBuf[2]){
+			if (sidePanelData != rxBuf[2] || firstTime){
 				sidePanelData = rxBuf[2];
 				//Only update if different (it should be different)
 
