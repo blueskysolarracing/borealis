@@ -1,4 +1,5 @@
 # workspace data
+.vscode/
 .metadata/
 *.xml
 *.bin
