@@ -104,7 +104,7 @@ static void MX_UART4_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-void PSMTaskHandler(TimerHandle_t xTimer);
+void PSMTaskHandler(void * parameters);
 void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 static void arrayRelayTask(void * argument);
@@ -178,7 +178,7 @@ int main(void)
   relay.array_relay_state = OPEN; 	//Open array relays at startup
 
   //--- FREERTOS ---//
-  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
   configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
 
@@ -269,6 +269,17 @@ int main(void)
 			&arrayRelayTaskHandle /* Used to pass out the created task's handle. */
 						  );
   configASSERT(status);
+
+  TaskHandle_t PSM_handle;
+  status = xTaskCreate(PSMTaskHandler,  // Function that implements the task.
+				"PSMTask",  // Text name for the task.
+				200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+				"none",  // Parameter passed into the task.
+				4,  // Priority at which the task is created.
+				&PSM_handle  // Used to pass out the created task's handle.
+							);
+  configASSERT(status == pdPASS); // Error checking
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -684,32 +695,36 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void PSMTaskHandler(TimerHandle_t xTimer){
+void PSMTaskHandler(void * parameters){
 	double HV_data_string1[2];
 	double HV_data_string2[2];
 	double HV_data_string3[2];
 	double HV_data_HV[2];
+	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB));
 
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data_string1, 2);
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 3, HV_data_string2, 2);
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, HV_data_string3, 2);
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data_HV, 2);
+	while (1){
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data_string1, 2);
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 3, HV_data_string2, 2);
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, HV_data_string3, 2);
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data_HV, 2);
 
-	vTaskSuspendAll();
+		vTaskSuspendAll();
 
-	psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGE);
-	psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENT);
+		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGE);
+		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENT);
 
-	psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGE);
-	psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENT);
+		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGE);
+		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENT);
 
-	psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGE);
-	psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENT);
+		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGE);
+		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENT);
 
-	psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGE);
-	psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENT);
+		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGE);
+		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENT);
 
-	xTaskResumeAll();
+		xTaskResumeAll();
+		vTaskDelay(delay);
+	}
 }
 
 void measurementSender(TimerHandle_t xTimer){
