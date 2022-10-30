@@ -913,6 +913,7 @@ void drawP2IgnitionOff(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	uint8_t y = 5;
+
 	for(int i = 0; i < labelsP2L; i++){
 		char* label = labelsP2[i];
 		int j = 0;
@@ -927,7 +928,7 @@ void drawP2IgnitionOff(/*int value[4]*/){
 	char* sleep = "SLEEPING";
 	int j = 0;
 	while(sleep[j] != 0){
-		glcd_tiny_draw_char_xy(75+j*6, correct_Y(5), label[j]);
+		glcd_tiny_draw_char_xy(75+j*6, correct_Y(5), sleep[j]);
 		j++;
 	}
 
