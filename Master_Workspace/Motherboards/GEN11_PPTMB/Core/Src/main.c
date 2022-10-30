@@ -272,12 +272,12 @@ int main(void)
 
   TaskHandle_t PSM_handle;
   status = xTaskCreate(PSMTaskHandler,  // Function that implements the task.
-				"PSMTask",  // Text name for the task.
-				200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
-				"none",  // Parameter passed into the task.
-				4,  // Priority at which the task is created.
-				&PSM_handle  // Used to pass out the created task's handle.
-							);
+						"PSMTask",  // Text name for the task.
+						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+						"none",  // Parameter passed into the task.
+						4,  // Priority at which the task is created.
+						&PSM_handle  // Used to pass out the created task's handle.
+									);
   configASSERT(status == pdPASS); // Error checking
 
   /* USER CODE END RTOS_THREADS */
