@@ -51,7 +51,7 @@
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
-#define LOW_SUPP_VOLT_DISP_ALERT_EN 1 //Enable an alert that displays a warning that the supplemental battery is low (needed for ASC specifically)
+#define LOW_SUPP_VOLT_DISP_ALERT_EN 0 //Enable an alert that displays a warning that the supplemental battery is low (needed for ASC specifically)
 #define LOW_SUPP_VOLT_THRESHOLD 11.0 //Threshold at which to display low supplemental battery voltage
 
 //--- PEDALS ---//
