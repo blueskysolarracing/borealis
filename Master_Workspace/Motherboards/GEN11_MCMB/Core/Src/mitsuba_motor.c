@@ -17,8 +17,8 @@ enum motorPowerState {
 
 /* ================== Private function declaration (static) =========================*/
 static void mitsubaMotor_eepromInit(MotorInterface* interface);
-static void mitsubaMotor_vfmTimersInit(MotorInterface* interface);
 static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface);
+static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface);
 static void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelInputUpperBound, uint32_t regenInputUpperBound);
 static int mitsubaMotor_isOn(MotorInterface* interface);
 static int mitsubaMotor_isForward(MotorInterface* interface);
@@ -35,6 +35,7 @@ static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val);
 static int mitsubaMotor_vfmUp(MotorInterface* interface);
 static int mitsubaMotor_vfmDown(MotorInterface* interface);
 static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turnOnPeriod);
+static void mitsubaMotor_vfmQueueHandler(void* parameters);
 
 /*
  * Function to set the wiper position of the MCP4146 potentiometer on the MC^2.
@@ -80,7 +81,7 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->isAccel = mitsubaMotor_isAccel;
 	interface->isRegen = mitsubaMotor_isRegen;
 
-	mitsubaMotor_vfmTimersInit(&self->interface);
+	mitsubaMotor_vfmQueueAndThreadInit(&self->interface);
 	mitsubaMotor_turnOnTimerInit(&self->interface);
 	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
 	self->isForward = 1;
@@ -269,54 +270,79 @@ static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val)
 
 static int mitsubaMotor_vfmUp(MotorInterface* interface)
 {
+	//add gear up command to queue
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (xTimerIsTimerActive(self->vfmUpTimerHandle) == pdTRUE) {
-		return 0; // Previous timer not finished
-	}
-	if (xTimerStart(self->vfmUpTimerHandle, 0) == pdFAIL) {
-		return 0;
-	} else {
-		HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_RESET);
-		return 1;
-	}
-}
-
-static void mitsubaMotor_vfmUpCallback(TimerHandle_t xTimer)
-{
-	MitsubaMotor* self = (MitsubaMotor*)pvTimerGetTimerID(xTimer);
-	HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_SET);
+	int command = 0;
+    if( self->vfmQueueHandle != 0 )
+    {
+    	xQueueSend( self->vfmQueueHandle,
+    	                       ( void * ) &command,
+    	                       ( TickType_t ) 10 );
+    }
 }
 
 static int mitsubaMotor_vfmDown(MotorInterface* interface)
 {
+	//add gear down command to queue
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (xTimerIsTimerActive(self->vfmDownTimerHandle) == pdTRUE) {
-		return 0; // Previous timer not finished
-	}
-	if (xTimerStart(self->vfmDownTimerHandle, 0) == pdFAIL) {
-		return 0;
-	} else {
-		HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_RESET);
-		return 1;
-	}
+	int command = 1;
+    if( self->vfmQueueHandle != 0 )
+    {
+        xQueueSend( self->vfmQueueHandle,
+                       ( void * ) &command,
+                       ( TickType_t ) 10 );
+
+    }
+
 }
 
-static void mitsubaMotor_vfmDownCallback(TimerHandle_t xTimer)
-{
-	MitsubaMotor* self = (MitsubaMotor*)pvTimerGetTimerID(xTimer);
-	HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET);
-}
-
-static void mitsubaMotor_vfmTimersInit(MotorInterface* interface)
+static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	self->vfmUpTimerHandle = xTimerCreate("vfmUpTimer", pdMS_TO_TICKS(200), pdFALSE, self, mitsubaMotor_vfmUpCallback);
-	if (self->vfmUpTimerHandle == NULL) {
-		configASSERT(pdFAIL);
-	}
-	self->vfmDownTimerHandle = xTimerCreate("vfmDownTimer", pdMS_TO_TICKS(200), pdFALSE, self, mitsubaMotor_vfmDownCallback);
-	if (self->vfmDownTimerHandle == NULL) {
-		configASSERT(pdFAIL);
+
+	//Holds commands to gear up (0) or gear down (1)
+	self->vfmQueueHandle = xQueueCreate(
+						 /* The number of items the queue can hold. */
+						 self->vfmQueueLen,
+						 /* Size of each item is big enough to hold the
+						 whole structure. */
+						 sizeof( int ) );
+	configASSERT(self->vfmQueueHandle != NULL);// Error checking
+
+	BaseType_t status = xTaskCreate(mitsubaMotor_vfmQueueHandler,  //Function that implements the task.
+						"vfmQueueTask",  //Text name for the task.
+						1024,
+						"none",  //Parameter passed into the task.
+						4,  //Priority at which the task is created.
+						&self->vfmThreadHandle  //Used to pass out the created task's handle.
+									);
+	configASSERT(status == pdPASS);// Error checking
+
+}
+
+static void mitsubaMotor_vfmQueueHandler(void* parameters) {
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	int command;
+	while (1) {
+		//this will be a blocking function call; won't return until there is an element in queue to be returned
+		if (xQueueReceive(self->vfmQueueHandle, (void *)&command, portMAX_DELAY) == pdTRUE){
+			switch (command) {
+				case 0:
+					//gear up
+					HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_RESET);
+					vTaskDelay(pdMS_TO_TICKS(200));  //200ms delay
+					HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_SET);
+					break;
+				case 1:
+					//gear down
+					HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_RESET);
+					vTaskDelay(pdMS_TO_TICKS(200));  //200ms delay
+					HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET);
+					break;
+			}
+		}
+
 	}
 }
 
