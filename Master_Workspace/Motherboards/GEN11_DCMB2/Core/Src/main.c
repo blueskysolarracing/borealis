@@ -1789,6 +1789,7 @@ void steeringWheelTask(const void *pv){
 // DATA_2  : [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
 
   uint8_t oldSteeringData[3] = {0, 0, 0};
+  uint8_t emergencyLight = 0;
 
   uint8_t expectedLen = 6; //must be same length as sent from SWB
   uint8_t rxBuf[expectedLen];
@@ -1916,11 +1917,25 @@ void steeringWheelTask(const void *pv){
 	}
 	oldLeftButton = (steeringData[2] & (1 << 2));
 
-    //Right button pressed
+    //Right button pressed (use for emergency light)
+	uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
+		if (!emergencyLight) {
+			bufe[1] = 0b01100000; // turn on fault indicator
+	    	default_data.P1_left_indicator_status = 0;
+	    	default_data.P2_right_indicator_status = 0;
+	    	emergencyLight = 1;
+		} else {
+			bufe[1] = 0b00100000; // turn off fault indicator
+			default_data.P1_left_indicator_status = 1;
+			default_data.P2_right_indicator_status = 1;
+			emergencyLight = 0;
+		}
 	} else if ((oldRightButton == 1) && ~(steeringData[2] & (1 << 3))){ // 1 --> 0 transition
+		// Do nothing
 	}
 	oldRightButton = (steeringData[2] & (1 << 3));
+    B_tcpSend(btcp, bufe, sizeof(bufh2));
 
 	xTaskResumeAll(); // exit critical section
     }
