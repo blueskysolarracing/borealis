@@ -35,7 +35,7 @@ static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val);
 static int mitsubaMotor_vfmUp(MotorInterface* interface);
 static int mitsubaMotor_vfmDown(MotorInterface* interface);
 static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turnOnPeriod);
-static void mitsubaMotor_vfmQueueHandler(void* parameters);
+static void mitsubaMotor_vfmQueueHandler(MotorInterface *interface);
 
 /*
  * Function to set the wiper position of the MCP4146 potentiometer on the MC^2.
@@ -277,7 +277,7 @@ static int mitsubaMotor_vfmUp(MotorInterface* interface)
     {
     	xQueueSend( self->vfmQueueHandle,
     	                       ( void * ) &command,
-    	                       ( TickType_t ) 10 );
+    	                       0 );
     }
 }
 
@@ -290,7 +290,7 @@ static int mitsubaMotor_vfmDown(MotorInterface* interface)
     {
         xQueueSend( self->vfmQueueHandle,
                        ( void * ) &command,
-                       ( TickType_t ) 10 );
+                       0 );
 
     }
 
@@ -303,7 +303,7 @@ static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface)
 	//Holds commands to gear up (0) or gear down (1)
 	self->vfmQueueHandle = xQueueCreate(
 						 /* The number of items the queue can hold. */
-						 self->vfmQueueLen,
+						 20,
 						 /* Size of each item is big enough to hold the
 						 whole structure. */
 						 sizeof( int ) );
@@ -312,7 +312,7 @@ static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface)
 	BaseType_t status = xTaskCreate(mitsubaMotor_vfmQueueHandler,  //Function that implements the task.
 						"vfmQueueTask",  //Text name for the task.
 						1024,
-						"none",  //Parameter passed into the task.
+						interface,  //Parameter passed into the task.
 						4,  //Priority at which the task is created.
 						&self->vfmThreadHandle  //Used to pass out the created task's handle.
 									);
@@ -320,9 +320,9 @@ static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface)
 
 }
 
-static void mitsubaMotor_vfmQueueHandler(void* parameters) {
+static void mitsubaMotor_vfmQueueHandler(MotorInterface *interface)
 {
-	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	MitsubaMotor* self = (MitsubaMotor*) interface->implementation;
 	int command;
 	while (1) {
 		//this will be a blocking function call; won't return until there is an element in queue to be returned
@@ -339,6 +339,8 @@ static void mitsubaMotor_vfmQueueHandler(void* parameters) {
 					HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_RESET);
 					vTaskDelay(pdMS_TO_TICKS(200));  //200ms delay
 					HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET);
+					break;
+				default:
 					break;
 			}
 		}
