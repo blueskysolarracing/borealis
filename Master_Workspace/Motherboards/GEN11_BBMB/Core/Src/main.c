@@ -165,7 +165,7 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 static void lightsTask(void * argument);
 static void relayTask(void * argument);
-void PSMTaskHandler(TimerHandle_t xTimer);
+void PSMTaskHandler(void * parameters);
 void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
@@ -321,7 +321,7 @@ int main(void)
   configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
 
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
   configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
   configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
@@ -370,6 +370,17 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
 #endif
   /* add threads, ... */
+  BaseType_t status;
+  TaskHandle_t PSM_handle;
+  status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
+						"PSMTask",  // Text name for the task.
+						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+						"none",  // Parameter passed into the task.
+						4,  // Priority at which the task is created.
+						&PSM_handle  // Used to pass out the created task's handle.
+									);
+  configASSERT(status == pdPASS);// Error checking
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -1576,17 +1587,21 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 	//Heartbeat only accessed here so no need for mutex
 }
 
-void PSMTaskHandler(TimerHandle_t xTimer){
+void PSMTaskHandler(void * parameters){
 	double HV_data[2];
+	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
 
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
+	while (1){
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
 
-	vTaskSuspendAll();
+		vTaskSuspendAll();
 
-	psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
-	psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
+		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
+		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
 
-	xTaskResumeAll();
+		xTaskResumeAll();
+		vTaskDelay(delay);
+	}
 }
 
 void measurementSender(TimerHandle_t xTimer){
