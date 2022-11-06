@@ -177,11 +177,6 @@ int main(void)
   relay.battery_relay_state = OPEN; //Assume array relays are opened until confirmation is received from PPTMB
   relay.array_relay_state = OPEN; 	//Open array relays at startup
 
-  //--- FREERTOS ---//
-  // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
-  configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
-  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
-
   //--- PSM ---//
   psmPeriph.CSPin0 = PSM_CS_0_Pin;
   psmPeriph.CSPin1 = PSM_CS_1_Pin;
@@ -243,6 +238,11 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
+  //--- FREERTOS ---//
+  // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
+  configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
+  xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
+
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
