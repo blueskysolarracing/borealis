@@ -35,7 +35,7 @@ static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val);
 static int mitsubaMotor_vfmUp(MotorInterface* interface);
 static int mitsubaMotor_vfmDown(MotorInterface* interface);
 static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turnOnPeriod);
-static void mitsubaMotor_vfmQueueHandler(MotorInterface *interface);
+static void mitsubaMotor_vfmQueueHandler(void* parameters);
 
 /*
  * Function to set the wiper position of the MCP4146 potentiometer on the MC^2.
@@ -81,6 +81,7 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->isAccel = mitsubaMotor_isAccel;
 	interface->isRegen = mitsubaMotor_isRegen;
 
+	mitsubaMotor_eepromInit(&self->interface);
 	mitsubaMotor_vfmQueueAndThreadInit(&self->interface);
 	mitsubaMotor_turnOnTimerInit(&self->interface);
 	mitsubaMotor_setInputUpperBounds(&self->interface, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND, MOTORINTERFACE_ACCEL_REGEN_INPUT_UPPERBOUND);
@@ -101,7 +102,6 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	HAL_GPIO_WritePin(self->MT1Port, self->MT1Pin, GPIO_PIN_SET); // MT1
 	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
 
-	mitsubaMotor_eepromInit(&self->interface);
 	mitsubaMotor_setAccel(interface, 0);
 	mitsubaMotor_setRegen(interface, 0);
 	return interface;
@@ -275,10 +275,13 @@ static int mitsubaMotor_vfmUp(MotorInterface* interface)
 	int command = 0;
     if( self->vfmQueueHandle != 0 )
     {
-    	xQueueSend( self->vfmQueueHandle,
+    	return xQueueSend( self->vfmQueueHandle,
     	                       ( void * ) &command,
     	                       0 );
+    } else {
+    	return 0;
     }
+
 }
 
 static int mitsubaMotor_vfmDown(MotorInterface* interface)
@@ -288,10 +291,12 @@ static int mitsubaMotor_vfmDown(MotorInterface* interface)
 	int command = 1;
     if( self->vfmQueueHandle != 0 )
     {
-        xQueueSend( self->vfmQueueHandle,
+        return xQueueSend( self->vfmQueueHandle,
                        ( void * ) &command,
                        0 );
 
+    } else {
+    	return 0;
     }
 
 }
@@ -320,8 +325,9 @@ static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface)
 
 }
 
-static void mitsubaMotor_vfmQueueHandler(MotorInterface *interface)
+static void mitsubaMotor_vfmQueueHandler(void* parameters)
 {
+	MotorInterface *interface = (MotorInterface*) parameters;
 	MitsubaMotor* self = (MitsubaMotor*) interface->implementation;
 	int command;
 	while (1) {
