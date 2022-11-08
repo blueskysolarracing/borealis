@@ -64,8 +64,8 @@ typedef struct MitsubaMotor {
 
 
 	/* ==================== Private =============================*/
-	TimerHandle_t vfmDownTimerHandle;
-	TimerHandle_t vfmUpTimerHandle;
+	TaskHandle_t vfmThreadHandle;
+	QueueHandle_t vfmQueueHandle;
 
 	uint32_t currentAccelValue;
 	uint32_t currentRegenValue;
