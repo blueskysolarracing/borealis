@@ -89,7 +89,8 @@ void CAN_init(uint16 ppt_node_id)
 	EID<17:16> : 01 ..EID<17:16>
 	EID<15:0> : yyyy xxxx 1011 0000 ..EID<15:0> */
 	C1RXF0SIDbits.SID = 0b11000111101; 
-	C1RXF0SIDbits.EID = 0b01;
+	C1RXF0SIDbits.EID17 = 0b0;
+	C1RXF0SIDbits.EID16 = 0b1;
 	C1RXF0EIDbits.EID = 0b1111000010110000; // make the ppt node ID 0xF for now, will get set to the right value shortly
 	/* Filter to check for Extended Identifier */
 	C1RXM0SIDbits.MIDE = 0x1;
