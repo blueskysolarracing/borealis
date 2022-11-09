@@ -246,117 +246,138 @@ void Bus_Metrics_Generator(uint8_t board_ID, uint8_t* p){
 
 }
 void MC2_State_Generator(uint8_t* p){
-    *p = 0x00;
-    insertRandomValue(p, 1, 1, 0, 30);
-    *(p+2) = 0xff * getRandomValue(0,1);
-    *(p+3) = 0x00;
-    *(p+4) = 0x00;
-    *(p+5) = 0x00;
-    *(p+6) = 0x00;
-    *(p+7) = 0x00;
+	float min = 3;  // random max and min
+	float max = 4;
+	p[0] = DCMB_MC2_STATE_ID;
+	p[1] = getRandomValue(0, 6); // moduleID
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
 }
 //Data ID 01
-void Cell_Metrics_Generator(uint8_t* p, uint8_t cellNum){
-    *(p) = 0x01;
-    *(p+1) = cellNum;
-    *(p+2) = 0x00;
-    *(p+3) = 0x01;
-    insertRandomValue(p, 4, 16, 0, 255);
-}
+//void Cell_Metrics_Generator(uint8_t* p, uint8_t cellNum){
+//	*(p) = 0x01;
+//	*(p+1) = cellNum;
+//	*(p+2) = 0x00;
+//	*(p+3) = 0x01;
+//	insertRandomValue(p, 4, 16, 0, 255);
+//}
 void PPT_Metrics_Generator(uint8_t* p){
-    *p = PPTMB_PPT_METRICS_ID;
-    *(p+1) = 7;
-    *(p+2) = 0x00;
-    *(p+3) = 0x01;
-    *(p+4) = 0x00;
-    *(p+5) = 0x00;
-    *(p+6) = 0x00;
-    *(p+7) = 0x00;
-    insertRandomValue(p, 8, 4, 0, 255);
-    *(p+12) = 0x00;
-    *(p+13) = 0x00;
-    *(p+14) = 0x00;
-    *(p+15) = 0x00;
-    *(p+16) = 0x00;
-    *(p+17) = 0x00;
-    *(p+18) = 0x00;
-    *(p+19) = 0x00;
-    *(p+20) = 0x00;
-    *(p+21) = 0x00;
-    *(p+22) = 0x00;
-    *(p+23) = 0x00;
-    *(p+24) = 0x00;
-    *(p+25) = 0x00;
-    *(p+26) = 0x00;
-    *(p+27) = 0x00;
+	float min = 3;  // random max and min
+	float max = 4;
+	*p = PPTMB_PPT_METRICS_ID;
+	p[1] = 0;
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
+	floatToArray(getRandomFloat(min, max), p+8);
+	floatToArray(getRandomFloat(min, max), p+12);
+	floatToArray(getRandomFloat(min, max), p+16);
+	floatToArray(getRandomFloat(min, max), p+20);
+	floatToArray(getRandomFloat(min, max), p+24);
 }
 void Speed_Pulse_Reading_Generator(uint8_t* p){
-    *p = 0x01;
+    *p = MCMB_CAR_SPEED_ID;
     insertRandomValue(p, 1, 1, 0, 255);
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
 void BBox_Startup_Generator(uint8_t* p){
-    *p = 0x01;
+    *p = DCMB_BBOX_STARTUP_ID;
     insertRandomValue(p, 1, 1, 0, 1);
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
 //Data ID 02
 void BSD_Generator(uint8_t* p){
-    *p = 0x02;
+    *p = BBMB_BSD_ID;
     insertRandomValue(p, 1, 3, 0, 255);
 }
 void Motor_Temperature_Generator(uint8_t* p){
-    *p = 0x02;
+    *p = MCMB_MOTOR_TEMPERATURE_ID;
     insertRandomValue(p, 1, 1, 0, 40);
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
 void PPTBox_Startup_Generator(uint8_t* p){
-    *p = 0x02;
+    *p = DCMB_PPTBOX_STARTUP_ID;
     insertRandomValue(p, 1, 1, 0, 1);
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
 //Data ID 03
 void BMS_MCU_Status_Generator(uint8_t* p){
-    *p = 0x03;
+    *p = BBMB_BMS_MCU_STATUS_ID;
+    float min = 3;  // random max and min
+  	float max = 4;
+  	p[1] = 0;
+  	p[2] = 0;
+  	p[3] = 0;
+  	floatToArray(getRandomFloat(min, max), p+4);
+  	floatToArray(getRandomFloat(min, max), p+8);
+  	floatToArray(getRandomFloat(min, max), p+12);
     insertRandomValue(p, 1, 15, 0, 255);
 }
 void Light_State_Generator(uint8_t* p){
-    *p = 0x03;
+    *p = DCMB_LIGHTCONTROL_ID;
     insertRandomValue(p, 1, 3, 0, 1);
 }
 void Supp_Battery_Metric_Generator(uint8_t* p){
-    *p = 0x03;
-    insertRandomValue(p, 1, 7, 0, 1);
+	float min = 3;  // random max and min
+	float max = 4;
+	*p = MCMB_SUPP_BATT_VOLTAGE_ID;
+	p[1] = 0;
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
 }
 //Data ID 04
 void Streeting_Wheel_Generator(uint8_t* p){
-    *p = 0x04;
+    *p = DCMB_STEERING_WHEEL_ID;
     insertRandomValue(p, 1, 1, 0, 1);
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
 //Data ID 05
-void BMS_Data_request_Generator(uint8_t* p){
-    *p = 0x05;
-    insertRandomValue(p,1,7,0,255); //insering random values for ID and current
-}
+//void BMS_Data_request_Generator(uint8_t* p){
+//	float min = 3;  // random max and min
+//	float max = 4;
+//	*p = BMS_Data_request_Generator_ID;
+//	p[1] = 0;
+//	p[2] = 0;
+//	p[3] = 0;
+//	floatToArray(getRandomFloat(min, max), p+4);
+//}
 void Motor_Control_State_Generator(uint8_t* p){
-    *p = 0x05;
-    insertRandomValue(p, 1, 11, 0, 1);
+	float min = 3;  // random max and min
+	float max = 4;
+	*p = DCMB_MOTOR_CONTROL_STATE_ID;
+	p[1] = 0;
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
+	floatToArray(getRandomFloat(min, max), p+8);
 }
 //Data ID 06
 void Relay_State_Generator(uint8_t data_ID, uint8_t* p){
-    *p = data_ID;
-    insertRandomValue(p,1,7,0,1); //inserting 0 or 1 for all the other values
+	float min = 0;  // random max and min
+	float max = 1;
+	*p = PPTMB_RELAYS_STATE_ID;
+	p[1] = 0;
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
 }
 //Data ID 07
 void Pedal_Angle_Generator(uint8_t* p){
-    *p = 0x07;
-    insertRandomValue(p,1,11,0,1);
+	float min = 0;  // random max and min
+	float max = 1;
+	*p = DCMB_PEDALS_ANGLE_ID;
+	p[1] = 0;
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
+	floatToArray(getRandomFloat(min, max), p+8);
 }
 void BMS_Cell_Temp_Generator(uint8_t* p) {
 	float min = 20;
@@ -375,7 +396,7 @@ void BMS_Cell_Temp_Generator(uint8_t* p) {
 
 //Data ID 08
 void Side_Panel_Generator(uint8_t* p){
-    *p = 0x08;
+    *p = DCMB_SIDE_PANEL_ID;
     insertRandomValue(p,1,3,0,1);
 }
 
@@ -410,33 +431,35 @@ void BMS_Cell_SOC_Generator(uint8_t* p) {
 
 //Data ID 0B
 void Text_String_Generator(uint8_t* p){
-    *p = 0x0b;
-    insertRandomValue(p,1,7,0,26); //inserting random numbers from 0 26
+	float min = 0;  // random values
+	float max = 1;
+	p[0] = MCMB_LP_BUS_METRICS_ID;
+	p[1] = 0;
+	p[2] = 0;
+	p[3] = 0;
+	floatToArray(getRandomFloat(min, max), p+4);
 }
 //Data ID 0D
-void LP_Bus_Metrics_Generator(uint8_t* p){
-    *p = 0x0d;
-    *(p+1) = 0x00;
-    *(p+2) = 0x00;
-    *(p+3) = 0x01;
-    insertRandomValue(p, 4, 8, 0, 255);
-    *(p+12) = 0x00;
-    *(p+13) = 0x00;
-    *(p+14) = 0x00;
-    *(p+15) = 0x00;
-    *(p+16) = 0x00;
-    *(p+17) = 0x00;
-    *(p+18) = 0x00;
-     *(p+19) = 0x00;
-}
+//void LP_Bus_Metrics_Generator(uint8_t* p){ //not used
+//	float min = 0;  // random vals
+//	float max = 10;
+//	p[0] = BBMB_LP_BUS_METRICS_ID;
+//	p[1] = 0;
+//	p[2] = 0;
+//	p[3] = 0;
+//	floatToArray(getRandomFloat(min, max), p+4);
+//	floatToArray(getRandomFloat(min, max), p+8);
+//	floatToArray(getRandomFloat(min, max), p+12);
+//	floatToArray(getRandomFloat(min, max), p+16);
+//}
 //Data ID 0E
 void Core_Temp_Generator(uint8_t* p){
-    *p = 0x0e;
+    *p = MCMB_CORE_TEMP_ID;
     insertRandomValue(p, 1, 3, 20, 60);
 }
 //Data ID 0F
 void Heartbeat_Generator(uint8_t* p){
-    *p = 0x0f;
+    *p = BBMB_HEARTBEAT_ID;
     *(p+1) = 0x00;
     *(p+2) = 0x00;
     *(p+3) = 0x00;
