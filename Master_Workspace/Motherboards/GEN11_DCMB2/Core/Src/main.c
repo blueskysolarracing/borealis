@@ -143,7 +143,7 @@ B_uartHandle_t* buart;
 B_uartHandle_t* spbBuart;
 B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
-uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
+uint8_t heartbeat[2] = {DCMB_HEARTBEAT_ID, 0};
 
 uint8_t ignition_state = 0;
 uint8_t array_state = 0;
