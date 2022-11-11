@@ -166,7 +166,7 @@ void StartDefaultTask(void const * argument);
 static void lightsTask(void * argument);
 static void relayTask(void * argument);
 void PSMTaskHandler(void * parameters);
-void measurementSender(TimerHandle_t xTimer);
+void measurementSender(void* p);
 void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
 void sendNewBMSRequest();
@@ -322,7 +322,7 @@ int main(void)
 
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
   // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
-  configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
+  // configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
   configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
   configASSERT(xTimerStart(xTimerCreate("relayStateTimer",  pdMS_TO_TICKS(RELAY_STATE_TIMER_INTERVAL), pdTRUE, (void *)0, RelayStateTimer), 0));
@@ -378,6 +378,16 @@ int main(void)
 						"none",  // Parameter passed into the task.
 						4,  // Priority at which the task is created.
 						&PSM_handle  // Used to pass out the created task's handle.
+									);
+  configASSERT(status == pdPASS);// Error checking
+
+  TaskHandle_t measurementSenderHandle;
+  status = xTaskCreate(measurementSender,  //Function that implements the task.
+						"measurementSender",  // Text name for the task.
+						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+						"none",  // Parameter passed into the task.
+						4,  // Priority at which the task is created.
+						&measurementSenderHandle  // Used to pass out the created task's handle.
 									);
   configASSERT(status == pdPASS);// Error checking
 
@@ -1604,47 +1614,50 @@ void PSMTaskHandler(void * parameters){
 	}
 }
 
-void measurementSender(TimerHandle_t xTimer){
-//Battery
-	uint8_t busMetrics_HV[3 * 4] = {0};
-	busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
+void measurementSender(void* p){
+	int delay = pdMS_TO_TICKS(PSM_SEND_INTERVAL);
+	while (1) {
+		uint8_t busMetrics_HV[3 * 4] = {0};
+		busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
 
-	//Get HV average
-	vTaskSuspendAll();
-	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
-	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+		//Get HV average
+		vTaskSuspendAll();
+		float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
+		float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
 
-	//Update battery pack current global variable (used for BMS communication)
-	battery_current = HV_current;
+		//Update battery pack current global variable (used for BMS communication)
+		battery_current = HV_current;
 
-	xTaskResumeAll();
+		xTaskResumeAll();
 
-	//Check overcurrent protection
-	if (HV_current >= HV_BATT_OC_DISCHARGE){
-		battery_overcurrent_cnt++;
+		//Check overcurrent protection
+		if (HV_current >= HV_BATT_OC_DISCHARGE){
+			battery_overcurrent_cnt++;
+		}
+
+		if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
+			battery_faulted_routine(3, 0, 0);
+		}
+
+		floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+		floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+
+		B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
+
+//	//LV
+//		uint8_t busMetrics_LV[3 * 4] = {0};
+//		busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
+//
+//		vTaskSuspendAll();
+//		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_LV, 2);
+//		xTaskResumeAll();
+//
+//		floatToArray((float) voltageCurrent_LV[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
+//		floatToArray((float) voltageCurrent_LV[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
+//
+//		B_tcpSend(btcp_main, busMetrics_LV, sizeof(busMetrics_LV));
+		vTaskDelay(delay);
 	}
-
-	if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
-		battery_faulted_routine(3, 0, 0);
-	}
-
-	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
-	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
-
-	B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
-
-//LV
-	uint8_t busMetrics_LV[3 * 4] = {0};
-	busMetrics_LV[0] = BBMB_LP_BUS_METRICS_ID;
-
-	vTaskSuspendAll();
-	PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, voltageCurrent_LV, 2);
-	xTaskResumeAll();
-
-	floatToArray((float) voltageCurrent_LV[0], busMetrics_LV + 4); // fills 4 - 7 of busMetrics
-	floatToArray((float) voltageCurrent_LV[1], busMetrics_LV + 8); // fills 16 - 19 of busMetrics
-
-	B_tcpSend(btcp_main, busMetrics_LV, sizeof(busMetrics_LV));
 }
 
 void BMSPeriodicReadHandler(TimerHandle_t xTimer){
