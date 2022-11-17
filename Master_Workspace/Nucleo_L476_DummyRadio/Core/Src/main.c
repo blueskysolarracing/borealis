@@ -236,13 +236,17 @@ float getRandomFloat(int min, int max) {
 
 //Data ID 00
 //Data ID 00
-void Bus_Metrics_Generator(uint8_t board_ID, uint8_t* p){
-    *p = board_ID;
+void Bus_Metrics_Generator(uint8_t data_ID, uint8_t* p){
+    *p = data_ID;
+    float Voltage_min = 100;  // random max and min
+    float Voltage_max = 120;
+    float Current_min = 10;  // random max and min
+    float Current_max = 20;
     *(p+1) = 0x00;
     *(p+2) = 0x00;
     *(p+3) = 0x01;
-    insertRandomValue(p, 4, 8, 0, 255);
-    *(p+12) = 0x00;
+    floatToArray(getRandomFloat(Voltage_min, Voltage_max), p+4);
+    floatToArray(getRandomFloat(Current_min, Current_max), p+8);
 
 }
 void MC2_State_Generator(uint8_t* p){
@@ -262,23 +266,25 @@ void MC2_State_Generator(uint8_t* p){
 //	*(p+3) = 0x01;
 //	insertRandomValue(p, 4, 16, 0, 255);
 //}
-void PPT_Metrics_Generator(uint8_t* p){
-	float min = 3;  // random max and min
-	float max = 4;
+void PPT_Metrics_Generator(uint8_t* p){ //double check max and min values
+	float Voltage_min = 0;  // random max and min for voltage
+	float Voltage_max = 0;
+	float Current_min = 0;  // random max and min for current
+	float Current_max = 0;
 	*p = PPTMB_PPT_METRICS_ID;
 	p[1] = 0;
 	p[2] = 0;
 	p[3] = 0;
-	floatToArray(getRandomFloat(min, max), p+4);
-	floatToArray(getRandomFloat(min, max), p+8);
-	floatToArray(getRandomFloat(min, max), p+12);
-	floatToArray(getRandomFloat(min, max), p+16);
-	floatToArray(getRandomFloat(min, max), p+20);
-	floatToArray(getRandomFloat(min, max), p+24);
+	floatToArray(getRandomFloat(Voltage_min, Voltage_max), p+4);
+	floatToArray(getRandomFloat(Current_min, Current_max), p+8);
+	floatToArray(getRandomFloat(Voltage_min, Voltage_max), p+12);
+	floatToArray(getRandomFloat(Current_min, Current_max), p+16);
+	floatToArray(getRandomFloat(Voltage_min, Voltage_max), p+20);
+	floatToArray(getRandomFloat(Current_min, Current_max), p+24);
 }
 void Speed_Pulse_Reading_Generator(uint8_t* p){
     *p = MCMB_CAR_SPEED_ID;
-    insertRandomValue(p, 1, 1, 0, 255);
+    insertRandomValue(p, 1, 1, 75, 80); //cruise speed 75-80
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
@@ -547,106 +553,73 @@ void BBMB(){
 
 
 	Bus_Metrics_Generator(BBMB_BUS_METRICS_ID, payload);
-	dummySend(BUS_METRICS_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, payload);
+	dummySend(BUS_METRICS_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
 
 	Relay_State_Generator(BBMB_RELAYS_STATE_ID, payload);
-	dummySend(RELAY_STATE_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, payload);
+	dummySend(RELAY_STATE_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
 
 	Heartbeat_Generator(payload);
-	dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, payload);
+	dummySend(HEARTBEAT_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
 
 	BMS_Cell_Temp_Generator(payload);
-	dummySend(BMS_CELL_TEMP_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, payload);
+	dummySend(BMS_CELL_TEMP_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
 
 	BMS_Cell_Volt_Generator(payload);
-	dummySend(BMS_CELL_VOLT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, payload);
+	dummySend(BMS_CELL_VOLT_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
 
 	BMS_Cell_SOC_Generator(payload);
-	dummySend(BMS_CELL_SOC_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, payload);
+	dummySend(BMS_CELL_SOC_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
 
 }
 
 void PPTMB(){
 
-
 	Bus_Metrics_Generator(PPTMB_BUS_METRICS_ID, payload);
-	dummySend(BUS_METRICS_LENGTH, PPTMB_ADDRESS, &PPTMB_SeqNum, payload);
+	dummySend(BUS_METRICS_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
 
 	PPT_Metrics_Generator(payload);
-	dummySend(PPT_METRICS_LENGTH, PPTMB_ADDRESS, &PPTMB_SeqNum, payload);
+	dummySend(PPT_METRICS_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
 
 	Relay_State_Generator(PPTMB_RELAYS_STATE_ID, payload);
-	dummySend(RELAY_STATE_LENGTH, BBMB_ADDRESS, &PPTMB_SeqNum, payload);
+	dummySend(RELAY_STATE_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
 
 	Heartbeat_Generator(payload);
-	dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &PPTMB_SeqNum, payload);
+	dummySend(HEARTBEAT_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
 
 }
 
 void MCMB(){
 
-
     Bus_Metrics_Generator(MCMB_BUS_METRICS_ID, Bus_Metrics_Payload);
-    dummySend(BUS_METRICS_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Bus_Metrics_Payload);
+    dummySend(BUS_METRICS_LENGTH, MCMB_ID, &MCMB_SeqNum, Bus_Metrics_Payload);
 
     Speed_Pulse_Reading_Generator(Speed_Pulse_Reading_Payload);
-    dummySend(SPEED_PULSE_READING_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Speed_Pulse_Reading_Payload);
-
-    Motor_Temperature_Generator(Motor_Temperature_Payload);
-    dummySend(MOTOR_TEMPERATURE_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Motor_Temperature_Payload);
-
-    Supp_Battery_Metric_Generator(Supp_Battery_Metric_Payload);
-    dummySend(SUPP_BATTERY_LENGTH, MCMB_ADDRESS, &MCMB_SeqNum, Supp_Battery_Metric_Payload);
-
-    Text_String_Generator(Text_String);
-    dummySend(TEXT_STRING_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Text_String);
-
-    Core_Temp_Generator(Core_Temp_Payload);
-    dummySend(CORE_TEMP_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Core_Temp_Payload);
+    dummySend(SPEED_PULSE_READING_LENGTH, MCMB_ID, &MCMB_SeqNum, Speed_Pulse_Reading_Payload);
 
     Heartbeat_Generator(Heartbeat_Payload);
-    dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Heartbeat_Payload);
+    dummySend(HEARTBEAT_LENGTH, MCMB_ID, &MCMB_SeqNum, Heartbeat_Payload);
 
 }
 
 void DCMB(){
 
+//    BBox_Startup_Generator(BBox_Startup_Payload);
+//    dummySend(BBOX_STARTUP_LENGTH, DCMB_ID, &DCMB_SeqNum, BBox_Startup_Payload);
+//
+//    PPTBox_Startup_Generator(PPTBox_Startup_Payload);
+//    dummySend(PPTBOX_STARTUP_LENGTH, DCMB_ID, &DCMB_SeqNum, PPTBox_Startup_Payload);
 
-    MC2_State_Generator(MC2_State_Payload);
-    dummySend(MC2_STATE_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, MC2_State_Payload);
+    Light_State_Generator(Light_State_Payload);//there
+    dummySend(LIGHT_STATE_LENGTH, DCMB_ID, &DCMB_SeqNum, Light_State_Payload);
 
-    BBox_Startup_Generator(BBox_Startup_Payload);
-    dummySend(BBOX_STARTUP_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, BBox_Startup_Payload);
+    Motor_Control_State_Generator(Motor_Control_State_Payload);//there
+    dummySend(MOTOR_CONTROL_STATE_LENGTH, DCMB_ID, &DCMB_SeqNum, Motor_Control_State_Payload);
 
-    PPTBox_Startup_Generator(PPTBox_Startup_Payload);
-    dummySend(PPTBOX_STARTUP_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, PPTBox_Startup_Payload);
+    Relay_State_Generator(DCMB_RELAYS_STATE_ID, Relay_State);//there
+    dummySend(RELAY_STATE_LENGTH, DCMB_ID, &DCMB_SeqNum, Relay_State);
 
-    Light_State_Generator(Light_State_Payload);
-    dummySend(LIGHT_STATE_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Light_State_Payload);
-
-    Streeting_Wheel_Generator(Streeting_Wheel_Payload);
-    dummySend(STEERING_WHEEL_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Streeting_Wheel_Payload);
-
-    Motor_Control_State_Generator(Motor_Control_State_Payload);
-    dummySend(MOTOR_CONTROL_STATE_LENGTH, DCMB_ADDRESS, &DCMB_SeqNum, Motor_Control_State_Payload);
-
-    Relay_State_Generator(DCMB_RELAYS_STATE_ID, Relay_State);
-    dummySend(RELAY_STATE_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Relay_State);
-
-    Pedal_Angle_Generator(Pedal_Angle);
-    dummySend(PEDAL_ANGLE_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Pedal_Angle);
-
-    Side_Panel_Generator(Side_Panel);
-    dummySend(SIDE_PANEL_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Side_Panel);
-
-    Text_String_Generator(Text_String);
-    dummySend(TEXT_STRING_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Text_String);
-
-    Core_Temp_Generator(Core_Temp_Payload);
-    dummySend(CORE_TEMP_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Core_Temp_Payload);
-
-    Heartbeat_Generator(Heartbeat_Payload);
-    dummySend(HEARTBEAT_LENGTH, BBMB_ADDRESS, &BBMB_SeqNum, Heartbeat_Payload);
+    Heartbeat_Generator(Heartbeat_Payload);//there
+    dummySend(HEARTBEAT_LENGTH, DCMB_ID, &DCMB_SeqNum, Heartbeat_Payload);
 
 }
 /* USER CODE END 0 */
