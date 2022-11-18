@@ -354,25 +354,33 @@ void Streeting_Wheel_Generator(uint8_t* p){
 //	p[3] = 0;
 //	floatToArray(getRandomFloat(min, max), p+4);
 //}
-void Motor_Control_State_Generator(uint8_t* p){
-	float min = 3;  // random max and min
-	float max = 4;
-	*p = DCMB_MOTOR_CONTROL_STATE_ID;
-	p[1] = 0;
-	p[2] = 0;
-	p[3] = 0;
-	floatToArray(getRandomFloat(min, max), p+4);
-	floatToArray(getRandomFloat(min, max), p+8);
+void Motor_Control_State_Generator(uint8_t* buf){
+
+	uint8_t motorState = getRandomValue(0, 4);
+	uint16_t motorTargetPower = getRandomValue(0, 256); // value from 0 - 256
+	uint8_t motorTargetSpeed = (motorState == 2 ? getRandomValue(0, 120) : 0);
+	uint8_t digitalButtons = 0;
+	digitalButtons |= getRandomValue(0, 1) << 3; //fwdrev (forward is 0)
+ 	digitalButtons |= getRandomValue(0, 1) << 2; //vfmup
+	digitalButtons |= getRandomValue(0, 1) << 1; //vfmdown
+	digitalButtons |= getRandomValue(0, 1); //eco (eco is 0, power is 1)
+
+	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;
+	buf[1] = motorState;
+	buf[2] = digitalButtons;
+	packi16(&buf[4], (uint16_t) motorTargetPower);
+	floatToArray(motorTargetSpeed, &buf[8]);
 }
 //Data ID 06
 void Relay_State_Generator(uint8_t data_ID, uint8_t* p){
-	float min = 0;  // random max and min
-	float max = 1;
-	*p = PPTMB_RELAYS_STATE_ID;
-	p[1] = 0;
-	p[2] = 0;
-	p[3] = 0;
-	floatToArray(getRandomFloat(min, max), p+4);
+
+	p[0] = data_ID;
+	p[1] = getRandomValue(0, 1);
+	p[2] = getRandomValue(0, 1);
+	p[3] = getRandomValue(0, 1);
+	p[4] = getRandomValue(0, 3);
+	p[5] = ((p[4] == 1 || p[4] == 2) ? getRandomValue(0, 29) : 0);
+	p[6] = (p[4] == 0 ? getRandomValue(0, 35) : 0);
 }
 //Data ID 07
 void Pedal_Angle_Generator(uint8_t* p){
