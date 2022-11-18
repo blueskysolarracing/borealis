@@ -176,6 +176,7 @@ uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
 uint8_t brakePressed = 0;
+uint8_t steeringWheelRegen = 0;
 typedef enum {
 	BRAKE_PRESSED,
 	BRAKE_RELEASED,
@@ -1557,7 +1558,7 @@ static void pedalTask(const void* p) {
 	float accel_r_0 = 0.3494; //Resistance when pedal is unpressed (kR)
 	float accel_reading_upper_bound = 61000.0; //ADC reading corresponding to 0% power request
 	float accel_reading_lower_bound = 24250.0; //ADC reading corresponding to 100% power request
-	float accel_reading_threshold = 35.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float accel_reading_threshold = 55.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1616,7 +1617,12 @@ static void pedalTask(const void* p) {
 
 		//Pedal has not effect when the motor is in cruise mode
 		if (motorState != CRUISE){
-			if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
+			if (steeringWheelRegen) {
+				motorTargetPower = 150;
+				motorState = REGEN;
+				default_data.P2_motor_state = REGEN;
+
+			} else if (accelValue >= accel_reading_threshold /*&& brakeState == BRAKE_RELEASED*/) {
 				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
@@ -1880,7 +1886,9 @@ void steeringWheelTask(const void *pv){
 
     //Select button pressed - Cycle through frames on driver display
 	if (~oldSelectButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
+		steeringWheelRegen = 1;
 	} else if (oldSelectButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
+		steeringWheelRegen = 0;
 	}
 	oldSelectButton = (steeringData[2] & (1 << 4));
 
