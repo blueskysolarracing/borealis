@@ -143,7 +143,7 @@ MOTORSTATE motorState; //see below for description
 //	[2] CRUISE (DCMB sends target speed to MCMB, which runs a control loop to maintain target speed)
 //	[3] REGEN (When regen pedal is pressed; has priority over others). DCMB controls motor state
 uint16_t targetPower = 0; // Note: this is not in watts, it is from 0 - 256, for POT
-float targetSpeed = 0;
+uint8_t targetSpeed = 0;
 float batteryVoltage = 0;
 
 // These are values from 5 digital buttons
@@ -2150,7 +2150,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
 			motorState = pkt->data[1];
 			targetPower = unpacku16(&pkt->data[4]);
-			targetSpeed = arrayToFloat(&pkt->data[6]);
+			targetSpeed = pkt->data[8];
 
 			//for 5 digital buttons (4 now):
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000

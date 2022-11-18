@@ -2143,7 +2143,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[1] = motorState;
 	buf[2] = digitalButtons;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
-	floatToArray(motorTargetSpeed, &buf[8]);
+	buf[8] = motorTargetSpeed;
 
 	B_tcpSend(btcp, buf, sizeof(buf));
 }
