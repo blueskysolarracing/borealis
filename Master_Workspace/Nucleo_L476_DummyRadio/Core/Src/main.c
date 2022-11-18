@@ -369,7 +369,7 @@ void Motor_Control_State_Generator(uint8_t* buf){
 	buf[1] = motorState;
 	buf[2] = digitalButtons;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
-	floatToArray(motorTargetSpeed, &buf[8]);
+	buf[8] = motorTargetSpeed;
 }
 //Data ID 06
 void Relay_State_Generator(uint8_t data_ID, uint8_t* p){
