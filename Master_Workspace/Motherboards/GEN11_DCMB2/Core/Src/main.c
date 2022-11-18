@@ -145,7 +145,7 @@ B_uartHandle_t* buart;
 B_uartHandle_t* spbBuart;
 B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
-uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
+uint8_t heartbeat[2] = {DCMB_HEARTBEAT_ID, 0};
 
 uint8_t ignition_state = 0;
 uint8_t array_state = 0;
@@ -2178,7 +2178,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[1] = motorState;
 	buf[2] = digitalButtons;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
-	floatToArray(motorTargetSpeed, &buf[8]);
+	buf[8] = motorTargetSpeed;
 
 	B_tcpSend(btcp, buf, sizeof(buf));
 }
