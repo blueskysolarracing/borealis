@@ -51,7 +51,7 @@
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
-#define LOW_SUPP_VOLT_DISP_ALERT_EN 1 //Enable an alert that displays a warning that the supplemental battery is low (needed for ASC specifically)
+#define LOW_SUPP_VOLT_DISP_ALERT_EN 0 //Enable an alert that displays a warning that the supplemental battery is low (needed for ASC specifically)
 #define LOW_SUPP_VOLT_THRESHOLD 11.0 //Threshold at which to display low supplemental battery voltage
 
 //--- PEDALS ---//
@@ -1919,8 +1919,10 @@ void steeringWheelTask(const void *pv){
     //Left button pressed
 	if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
 		//Toggle between default and detailed display frames
-		if (display_selection == 0){ display_selection = 1;
-		} else if (display_selection){ display_selection = 0;};
+//		if (display_selection == 0){ display_selection = 1;
+//		} else if (display_selection){ display_selection = 0;};
+		// Toggle between default and and 2 details so 3 total
+		display_selection = (display_selection + 1)%3;
 	} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
 	}
 	oldLeftButton = (steeringData[2] & (1 << 2));
@@ -2084,6 +2086,11 @@ void displayTask(const void *pv){
 	glcd_init();
 	glcd_clear();
 
+	default_data.dirL = 1;
+	default_data.dirR = 1;
+	default_data.batt_warning = 1;
+	default_data.hazard = 1;
+
 	/* Display selection (sel):
 	 * 0: Default
 	 * 1: Detailed
@@ -2122,22 +2129,22 @@ void displayTask(const void *pv){
 			//Check if need to display low supplemental battery voltage alert
 			if (LOW_SUPP_VOLT_DISP_ALERT_EN){
 				if (default_data.P2_low_supp_volt < 10.0 * LOW_SUPP_VOLT_THRESHOLD){
-					local_display_sel = 6;
+					local_display_sel = 7;
 				}
 			}
 
 			//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
 			if (SLEEP_FRAME_EN) {
 				if (IGNORE_PPTMB){
-					if (batteryRelayState == OPEN) { local_display_sel = 4; }
+					if (batteryRelayState == OPEN) { local_display_sel = 5; }
 				} else {
-					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 4; }
+					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 5; }
 				}
 			}
 
 			//Overwrite display state if battery fault
 			if (batteryState == FAULTED){
-				local_display_sel = 5; //Display battery faulted
+				local_display_sel = 6; //Display battery faulted
 				default_data.P2_motor_state = OFF;
 			}
 
