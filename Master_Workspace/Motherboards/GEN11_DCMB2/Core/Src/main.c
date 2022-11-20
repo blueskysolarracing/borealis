@@ -1931,12 +1931,12 @@ void steeringWheelTask(const void *pv){
 	uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
 		if (!emergencyLight) {
-			bufe[1] = 0b01100000; // turn on fault indicator
+			bufe[1] = 0b01010000; // turn on hazard indicator
 	    	default_data.P1_left_indicator_status = 0;
 	    	default_data.P2_right_indicator_status = 0;
 	    	emergencyLight = 1;
 		} else {
-			bufe[1] = 0b00100000; // turn off fault indicator
+			bufe[1] = 0b00010000; // turn off hazard indicator
 			default_data.P1_left_indicator_status = 1;
 			default_data.P2_right_indicator_status = 1;
 			emergencyLight = 0;
