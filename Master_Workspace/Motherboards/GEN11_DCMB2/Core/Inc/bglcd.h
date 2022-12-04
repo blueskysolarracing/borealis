@@ -27,8 +27,6 @@ struct disp_default_frame{
 	uint8_t direction;
 	uint8_t eco;
 	uint8_t light;
-	uint8_t dirR;
-	uint8_t dirL;
 	uint8_t batt_warning;
 	uint8_t hazard;
 
