@@ -158,6 +158,7 @@ uint32_t BMS_last_packet_tick_count 	= 0;
 uint32_t Chase_last_packet_tick_count 	= 0;
 
 uint8_t BBMBFirstPacketReceived = 0;
+float regenBatteryVoltageThreshold = 0;
 
 //--- MOTOR ---//
 typedef enum {
@@ -1716,6 +1717,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
 			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
+			regenBatteryVoltageThreshold = detailed_data.P1_battery_voltage;
 
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
@@ -1884,9 +1886,11 @@ void steeringWheelTask(const void *pv){
     	//No plan to implement it in GEN11
 	}
 
-    //Select button pressed - Cycle through frames on driver display
+    //Middle button pressed - Holding it causes regen
 	if (~oldSelectButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-		steeringWheelRegen = 1;
+		if (regenBatteryVoltageThreshold <= 116){
+			steeringWheelRegen = 1;
+		}
 	} else if (oldSelectButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
 		steeringWheelRegen = 0;
 	}
