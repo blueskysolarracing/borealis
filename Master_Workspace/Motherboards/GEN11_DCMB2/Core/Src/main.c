@@ -1889,7 +1889,7 @@ void steeringWheelTask(const void *pv){
 
     //Middle button pressed - Holding it causes regen
 	if (~oldSelectButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-		if (batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
+		if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
 			steeringWheelRegen = 1;
 		}
 	} else if (oldSelectButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
