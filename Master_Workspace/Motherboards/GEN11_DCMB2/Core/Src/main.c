@@ -79,6 +79,7 @@ enum CRUISE_MODE {
 
 //--- BATTERY ---//
 #define NUM_THERMISTOR_PER_BMS 3 //Number of thermistor for each BMS (assumes same for each BMS)
+#define REGEN_BATTERY_VOLTAGE_THRESHOLD 116 // voltage above which regen should be disabled
 
 /* USER CODE END PD */
 
@@ -158,7 +159,7 @@ uint32_t BMS_last_packet_tick_count 	= 0;
 uint32_t Chase_last_packet_tick_count 	= 0;
 
 uint8_t BBMBFirstPacketReceived = 0;
-float regenBatteryVoltageThreshold = 0;
+float batteryVoltage = 0;
 
 //--- MOTOR ---//
 typedef enum {
@@ -1717,7 +1718,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
 			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
-			regenBatteryVoltageThreshold = detailed_data.P1_battery_voltage;
+			batteryVoltage = detailed_data.P1_battery_voltage;
 
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
@@ -1888,7 +1889,7 @@ void steeringWheelTask(const void *pv){
 
     //Middle button pressed - Holding it causes regen
 	if (~oldSelectButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-		if (regenBatteryVoltageThreshold <= 116){
+		if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
 			steeringWheelRegen = 1;
 		}
 	} else if (oldSelectButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
