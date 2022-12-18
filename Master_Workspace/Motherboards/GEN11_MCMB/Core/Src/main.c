@@ -2073,11 +2073,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				if (motor->isAccel(motor)) {
 					res = motor->setAccel(motor, 0);
 				}
-				if (batteryVoltage > 113.0 || batteryVoltage < -113.0) { //Don't regen if battery is too full (negative add in case PSM isn't wired correctly)
-					res = motor->setRegen(motor, 0); // for safety, turn off regen
-				} else {
-					res = motor->setRegen(motor, targetPower);
-				}
+				res = motor->setRegen(motor, targetPower);
 			}
 			break;
 	}
@@ -2170,12 +2166,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			gearUp = ((pkt->data[2] & VFM_UP) != 0) ? 1 : 0; //VFM_UP = 0b100
 			gearDown = ((pkt->data[2] & VFM_DOWN) != 0) ? 1 : 0; //VFM_DOWN = 0b10
 
-		}
-		break;
-
-	  case BBMB_ID:
-		if(pkt->data[0] == BBMB_BUS_METRICS_ID){ //Get battery voltage to determine whether regen may be used
-			batteryVoltage = arrayToFloat(&pkt->data[4]);
 		}
 		break;
 	}
