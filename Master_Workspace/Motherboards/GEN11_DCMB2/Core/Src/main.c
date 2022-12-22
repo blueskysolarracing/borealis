@@ -2091,8 +2091,8 @@ void displayTask(const void *pv){
 	glcd_init();
 	glcd_clear();
 
-	default_data.dirL = 1;
-	default_data.dirR = 1;
+	default_data.P1_left_indicator_status = 1;
+	default_data.P2_right_indicator_status = 1;
 	default_data.batt_warning = 1;
 	default_data.hazard = 1;
 
