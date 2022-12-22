@@ -152,12 +152,12 @@ void drawP1Default_new(/*int value[4]*/){
 	// dir light
 	x = 80;
 	y = 50;
-	if(default_data.P1_left_indicator_status){
+	if(default_data.P1_left_indicator_status == 0){
 		glcd_tiny_draw_char_xy(x, correct_Y(y), '<');
 		glcd_tiny_draw_char_xy(x+5, correct_Y(y), '-');
 	}
 	x = 116;
-	if(default_data.P2_right_indicator_status){
+	if(default_data.P2_right_indicator_status == 0){
 		glcd_tiny_draw_char_xy(x, correct_Y(y), '-');
 		glcd_tiny_draw_char_xy(x+5, correct_Y(y), '>');
 	}
