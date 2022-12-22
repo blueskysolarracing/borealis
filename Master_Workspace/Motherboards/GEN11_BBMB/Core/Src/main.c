@@ -1703,6 +1703,19 @@ void sendNewBMSRequest(){
 	B_tcpSendToBMS(btcp_bms, BMS_Request, sizeof(BMS_Request));
 }
 
+
+/*
+ *  fault_type:
+	0 is overtemperature
+	1 is overvoltage
+	2 is undervoltage
+	3 is overcurrent
+
+	fault_cell: Indicates which cell is faulted in under-/overvoltage (0 to 29)
+
+	fault_thermistor: Indicates which thermistor is faulted in overtemperature (0 to 35)
+ *
+ */
 void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor){
 	//Call this function when the battery has faulted (OV, UV, OT, OC)
 
