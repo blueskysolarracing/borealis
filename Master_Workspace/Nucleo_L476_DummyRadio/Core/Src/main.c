@@ -403,8 +403,6 @@ void BMS_Cell_Temp_Generator(uint8_t* p) {
 	floatToArray(getRandomFloat(min, max), p+4);
 	floatToArray(getRandomFloat(min, max), p+8);
 	floatToArray(getRandomFloat(min, max), p+12);
-	floatToArray(getRandomFloat(min, max), p+16);
-	floatToArray(getRandomFloat(min, max), p+20);
 }
 
 
