@@ -160,6 +160,7 @@ uint32_t Chase_last_packet_tick_count 	= 0;
 
 uint8_t BBMBFirstPacketReceived = 0;
 float batteryVoltage = 0;
+uint8_t variableRegenValue = 0;
 
 //--- MOTOR ---//
 typedef enum {
@@ -1620,7 +1621,7 @@ static void pedalTask(const void* p) {
 		//Pedal has not effect when the motor is in cruise mode
 		if (motorState != CRUISE){
 			if (steeringWheelRegen) {
-				motorTargetPower = 150;
+				motorTargetPower = (uint16_t)variableRegenValue;
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 
@@ -1800,7 +1801,7 @@ void steeringWheelTask(const void *pv){
   uint8_t oldSteeringData[3] = {0, 0, 0};
   uint8_t emergencyLight = 0;
 
-  uint8_t expectedLen = 6; //must be same length as sent from SWB
+  uint8_t expectedLen = 7; //must be same length as sent from SWB
   uint8_t rxBuf[expectedLen];
   for(;;){
 	  B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
@@ -1815,6 +1816,8 @@ void steeringWheelTask(const void *pv){
 			if (steeringData[i] != rxBuf[2 + i]){
 				steeringData[i] = rxBuf[2 + i]; } //Only update if different (it should be different)
 		}
+		//Update variable regen value
+		variableRegenValue = rxBuf[6];
 	}
 
 	//------- Send acknowledge -------//
