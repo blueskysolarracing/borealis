@@ -175,7 +175,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
   uint8_t oldSwitchState[3] = {0, 0, 0};
   uint8_t newSwitchState[3] = {0, 0, 0};
-  uint8_t variableRegenValue = 0;
 
   /* USER CODE END 2 */
 
@@ -188,6 +187,7 @@ int main(void)
 	newSwitchState[0] = getSwitchState(0);
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
+	uint8_t variableRegenValue = 0;
 
 	HAL_ADC_Start(&hadc1);
 	if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){

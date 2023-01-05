@@ -1792,7 +1792,7 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void steeringWheelTask(const void *pv){
-// {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC}
+// {0xa5, 0x03, DATA_1, DATA_2, DATA_3, CRC, variableRegenValue}
 
 // DATA_0: [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] <-- ROTARY ENCODER DATA
 // DATA_1: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
