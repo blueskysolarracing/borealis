@@ -34,6 +34,7 @@
 /* USER CODE BEGIN PD */
 #define BSSR_SERIAL_START 0xa5
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
+#define ADC_NUM_AVG 30.0 // Number of times to loop to get average ADC value
 
 /* USER CODE END PD */
 
@@ -175,6 +176,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   uint8_t oldSwitchState[3] = {0, 0, 0};
   uint8_t newSwitchState[3] = {0, 0, 0};
+  uint8_t oldRegenValue = 0;
 
   /* USER CODE END 2 */
 
@@ -187,15 +189,20 @@ int main(void)
 	newSwitchState[0] = getSwitchState(0);
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
-	uint8_t variableRegenValue = 0;
+	uint8_t newRegenValue = 0;
+	float regenTotalReading = 0;
 
-	HAL_ADC_Start(&hadc1);
-	if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){
-		variableRegenValue = HAL_ADC_GetValue(&hadc1);
+	for (int i = 0; i < ADC_NUM_AVG; i++){
+		HAL_ADC_Start(&hadc1);
+		if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){
+			float currRegenValue = HAL_ADC_GetValue(&hadc1);
+			regenTotalReading += currRegenValue;
+		}
 	}
+	newRegenValue = (uint8_t)(regenTotalReading/ADC_NUM_AVG);
 
-	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2])){ //If any bit has changed, send data
-		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00, variableRegenValue}; //second last byte could be used for CRC (optional)
+	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
+		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], newRegenValue, 0x00}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
@@ -211,6 +218,7 @@ int main(void)
 
 	//Update switch state
 	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
+	oldRegenValue = newRegenValue;
 
 	HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
   }
