@@ -29,6 +29,7 @@ typedef struct BmsModule {
 	// Accesses hardware and stores the measured values into member variables
 	void (*update_temperature)(struct BmsModule* this);
 	void (*update_voltage)(struct BmsModule* this);
+	// Runs SOC algorithm using soc_calculator and stores the measured values into soc_array
 	void (*update_soc)(struct BmsModule* this);
 
 	/* Note: the functions above must be thread safe.
