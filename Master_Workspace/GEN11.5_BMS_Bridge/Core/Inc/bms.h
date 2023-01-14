@@ -17,9 +17,9 @@
 typedef struct Bms {
 
 	/* public */
-	void (*get_temperature_array)(struct Bms* this, float* temperature_array, int bms_module_id);
-	void (*get_voltage_array)(struct Bms* this, float* voltage_array, int bms_module_id);
-	void (*get_soc_array)(struct Bms* this, float* soc_array, int bms_module_id);
+	bool (*get_temperature_array)(struct Bms* this, float* temperature_array, int bms_module_id);
+	bool (*get_voltage_array)(struct Bms* this, float* voltage_array, int bms_module_id);
+	bool (*get_soc_array)(struct Bms* this, float* soc_array, int bms_module_id);
 
 	// Note: bms_module_id ranges from 0 - 5
 

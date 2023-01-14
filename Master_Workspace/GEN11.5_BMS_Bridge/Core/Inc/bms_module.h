@@ -22,15 +22,15 @@ typedef struct BmsModule {
 
 	/* Public */
 	// Retrieves measurements stored in member variables
-	void (*get_temperature_array)(struct BmsModule* this, float* temperature_array);
-	void (*get_voltage_array)(struct BmsModule* this, float* voltage_array);
-	void (*get_soc_array)(struct BmsModule* this, float* soc_array);
+	bool (*get_temperature_array)(struct BmsModule* this, float* temperature_array);
+	bool (*get_voltage_array)(struct BmsModule* this, float* voltage_array);
+	bool (*get_soc_array)(struct BmsModule* this, float* soc_array);
 
 	// Accesses hardware and stores the measured values into member variables
-	void (*update_temperature)(struct BmsModule* this);
-	void (*update_voltage)(struct BmsModule* this);
+	bool (*update_temperature)(struct BmsModule* this);
+	bool (*update_voltage)(struct BmsModule* this);
 	// Runs SOC algorithm using soc_calculator and stores the measured values into soc_array
-	void (*update_soc)(struct BmsModule* this);
+	bool (*update_soc)(struct BmsModule* this);
 
 	/* Note: the functions above must be thread safe.
 		Ex: get_temperature_array() and update_temperature()
