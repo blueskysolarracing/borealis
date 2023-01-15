@@ -35,6 +35,9 @@
 #define BSSR_SERIAL_START 0xa5
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
 #define ADC_NUM_AVG 30.0 // Number of times to loop to get average ADC value
+#define REGEN_IDLE_VAL 52.0
+#define REGEN_MAX_VAL 115.0
+#define REGEN_NEW_MAX 255
 
 /* USER CODE END PD */
 
@@ -202,7 +205,19 @@ int main(void)
 	newRegenValue = (uint8_t)(regenTotalReading/ADC_NUM_AVG);
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
-		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], newRegenValue, 0x00}; // last byte could be used for CRC (optional)
+
+		//Map regen range from 52-115 to 0-255
+		uint8_t mappedRegenValue = 0;
+		if (newRegenValue > REGEN_IDLE_VAL){
+			if (newRegenValue >= REGEN_MAX_VAL){
+				mappedRegenValue = REGEN_NEW_MAX;
+			} else {
+				float mappingRatio = (newRegenValue - REGEN_IDLE_VAL)/(REGEN_MAX_VAL - REGEN_IDLE_VAL);
+				mappedRegenValue = (uint8_t)(mappingRatio * REGEN_NEW_MAX);
+			}
+		}
+
+		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, 0x00}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
@@ -220,7 +235,7 @@ int main(void)
 	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
 	oldRegenValue = newRegenValue;
 
-	HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
+	HAL_Delay(15); //Wait for 15ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
