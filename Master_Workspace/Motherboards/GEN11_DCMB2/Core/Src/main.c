@@ -1825,10 +1825,8 @@ void steeringWheelTask(const void *pv){
 
 		//------- Send to RS485 bus -------//
 		uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
-		xTaskResumeAll();
 		B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
 
-		vTaskSuspendAll();
 		//---------- Process data ----------//
 		// Navigation <- Not implemented
 		// Cruise <- Not implemented
@@ -1843,11 +1841,9 @@ void steeringWheelTask(const void *pv){
 			bufh1[1] = 0b00000010;
 			default_data.P1_left_indicator_status = 1;
 		}
-		xTaskResumeAll();
 
 		B_tcpSend(btcp, bufh1, sizeof(bufh1));
 
-		vTaskSuspendAll();
 		uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 		//Right indicator - SEND TO BBMB
 		if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Extend lights (ON)
@@ -1857,11 +1853,9 @@ void steeringWheelTask(const void *pv){
 			bufh2[1] = 0b00000011;
 			default_data.P2_right_indicator_status = 1;
 		}
-		xTaskResumeAll();
 
 		B_tcpSend(btcp, bufh2, sizeof(bufh2));
 
-		vTaskSuspendAll();
 		//Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
 
 		//Encoder - Set car motor global values
@@ -1944,8 +1938,9 @@ void steeringWheelTask(const void *pv){
 		oldRightButton = (steeringData[2] & (1 << 3));
 		B_tcpSend(btcp, bufe, sizeof(bufh2));
 
-		xTaskResumeAll(); // exit critical section
 	}
+	xTaskResumeAll(); // exit critical section
+
   }
 
 }
