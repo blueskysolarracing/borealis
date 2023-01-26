@@ -17,13 +17,13 @@
 typedef struct Bms {
 
 	/* public */
-	bool (*get_temperature_array)(struct Bms* this, float* temperature_array, int bms_module_id);
-	bool (*get_voltage_array)(struct Bms* this, float* voltage_array, int bms_module_id);
-	bool (*get_soc_array)(struct Bms* this, float* soc_array, int bms_module_id);
+	void (*get_temperature)(struct Bms* this, float* temperature_array, int bms_module_id);
+	void (*get_voltage)(struct Bms* this, float* voltage_array, int bms_module_id);
+	void (*get_soc)(struct Bms* this, float* soc_array, int bms_module_id);
 
 	// Note: bms_module_id ranges from 0 - 5
 
-	bool (*run)(struct Bms* this); // Starts thread which updates bms_modules in the background
+	void (*run)(struct Bms* this); // Starts thread which updates bms_modules in the background
 
 	/* private */
 	BmsModule _bms_modules[BMS_NUM_BMS_MODULES];
@@ -32,11 +32,11 @@ typedef struct Bms {
 
 }Bms;
 
-bool bms_init(
+void bms_init(
 		Bms* this,
-		SPI_HandleTypeDef* _spi_handle,
-		GPIO_TypeDef* _spi_cs_port,
-		uint16_t _spi_cs_pin
+		SPI_HandleTypeDef* spi_handle,
+		GPIO_TypeDef* spi_cs_ports[],
+		uint16_t spi_cs_pins[]
 		);
 // Note: spi related arguments will be passed into each BmsModule
 
