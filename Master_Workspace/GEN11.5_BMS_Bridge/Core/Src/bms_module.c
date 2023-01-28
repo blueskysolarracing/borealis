@@ -5,6 +5,7 @@
  *      Author: Raymond
  */
 #include "bms_module.h"
+#include <math.h>
 
 static void get_temperature(BmsModule* this, float* temperature);
 static void get_voltage(BmsModule* this, float* voltage);
@@ -13,6 +14,17 @@ static void measure_temperature(BmsModule* this);
 static void measure_voltage(BmsModule* this);
 static void compute_soc(BmsModule* this);
 
+static void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]);
+static void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[]);
+static uint8_t LTC6810ArrayToByte(int arrayIn[]); //8 bit array to a byte
+static void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]);
+static void LTC6810CommandGenerate(int command, uint8_t dataToSend[]); //dataToSend is array pass by reference
+static int LTC6810InitializeAndCheck();
+static int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte);
+static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
+static void LTC6810Convert_to_temp(float input_voltage[3], float output_temperature[3]);
+static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
+static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
 
 void bms_module_init(
 		BmsModule* this,
@@ -57,11 +69,35 @@ static void get_soc(BmsModule* this, float* soc)
 
 static void measure_temperature(BmsModule* this)
 {
+	float local_temp_array[BMS_MODULE_TEMPERATURE_ARRAY_SIZE]; //Temperature readings
 
+	// Note the following function actually reads voltage
+	LTC6810ReadTemp(this, local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
+
+	// The voltage needs to be converted to temperature
+	LTC6810Convert_to_temp(local_temp_array, local_temp_array);
+
+	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
+		for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
+			this->_temperature_array[i] = local_temp_array[i];
+		}
+
+		xSemaphoreGive(this->_temperature_lock);
+	}
 }
 
 static void measure_voltage(BmsModule* this)
 {
+	float local_voltage_array[BMS_MODULE_VOLTAGE_ARRAY_SIZE]; //Voltage of each cell
+	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
+
+	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
+		for (int i = 0; i < BMS_MODULE_VOLTAGE_ARRAY_SIZE; i++){
+			this->_voltage_array[i] = local_voltage_array[i];
+		}
+
+		xSemaphoreGive(this->_voltage_lock);
+	}
 
 }
 
@@ -70,7 +106,7 @@ static void compute_soc(BmsModule* this)
 
 }
 
-void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
+static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
 	//This function initialize the LTC6810 ADC chip, shall be called at the start of the program
 	//To modify the initialization setting, please refer to the Datasheet and the chart below
 	/*
@@ -185,7 +221,7 @@ void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int
  *
  */
 
-void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]){
+static void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]){
 
 	//refer to P55 of LTC
 	int IN0,IN3,IN4,IN7,IN8,IN10,IN14;
@@ -255,7 +291,7 @@ void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]){
 
 }//====== end of generatePCEbits function =========
 
-void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[]){
+static void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[]){
     //Note: data6Byte[74] is 1st bit
 
 	//refer to P55 of LTC
@@ -338,7 +374,7 @@ uint8_t LTC6810ArrayToByte(int arrayIn[]){ //8 bit array to a byte
 
 
 
-void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]){
+static void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]){
 	int tempBit;//stores the temporary bit value from command that goes into CMD0 or 1
 
 	int i;
@@ -357,7 +393,7 @@ void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]){
 }//======== end of LTC6810CommandToArray function ========
 
 
-void LTC6810CommandGenerate(int command, uint8_t dataToSend[]){ //dataToSend is array pass by reference
+static void LTC6810CommandGenerate(int command, uint8_t dataToSend[]){ //dataToSend is array pass by reference
 	int CMD0Array[8] = {0,0,0,0,0,0,0,0};
 	int CMD1Array[8] = {0,0,0,0,0,0,0,0};//[7] is MSB, [0] is LSB
 	//convert command and fill the two above array
@@ -380,11 +416,11 @@ void LTC6810CommandGenerate(int command, uint8_t dataToSend[]){ //dataToSend is 
 } // ======== end of LTC6810CommandGenerate function ==========
 
 /*
-void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
+static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	//voltafeArray[1] is voltage of cell 0; [5] is voltage of cell 6
 	//also this function will take a bit time cuz the ADC thing takes time
 
-	int LTC6810Command;  //this variable carries the commands, see on page 60 of datasheet
+	static int LTC6810Command;  //this variable carries the commands, see on page 60 of datasheet
 	uint8_t dataToSend[4]; //converted from the binary command to data bytes
 	uint8_t dataToReceive[8];
 
@@ -392,24 +428,24 @@ void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	//MD = 01, 27kHz;  DCP=0, no discharge permit; Channel = 000: All channel;
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );//array passed by reference
 
-	HAL_GPIO_WritePin (GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(&hspi3, dataToSend,4,100);
-	HAL_Delay(10);//ADD 10ms DELAY between Transmit & Receive
-	HAL_SPI_Receive(&hspi3, dataToReceive,4,100);         //discard this Receive as it is problematic
-	HAL_GPIO_WritePin (GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
+	vTaskDelay(10);//ADD 10ms DELAY between Transmit & Receive
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive,4,100);         //discard this Receive as it is problematic
+	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 
-	HAL_Delay(5);
+	vTaskDelay(5);
 
 	//after letting it read ADC, now collect those data
 
 	LTC6810Command = 0b00000000100;
 		//RDCVA read cell voltage register group A (cell 1-3)
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );
-	HAL_GPIO_WritePin (GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(&hspi3, dataToSend,4,100);
-	HAL_Delay(2);
-	HAL_SPI_Receive(&hspi3, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
-	HAL_GPIO_WritePin (GPIOC, GPIO_PIN_9, GPIO_PIN_SET); //ss pin back high
+	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
+	vTaskDelay(2);
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
+	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); //ss pin back high
 
 	voltageArray[0] = (dataToReceive[1]*256) + dataToReceive[0];
 	//lsb comes first, refer to page 64 Memory map
@@ -419,11 +455,11 @@ void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	LTC6810Command = 0b00000000110;
 		//RDCVA read cell voltage register group B (cell 4-6)
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );
-	HAL_GPIO_WritePin (GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(&hspi3, dataToSend,4,100);
-	HAL_Delay(2);
-	HAL_SPI_Receive(&hspi3, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
-	HAL_GPIO_WritePin (GPIOC, GPIO_PIN_9, GPIO_PIN_SET); //ss pin back high
+	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
+	vTaskDelay(2);
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
+	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); //ss pin back high
 
 	voltageArray[3] = (dataToReceive[1]*256) + dataToReceive[0];
 	voltageArray[4] = (dataToReceive[3]*256) + dataToReceive[2];
@@ -432,7 +468,7 @@ void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 
 }*/
 
-int LTC6810InitializeAndCheck(){
+static int LTC6810InitializeAndCheck(){
 	//Call this function when starting up.
 /*
 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
@@ -452,7 +488,7 @@ int LTC6810InitializeAndCheck(){
 +-------+---------+---------+---------+---------+---------+---------+---------+--------+*/
 
 //above is the table of configuration register bits. How
-//	int LTC6810Command;
+//	static int LTC6810Command;
 //	uint8_t dataToSend0[4]; //stores the command and PEC bit of WRCFG
 //	uint8_t dataToSend1[4]; //stores CFGR0 & CFGR1 stuff
 //	uint8_t dataToSend2[4]; //stores byte 2 & 3
@@ -469,7 +505,7 @@ return 0;//temp
 
 }//====== End of LTC6810initializeAndCheck ======
 
-int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte){
+static int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte){
 	//based on LTC6810 datasheet, every bit is 100uV
 	//full range of 16 bytes: -0.8192 to + 5.7344
 	//Final voltage: (total - 8192) * 100uV
@@ -477,6 +513,107 @@ int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte){
 	Voltage = lowByte + highByte * 256;
 	//Voltage = Voltage + 8192;
 	return Voltage;
+}
+
+static void LTC6810Convert_to_temp(float input_voltage[3], float output_temperature[3]){
+	/* Used to convert raw ADC code to temperature */
+	float temp_correction_multiplier = 1.0;
+	float temp_correction_offset = 0.0;
+	for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
+		float corrected_voltage = temp_correction_multiplier * (input_voltage[i] / 10000.0  - temp_correction_offset);
+		float thermistor_resistance = 10.0 / ((2.8 / (float) corrected_voltage) - 1.0);
+		output_temperature[i] = 1.0 / (0.003356 + 0.0002532 * log(thermistor_resistance / 10.0));
+		output_temperature[i] = output_temperature[i] - 273.15;
+
+		if (thermistor_resistance < 0) {  //Preventing NaN (treated as 0xFFFFFFFF) from tripping the battery safety but lower-bounding them to -100C
+			output_temperature[i] = -100;
+		}
+		//This occurs when the measurement is closes to 3V, suggesting that the thermistor isn't connected.
+	}
+}
+
+static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1){
+	//read Temp 0,1,2. Pass by reference to the input array.
+	//if discharging, make DCC global variables so this don't disturb Discharge
+
+	int cycle = 0;
+	int messageInBinary;
+	uint8_t dataToSend[16];
+	uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
+	while(cycle<3){
+
+		if(cycle ==0){
+		LTC6810Init(this, 0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 1
+		else if(cycle == 1){
+		LTC6810Init(this, 0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
+		else if(cycle == 2){
+		LTC6810Init(this, 0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
+
+		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
+		LTC6810CommandGenerate(messageInBinary, dataToSend);
+
+		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET);//slave low
+		vTaskDelay(pdMS_TO_TICKS(1));
+		HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
+		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+
+		//now read from it
+		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
+		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET);
+
+		HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
+		vTaskDelay(pdMS_TO_TICKS(1)); //ADD DELAY between Transmit & Receive
+		HAL_SPI_Receive(this->_spi_handle, dataToReceive, 6, 100);
+
+		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+		//write value into array
+		int tempSum = 256*dataToReceive[3] + dataToReceive[2];
+		//float TempInC = 1/(1/298.15+(1/3950) * log((-10)/(tempSum/)))
+		tempArray[cycle] = (float)tempSum;//msb of data
+		cycle++;
+	}
+}
+
+static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
+	int VmessageInBinary;//for internal command
+	uint8_t dataToSend[4]; //data organized by function [LTC6810CommandGenerate]
+	uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
+
+	//first read first half of data
+	VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
+	LTC6810CommandGenerate(VmessageInBinary, dataToSend);//generate the "check voltage command"
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
+	//now receive those data
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+
+	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
+	LTC6810CommandGenerate(VmessageInBinary, dataToSend);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+
+
+	voltArray[0] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
+	voltArray[1] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
+	voltArray[2] = LTC6810VoltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
+
+	VmessageInBinary = 0b110; //read cell voltage reg group 2;
+	LTC6810CommandGenerate(VmessageInBinary, dataToSend);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+
+	voltArray[3] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
+	voltArray[4] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
+
+	// Not using the following since voltArray has size of 5 instead of 6
+	// voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
 }
 
 

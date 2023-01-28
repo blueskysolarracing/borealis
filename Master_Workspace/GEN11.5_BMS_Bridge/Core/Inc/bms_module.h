@@ -60,14 +60,5 @@ void bms_module_init(
 
 #include "stdint.h"
 
-void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]);
-void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[]);
-uint8_t LTC6810ArrayToByte(int arrayIn[]); //8 bit array to a byte
-void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]);
-void LTC6810CommandGenerate(int command, uint8_t dataToSend[]); //dataToSend is array pass by reference
-int LTC6810InitializeAndCheck();
-int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte);
-void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
-
 
 #endif /* INC_BMS_MODULE_H_ */
