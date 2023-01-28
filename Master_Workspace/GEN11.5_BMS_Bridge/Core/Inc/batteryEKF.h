@@ -28,7 +28,7 @@
 #define VAR_SENS (2e-1f)    // Sensor uncertainty, terminal voltage measurement
 #define VAR_INPT (2e-1f)    // Input uncertainty, input current measurement (sensor)
 
-#define COULOMB_ETA (0.9929f);
+#define COULOMB_ETA (0.9929f)
 
 typedef struct {
    // -------------- CONSTANTS AND EKF ALGO VARIABLES --------------
@@ -104,11 +104,11 @@ typedef struct {
     EKF_Model_14p batteryPack[NUM_14P_UNITS];
 } EKF_Battery;
 
-void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v, float initial_deltaT);
+void initBatteryAlgo(EKF_Model_14p* inBattery, float initial_v, float initial_deltaT);
 void initEKFModel(EKF_Model_14p* inModel, float initial_v);
 void init_A_Matrix();
 void init_B_Matrix();
-void compute_A_B_dt(float dt);
+void compute_A_B_dt(EKF_Model_14p* inModel, float dt);
 
 void addition_EKF(float* operand_1, float* operand_2, float* result, uint8_t* size, uint8_t subtract);
 uint8_t multiply_EKF(float* operand_1, float* operand_2, float* result, uint8_t* opDim_1, uint8_t* opDim_2);
