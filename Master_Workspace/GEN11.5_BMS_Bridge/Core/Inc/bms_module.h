@@ -22,22 +22,21 @@ typedef struct BmsModule {
 
 	/* Public */
 	// Retrieves measurements stored in member variables
-	bool (*get_temperature_array)(struct BmsModule* this, float* temperature_array);
-	bool (*get_voltage_array)(struct BmsModule* this, float* voltage_array);
-	bool (*get_soc_array)(struct BmsModule* this, float* soc_array);
+	void (*get_temperature)(struct BmsModule* this, float* temperature_array);
+	void (*get_voltage)(struct BmsModule* this, float* voltage_array);
+	void (*get_soc)(struct BmsModule* this, float* soc_array);
 
 	// Accesses hardware and stores the measured values into member variables
-	bool (*update_temperature)(struct BmsModule* this);
-	bool (*update_voltage)(struct BmsModule* this);
-	// Runs SOC algorithm using soc_calculator and stores the measured values into soc_array
-	bool (*update_soc)(struct BmsModule* this);
+	void (*measure_temperature)(struct BmsModule* this);
+	void (*measure_voltage)(struct BmsModule* this);
+	void (*compute_soc)(struct BmsModule* this);
 
 	/* Note: the functions above must be thread safe.
-		Ex: get_temperature_array() and update_temperature()
+		Ex: get_temperature_array() and measure_temperature()
 		must work when called from two parallel running threads*/
 
 	/* Private */
-	void* _soc_calculator; // pointer to void for now. TODO: Replace with actual object
+	void* _soc_algorithm; // pointer to void for now. TODO: Replace with actual object
 	float _voltage_array[BMS_MODULE_VOLTAGE_ARRAY_SIZE]; //Voltage of each cell
 	float _temperature_array[BMS_MODULE_TEMPERATURE_ARRAY_SIZE];
 	float _soc_array[BMS_MODULE_SOC_ARRAY_SIZE];
@@ -52,12 +51,14 @@ typedef struct BmsModule {
 
 } BmsModule;
 
-bool bms_module_init(
+void bms_module_init(
 		BmsModule* this,
 		SPI_HandleTypeDef* _spi_handle,
 		GPIO_TypeDef* _spi_cs_port,
 		uint16_t _spi_cs_pin
 		);
+
+#include "stdint.h"
 
 
 #endif /* INC_BMS_MODULE_H_ */
