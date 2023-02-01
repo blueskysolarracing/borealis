@@ -11,6 +11,7 @@
 static void get_temperature(Bms* this, float* temperature_array, int bms_module_id);
 static void get_voltage(Bms* this, float* voltage_array, int bms_module_id);
 static void get_soc(Bms* this, float* soc_array, int bms_module_id);
+static void set_current(Bms* this, float current);
 static void run(Bms* this);
 static void run_thread(void* parameters);
 static void measure_with_all_bms_modules(Bms* this);
@@ -21,8 +22,7 @@ void bms_init(
 		SPI_HandleTypeDef* spi_handle,
 		GPIO_TypeDef* spi_cs_ports[],
 		uint16_t spi_cs_pins[]
-		)
-{
+) {
 	this->get_temperature = get_temperature;
 	this->get_voltage = get_voltage;
 	this->get_soc = get_soc;
@@ -31,22 +31,29 @@ void bms_init(
 	for (int i = 0; i < BMS_NUM_BMS_MODULES; i++) {
 		bms_module_init(&this->_bms_modules[i], spi_handle, spi_cs_ports[i], spi_cs_pins[i]);
 	}
-
 }
 
 
 static void get_temperature(Bms* this, float* temperature_array, int bms_module_id)
 {
+	this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperature_array);
 }
 
 static void get_voltage(Bms* this, float* voltage_array, int bms_module_id)
 {
-
+	this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltage_array);
 }
 
 static void get_soc(Bms* this, float* soc_array, int bms_module_id)
 {
+	this->_bms_modules[bms_module_id].get_soc(&this->_bms_modules[bms_module_id], soc_array);
+}
 
+static void set_current(Bms* this, float current)
+{
+	for (int i = 0; i < BMS_NUM_BMS_MODULES; i++) {
+		this->_bms_modules[i].set_current(&this->_bms_modules[i], current);
+	}
 }
 
 static void run(Bms* this)
@@ -77,6 +84,5 @@ static void measure_with_all_bms_modules(Bms* this)
 		this->_bms_modules[i].measure_temperature(&this->_bms_modules[i]);
 		this->_bms_modules[i].measure_voltage(&this->_bms_modules[i]);
 		this->_bms_modules[i].compute_soc(&this->_bms_modules[i]);
-
 	}
 }

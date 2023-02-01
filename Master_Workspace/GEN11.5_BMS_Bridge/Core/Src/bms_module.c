@@ -10,6 +10,7 @@
 static void get_temperature(BmsModule* this, float* temperature);
 static void get_voltage(BmsModule* this, float* voltage);
 static void get_soc(BmsModule* this, float* soc);
+static void set_current(BmsModule* this, float current);
 static void measure_temperature(BmsModule* this);
 static void measure_voltage(BmsModule* this);
 static void compute_soc(BmsModule* this);
@@ -31,17 +32,14 @@ void bms_module_init(
 		SPI_HandleTypeDef* spi_handle,
 		GPIO_TypeDef* spi_cs_port,
 		uint16_t spi_cs_pin
-		)
-{
+) {
 	this->get_temperature = get_temperature;
 	this->get_voltage = get_voltage;
 	this->get_soc = get_soc;
+	this->set_current = set_current;
 	this->measure_temperature = measure_temperature;
 	this->measure_voltage = measure_voltage;
 	this->compute_soc = compute_soc;
-
-	//	TODO: initialize SOC Algorithm
-	// soc_algorithm_init(&this->_soc_algorithm);
 
 	this->_temperature_lock = xSemaphoreCreateMutex();
 	this->_voltage_lock = xSemaphoreCreateMutex();
@@ -50,21 +48,53 @@ void bms_module_init(
 	this->_spi_handle = spi_handle;
 	this->_spi_cs_port = spi_cs_port;
 	this->_spi_cs_pin = spi_cs_pin;
+
+
+	//--- SOC algorithm ---//
+	this->measure_voltage(this);
+
+	for (int i = 0; i < BMS_MODULE_NUM_CELLS; i++){
+		this->_tick_last_soc_compute[i] = HAL_GetTick();
+		initBatteryAlgo(&this->_EKF_models[i], this->_voltage_array[i], this->_tick_last_soc_compute[i]);
+	}
+
 }
 
-static void get_temperature(BmsModule* this, float* temperature)
+static void get_temperature(BmsModule* this, float* temperature_array)
 {
+	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
+		for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
+			temperature_array[i] = this->_temperature_array[i];
+		}
 
+		xSemaphoreGive(this->_temperature_lock);
+	}
 }
 
-static void get_voltage(BmsModule* this, float* voltage)
+static void get_voltage(BmsModule* this, float* voltage_array)
 {
+	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
+		for (int i = 0; i < BMS_MODULE_VOLTAGE_ARRAY_SIZE; i++){
+			voltage_array[i] = this->_voltage_array[i];
+		}
 
+		xSemaphoreGive(this->_voltage_lock);
+	}
 }
 
-static void get_soc(BmsModule* this, float* soc)
+static void get_soc(BmsModule* this, float* soc_array)
 {
+	if(xSemaphoreTake(this->_soc_lock, portMAX_DELAY)){
+		for (int i = 0; i < BMS_MODULE_SOC_ARRAY_SIZE; i++){
+			soc_array[i] = this->_soc_array[i];
+		}
+		xSemaphoreGive(this->_soc_lock);
+	}
+}
 
+static void set_current(BmsModule* this, float current)
+{
+	this->_current = current;
 }
 
 static void measure_temperature(BmsModule* this)
@@ -81,7 +111,6 @@ static void measure_temperature(BmsModule* this)
 		for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
 			this->_temperature_array[i] = local_temp_array[i];
 		}
-
 		xSemaphoreGive(this->_temperature_lock);
 	}
 }
@@ -95,7 +124,6 @@ static void measure_voltage(BmsModule* this)
 		for (int i = 0; i < BMS_MODULE_VOLTAGE_ARRAY_SIZE; i++){
 			this->_voltage_array[i] = local_voltage_array[i];
 		}
-
 		xSemaphoreGive(this->_voltage_lock);
 	}
 
@@ -103,7 +131,26 @@ static void measure_voltage(BmsModule* this)
 
 static void compute_soc(BmsModule* this)
 {
+	float local_soc_array[BMS_MODULE_SOC_ARRAY_SIZE];
 
+	for (int i = 0; i < BMS_MODULE_SOC_ARRAY_SIZE; i++) {
+		uint32_t tick_now = HAL_GetTick();
+		this->_EKF_models[i].run_EKF(
+				&this->_EKF_models[i],
+				tick_now - this->_tick_last_soc_compute[i],
+				this->_current,
+				this->_voltage_array[i]
+		);
+		local_soc_array[i] = this->_EKF_models[i].stateX[0];
+		this->_tick_last_soc_compute[i] = tick_now;
+	}
+
+	if(xSemaphoreTake(this->_soc_lock, portMAX_DELAY)){
+		for (int i = 0; i < BMS_MODULE_SOC_ARRAY_SIZE; i++){
+			this->_soc_array[i] = local_soc_array[i];
+		}
+		xSemaphoreGive(this->_soc_lock);
+	}
 }
 
 static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {

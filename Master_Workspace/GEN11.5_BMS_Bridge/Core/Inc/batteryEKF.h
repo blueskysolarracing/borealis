@@ -94,10 +94,11 @@ typedef struct {
 
 } EKF_Model_Matrix;
 
-typedef struct {
+typedef struct EKF_Model_14p{
     float stateX[STATE_NUM];
     float covP[STATE_NUM*STATE_NUM];
     EKF_Model_Matrix matrix;
+    void (*run_EKF)(struct EKF_Model_14p* inputBatt, float dt, float currentIn, float measuredV); //deltat, current same for all unit, voltage different for each unit
 } EKF_Model_14p;
 
 typedef struct {

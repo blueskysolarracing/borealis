@@ -7,11 +7,12 @@
 #include "main.h"
 #include "stdbool.h"
 #include "cmsis_os.h"
+#include "batteryEKF.h"
 
 #ifndef INC_BMS_MODULE_H_
 #define INC_BMS_MODULE_H_
 
-#define BMS_MODULE_NUM_CELLS 5
+#define BMS_MODULE_NUM_CELLS NUM_14P_UNITS		// which is 5 except for maybe one Battery Module
 #define BMS_MODULE_NUM_TEMPERATURE_SENSOR 3
 
 #define BMS_MODULE_VOLTAGE_ARRAY_SIZE BMS_MODULE_NUM_CELLS
@@ -26,6 +27,8 @@ typedef struct BmsModule {
 	void (*get_voltage)(struct BmsModule* this, float* voltage_array);
 	void (*get_soc)(struct BmsModule* this, float* soc_array);
 
+	void (*set_current)(struct BmsModule* this, float current);
+
 	// Accesses hardware and stores the measured values into member variables
 	void (*measure_temperature)(struct BmsModule* this);
 	void (*measure_voltage)(struct BmsModule* this);
@@ -36,10 +39,12 @@ typedef struct BmsModule {
 		must work when called from two parallel running threads*/
 
 	/* Private */
-	void* _soc_algorithm; // pointer to void for now. TODO: Replace with actual object
+	EKF_Model_14p _EKF_models[BMS_MODULE_NUM_CELLS];
 	float _voltage_array[BMS_MODULE_VOLTAGE_ARRAY_SIZE]; //Voltage of each cell
 	float _temperature_array[BMS_MODULE_TEMPERATURE_ARRAY_SIZE];
 	float _soc_array[BMS_MODULE_SOC_ARRAY_SIZE];
+	uint32_t _tick_last_soc_compute[BMS_MODULE_SOC_ARRAY_SIZE];
+	float _current;
 
 	SemaphoreHandle_t _temperature_lock;
 	SemaphoreHandle_t _voltage_lock;

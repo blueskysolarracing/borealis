@@ -47,6 +47,8 @@ void initBatteryAlgo(EKF_Model_14p* inBattery, float initial_v, float initial_de
 
 void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
 
+	inBattery->run_EKF = run_EKF;
+
     uint8_t i = 0;  
     uint8_t j = 0;
 
