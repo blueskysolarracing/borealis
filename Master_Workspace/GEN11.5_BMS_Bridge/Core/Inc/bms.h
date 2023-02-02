@@ -20,8 +20,9 @@ typedef struct Bms {
 	void (*get_temperature)(struct Bms* this, float* temperature_array, int bms_module_id);
 	void (*get_voltage)(struct Bms* this, float* voltage_array, int bms_module_id);
 	void (*get_soc)(struct Bms* this, float* soc_array, int bms_module_id);
+	void (*set_current)(struct Bms* this, float current);
 
-	// Note: bms_module_id ranges from 0 - 5
+	// Note: bms_module_id ranges from 0 - 5, each representing a physical battery module
 
 	void (*run)(struct Bms* this); // Starts thread which updates bms_modules in the background
 

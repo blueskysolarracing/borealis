@@ -26,10 +26,11 @@ void bms_init(
 	this->get_temperature = get_temperature;
 	this->get_voltage = get_voltage;
 	this->get_soc = get_soc;
+	this->set_current = set_current;
 	this->run = run;
 
 	for (int i = 0; i < BMS_NUM_BMS_MODULES; i++) {
-		bms_module_init(&this->_bms_modules[i], spi_handle, spi_cs_ports[i], spi_cs_pins[i]);
+		bms_module_init(&this->_bms_modules[i], i, spi_handle, spi_cs_ports[i], spi_cs_pins[i]);
 	}
 }
 

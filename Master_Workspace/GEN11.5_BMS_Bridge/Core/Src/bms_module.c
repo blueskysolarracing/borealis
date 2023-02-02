@@ -29,6 +29,7 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
 
 void bms_module_init(
 		BmsModule* this,
+		int bms_module_id,
 		SPI_HandleTypeDef* spi_handle,
 		GPIO_TypeDef* spi_cs_port,
 		uint16_t spi_cs_pin
@@ -41,6 +42,7 @@ void bms_module_init(
 	this->measure_voltage = measure_voltage;
 	this->compute_soc = compute_soc;
 
+	this->_bms_module_id = bms_module_id;
 	this->_temperature_lock = xSemaphoreCreateMutex();
 	this->_voltage_lock = xSemaphoreCreateMutex();
 	this->_soc_lock = xSemaphoreCreateMutex();

@@ -8,6 +8,8 @@
 #include "stdbool.h"
 #include "cmsis_os.h"
 #include "batteryEKF.h"
+#include "stdint.h"
+
 
 #ifndef INC_BMS_MODULE_H_
 #define INC_BMS_MODULE_H_
@@ -35,16 +37,17 @@ typedef struct BmsModule {
 	void (*compute_soc)(struct BmsModule* this);
 
 	/* Note: the functions above must be thread safe.
-		Ex: get_temperature_array() and measure_temperature()
+		Ex: get_temperature() and measure_temperature()
 		must work when called from two parallel running threads*/
 
 	/* Private */
-	EKF_Model_14p _EKF_models[BMS_MODULE_NUM_CELLS];
 	float _voltage_array[BMS_MODULE_VOLTAGE_ARRAY_SIZE]; //Voltage of each cell
 	float _temperature_array[BMS_MODULE_TEMPERATURE_ARRAY_SIZE];
 	float _soc_array[BMS_MODULE_SOC_ARRAY_SIZE];
+	EKF_Model_14p _EKF_models[BMS_MODULE_SOC_ARRAY_SIZE];
 	uint32_t _tick_last_soc_compute[BMS_MODULE_SOC_ARRAY_SIZE];
 	float _current;
+	int _bms_module_id;
 
 	SemaphoreHandle_t _temperature_lock;
 	SemaphoreHandle_t _voltage_lock;
@@ -58,12 +61,12 @@ typedef struct BmsModule {
 
 void bms_module_init(
 		BmsModule* this,
+		int bms_module_id,
 		SPI_HandleTypeDef* _spi_handle,
 		GPIO_TypeDef* _spi_cs_port,
 		uint16_t _spi_cs_pin
 		);
 
-#include "stdint.h"
 
 
 #endif /* INC_BMS_MODULE_H_ */
