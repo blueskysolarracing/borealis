@@ -9,7 +9,7 @@
 
 static void get_temperature(BmsModule* this, float* temperature);
 static void get_voltage(BmsModule* this, float* voltage);
-static void get_soc(BmsModule* this, float* soc);
+static void get_state_of_charge(BmsModule* this, float* soc);
 static void set_current(BmsModule* this, float current);
 static void measure_temperature(BmsModule* this);
 static void measure_voltage(BmsModule* this);
@@ -36,7 +36,7 @@ void bms_module_init(
 ) {
 	this->get_temperature = get_temperature;
 	this->get_voltage = get_voltage;
-	this->get_soc = get_soc;
+	this->get_state_of_charge = get_state_of_charge;
 	this->set_current = set_current;
 	this->measure_temperature = measure_temperature;
 	this->measure_voltage = measure_voltage;
@@ -57,38 +57,38 @@ void bms_module_init(
 
 	for (int i = 0; i < BMS_MODULE_NUM_CELLS; i++){
 		this->_tick_last_soc_compute[i] = HAL_GetTick();
-		initBatteryAlgo(&this->_EKF_models[i], this->_voltage_array[i], this->_tick_last_soc_compute[i]);
+		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
 	}
 
 }
 
-static void get_temperature(BmsModule* this, float* temperature_array)
+static void get_temperature(BmsModule* this, float* temperatures)
 {
 	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
-			temperature_array[i] = this->_temperature_array[i];
+		for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
+			temperatures[i] = this->_temperatures[i];
 		}
 
 		xSemaphoreGive(this->_temperature_lock);
 	}
 }
 
-static void get_voltage(BmsModule* this, float* voltage_array)
+static void get_voltage(BmsModule* this, float* voltages)
 {
 	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_VOLTAGE_ARRAY_SIZE; i++){
-			voltage_array[i] = this->_voltage_array[i];
+		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
+			voltages[i] = this->_voltages[i];
 		}
 
 		xSemaphoreGive(this->_voltage_lock);
 	}
 }
 
-static void get_soc(BmsModule* this, float* soc_array)
+static void get_state_of_charge(BmsModule* this, float* state_of_charges)
 {
 	if(xSemaphoreTake(this->_soc_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_SOC_ARRAY_SIZE; i++){
-			soc_array[i] = this->_soc_array[i];
+		for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
+			state_of_charges[i] = this->_state_of_charges[i];
 		}
 		xSemaphoreGive(this->_soc_lock);
 	}
@@ -101,7 +101,7 @@ static void set_current(BmsModule* this, float current)
 
 static void measure_temperature(BmsModule* this)
 {
-	float local_temp_array[BMS_MODULE_TEMPERATURE_ARRAY_SIZE]; //Temperature readings
+	float local_temp_array[BMS_MODULE_NUM_TEMPERATURES]; //Temperature readings
 
 	// Note the following function actually reads voltage
 	LTC6810ReadTemp(this, local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
@@ -110,8 +110,8 @@ static void measure_temperature(BmsModule* this)
 	LTC6810Convert_to_temp(local_temp_array, local_temp_array);
 
 	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
-			this->_temperature_array[i] = local_temp_array[i];
+		for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
+			this->_temperatures[i] = local_temp_array[i];
 		}
 		xSemaphoreGive(this->_temperature_lock);
 	}
@@ -119,12 +119,12 @@ static void measure_temperature(BmsModule* this)
 
 static void measure_voltage(BmsModule* this)
 {
-	float local_voltage_array[BMS_MODULE_VOLTAGE_ARRAY_SIZE]; //Voltage of each cell
+	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
 	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
 
 	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_VOLTAGE_ARRAY_SIZE; i++){
-			this->_voltage_array[i] = local_voltage_array[i];
+		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
+			this->_voltages[i] = local_voltage_array[i];
 		}
 		xSemaphoreGive(this->_voltage_lock);
 	}
@@ -133,23 +133,23 @@ static void measure_voltage(BmsModule* this)
 
 static void compute_soc(BmsModule* this)
 {
-	float local_soc_array[BMS_MODULE_SOC_ARRAY_SIZE];
+	float local_soc_array[BMS_MODULE_NUM_STATE_OF_CHARGES];
 
-	for (int i = 0; i < BMS_MODULE_SOC_ARRAY_SIZE; i++) {
+	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++) {
 		uint32_t tick_now = HAL_GetTick();
 		this->_EKF_models[i].run_EKF(
 				&this->_EKF_models[i],
 				tick_now - this->_tick_last_soc_compute[i],
 				this->_current,
-				this->_voltage_array[i]
+				this->_voltages[i]
 		);
 		local_soc_array[i] = this->_EKF_models[i].stateX[0];
 		this->_tick_last_soc_compute[i] = tick_now;
 	}
 
 	if(xSemaphoreTake(this->_soc_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_SOC_ARRAY_SIZE; i++){
-			this->_soc_array[i] = local_soc_array[i];
+		for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
+			this->_state_of_charges[i] = local_soc_array[i];
 		}
 		xSemaphoreGive(this->_soc_lock);
 	}
@@ -568,7 +568,7 @@ static void LTC6810Convert_to_temp(float input_voltage[3], float output_temperat
 	/* Used to convert raw ADC code to temperature */
 	float temp_correction_multiplier = 1.0;
 	float temp_correction_offset = 0.0;
-	for (int i = 0; i < BMS_MODULE_TEMPERATURE_ARRAY_SIZE; i++){
+	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
 		float corrected_voltage = temp_correction_multiplier * (input_voltage[i] / 10000.0  - temp_correction_offset);
 		float thermistor_resistance = 10.0 / ((2.8 / (float) corrected_voltage) - 1.0);
 		output_temperature[i] = 1.0 / (0.003356 + 0.0002532 * log(thermistor_resistance / 10.0));

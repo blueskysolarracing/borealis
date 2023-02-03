@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "btcp.h"
+#include "bms.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,7 +51,9 @@ DMA_HandleTypeDef hdma_usart1_tx;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
-
+B_uartHandle_t* buart;
+B_tcpHandle_t* btcp;
+Bms bms;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -121,6 +124,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+
+#ifdef DEFAULT_TASK
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -129,7 +134,22 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
+#endif
   /* add threads, ... */
+  buart = B_uartStart(&huart1);
+  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+
+  /*
+   * Array of chip selects used by each BMS Module object
+   * Since each object communicates to its corresponding physical BMS Module's LTC6810 device through a shared LTC6820 isoSPI transceiver, all chip selects are meant for LTC6820 and are identical
+   */
+  GPIO_TypeDef* spi_cs_ports[] = {[0 ... BMS_NUM_BMS_MODULES] = GPIOC};
+  uint16_t spi_cs_pins[] = {[0 ... BMS_NUM_BMS_MODULES] = GPIO_PIN_9};
+
+  // Initialize and run bms
+  bms_init(&bms, &hspi3, spi_cs_ports, spi_cs_pins);
+  bms.run(&bms);
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -335,19 +355,70 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LTC6810_CS_GPIO_Port, LTC6810_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LTC6820_CS_GPIO_Port, LTC6820_CS_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : LTC6810_CS_Pin */
-  GPIO_InitStruct.Pin = LTC6810_CS_Pin;
+  /*Configure GPIO pin : LTC6820_CS_Pin */
+  GPIO_InitStruct.Pin = LTC6820_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LTC6810_CS_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(LTC6820_CS_GPIO_Port, &GPIO_InitStruct);
 
 }
 
 /* USER CODE BEGIN 4 */
+void serialParse(B_tcpPacket_t *pkt){
+	switch(pkt->senderID){
+	  case BBMB_ID: //Parse data from BBMB
 
+		  if (pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) {
+
+			  // Update Current variable
+			  float current = arrayToFloat(pkt->data + 2);
+			  bms.set_current(&bms, current);
+
+			  int module_id = pkt->data[1];
+
+			  /* ================= SOC =================== */
+			  float state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
+			  bms.get_state_of_charge(&bms, state_of_charges, module_id);
+			  // Not sure which Module only has 4 cells, commented out for now, assuming they all have 5.
+//			  // Module x has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
+//			  if (module_id == 0) {
+//				  state_of_charges[4] = 1.5;
+//			  }
+			  // Pack state_of_charges into array of uint8_t to be sent to BBMB
+			  uint8_t buf_soc[4 + 5*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+			  buf_soc[0] = BMS_CELL_SOC_ID;
+			  buf_soc[1] = module_id;
+			  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
+				  floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
+			  B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+
+
+			  /* =============== Temperature ================= */
+			  float temperatures[BMS_MODULE_NUM_TEMPERATURES];
+			  bms.get_temperature(&bms, temperatures, module_id);
+			  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
+			  buf_soc[0] = BMS_CELL_TEMP_ID;
+			  buf_soc[1] = module_id;
+			  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
+				  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
+			  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+
+			  /* =============== Voltage ====================== */
+			  float voltages[BMS_MODULE_NUM_TEMPERATURES];
+			  bms.get_voltage(&bms, voltages, module_id);
+			  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
+			  buf_soc[0] = BMS_CELL_VOLT_ID;
+			  buf_soc[1] = module_id;
+			  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
+				  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
+			  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
+		  }
+		break;
+	}
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

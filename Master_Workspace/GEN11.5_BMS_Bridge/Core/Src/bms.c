@@ -8,9 +8,9 @@
 #include "bms.h"
 #include "main.h"
 
-static void get_temperature(Bms* this, float* temperature_array, int bms_module_id);
-static void get_voltage(Bms* this, float* voltage_array, int bms_module_id);
-static void get_soc(Bms* this, float* soc_array, int bms_module_id);
+static void get_temperature(Bms* this, float* temperatures, int bms_module_id);
+static void get_voltage(Bms* this, float* voltages, int bms_module_id);
+static void get_state_of_charge(Bms* this, float* state_of_charges, int bms_module_id);
 static void set_current(Bms* this, float current);
 static void run(Bms* this);
 static void run_thread(void* parameters);
@@ -25,7 +25,7 @@ void bms_init(
 ) {
 	this->get_temperature = get_temperature;
 	this->get_voltage = get_voltage;
-	this->get_soc = get_soc;
+	this->get_state_of_charge = get_state_of_charge;
 	this->set_current = set_current;
 	this->run = run;
 
@@ -35,19 +35,19 @@ void bms_init(
 }
 
 
-static void get_temperature(Bms* this, float* temperature_array, int bms_module_id)
+static void get_temperature(Bms* this, float* temperatures, int bms_module_id)
 {
-	this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperature_array);
+	this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperatures);
 }
 
-static void get_voltage(Bms* this, float* voltage_array, int bms_module_id)
+static void get_voltage(Bms* this, float* voltages, int bms_module_id)
 {
-	this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltage_array);
+	this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltages);
 }
 
-static void get_soc(Bms* this, float* soc_array, int bms_module_id)
+static void get_state_of_charge(Bms* this, float* state_of_charges, int bms_module_id)
 {
-	this->_bms_modules[bms_module_id].get_soc(&this->_bms_modules[bms_module_id], soc_array);
+	this->_bms_modules[bms_module_id].get_state_of_charge(&this->_bms_modules[bms_module_id], state_of_charges);
 }
 
 static void set_current(Bms* this, float current)

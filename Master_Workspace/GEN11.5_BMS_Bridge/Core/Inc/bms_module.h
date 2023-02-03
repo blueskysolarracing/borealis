@@ -17,17 +17,17 @@
 #define BMS_MODULE_NUM_CELLS NUM_14P_UNITS		// which is 5 except for maybe one Battery Module
 #define BMS_MODULE_NUM_TEMPERATURE_SENSOR 3
 
-#define BMS_MODULE_VOLTAGE_ARRAY_SIZE BMS_MODULE_NUM_CELLS
-#define BMS_MODULE_TEMPERATURE_ARRAY_SIZE BMS_MODULE_NUM_TEMPERATURE_SENSOR
-#define BMS_MODULE_SOC_ARRAY_SIZE BMS_MODULE_NUM_CELLS
+#define BMS_MODULE_NUM_VOLTAGES BMS_MODULE_NUM_CELLS
+#define BMS_MODULE_NUM_TEMPERATURES BMS_MODULE_NUM_TEMPERATURE_SENSOR
+#define BMS_MODULE_NUM_STATE_OF_CHARGES BMS_MODULE_NUM_CELLS
 
 typedef struct BmsModule {
 
 	/* Public */
 	// Retrieves measurements stored in member variables
-	void (*get_temperature)(struct BmsModule* this, float* temperature_array);
-	void (*get_voltage)(struct BmsModule* this, float* voltage_array);
-	void (*get_soc)(struct BmsModule* this, float* soc_array);
+	void (*get_temperature)(struct BmsModule* this, float* temperatures);
+	void (*get_voltage)(struct BmsModule* this, float* voltages);
+	void (*get_state_of_charge)(struct BmsModule* this, float* state_of_charges);
 
 	void (*set_current)(struct BmsModule* this, float current);
 
@@ -41,11 +41,11 @@ typedef struct BmsModule {
 		must work when called from two parallel running threads*/
 
 	/* Private */
-	float _voltage_array[BMS_MODULE_VOLTAGE_ARRAY_SIZE]; //Voltage of each cell
-	float _temperature_array[BMS_MODULE_TEMPERATURE_ARRAY_SIZE];
-	float _soc_array[BMS_MODULE_SOC_ARRAY_SIZE];
-	EKF_Model_14p _EKF_models[BMS_MODULE_SOC_ARRAY_SIZE];
-	uint32_t _tick_last_soc_compute[BMS_MODULE_SOC_ARRAY_SIZE];
+	float _voltages[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
+	float _temperatures[BMS_MODULE_NUM_TEMPERATURES];
+	float _state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
+	EKF_Model_14p _EKF_models[BMS_MODULE_NUM_STATE_OF_CHARGES];
+	uint32_t _tick_last_soc_compute[BMS_MODULE_NUM_STATE_OF_CHARGES];
 	float _current;
 	int _bms_module_id;
 
