@@ -1,5 +1,4 @@
 #include "psm.h"
-
 //PSM_Init()
 void PSM_Init(struct PSM_Peripheral* PSM, uint8_t PSM_ID){
 	// Set all chip select pins to 1 to disable SPI transmission
