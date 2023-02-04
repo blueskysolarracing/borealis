@@ -2,7 +2,7 @@
 
 
 // Helper Functions
-void psm_write(struct PSM_P* PSM, SPI_HandleTypeDef* spiInterface,
+void PSM_write(struct PSM_P* PSM, SPI_HandleTypeDef* spiInterface,
 		UART_HandleTypeDef* uartInterface, uint8_t address, uint16_t data) {
 
 	char errorMessage[64];
@@ -17,17 +17,14 @@ void psm_write(struct PSM_P* PSM, SPI_HandleTypeDef* spiInterface,
 	// Chip select to begin SPI communication
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET); // USING OLD PSM STRUCT
 
-	if (HAL_SPI_Transmit(spiInterface, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK) {
-			//successful transmission
-	}
-	else {
+	if (HAL_SPI_Transmit(spiInterface, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
 		//data could not be written! transmit some error message to the computer
 		errorMessageLength = (uint8_t)sprintf(errorMessage, "(psm_spi_send) ERROR SENDING TO ADDRESS 0x%X WITH DATA 0x%X\r\n", address, data);
 		HAL_UART_Transmit(uartInterface, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
 	}
 }
 
-void psm_read(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface,
+void PSM_read(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface,
 		UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer,
 		uint8_t numBytes) {
 	//variables for error messages
