@@ -24,7 +24,8 @@ typedef struct Bms {
 
 	// Note: bms_module_id ranges from 0 - 5, each representing a physical battery module
 
-	void (*run)(struct Bms* this); // Starts thread which updates bms_modules in the background
+	void (*run)(struct Bms* this); // creates and starts thread which updates bms_modules in the background
+	void (*stop)(struct Bms* this); // deletes the run thread
 
 	/* private */
 	BmsModule _bms_modules[BMS_NUM_BMS_MODULES];

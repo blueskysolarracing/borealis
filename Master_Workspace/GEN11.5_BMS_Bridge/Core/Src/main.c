@@ -384,11 +384,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			  bms.get_state_of_charge(&bms, state_of_charges, module_id);
 			  // Not sure which Module only has 4 cells, commented out for now, assuming they all have 5.
 //			  // Module x has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
-//			  if (module_id == 0) {
-//				  state_of_charges[4] = 1.5;
-//			  }
+//			  if (module_id == X) state_of_charges[4] = 1.5;
+
 			  // Pack state_of_charges into array of uint8_t to be sent to BBMB
-			  uint8_t buf_soc[4 + 5*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+			  uint8_t buf_soc[4 + BMS_MODULE_NUM_STATE_OF_CHARGES*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
 			  buf_soc[0] = BMS_CELL_SOC_ID;
 			  buf_soc[1] = module_id;
 			  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)

@@ -15,6 +15,7 @@ static void set_current(Bms* this, float current);
 static void run(Bms* this);
 static void run_thread(void* parameters);
 static void measure_with_all_bms_modules(Bms* this);
+static void stop(Bms* this);
 
 
 void bms_init(
@@ -28,10 +29,12 @@ void bms_init(
 	this->get_state_of_charge = get_state_of_charge;
 	this->set_current = set_current;
 	this->run = run;
+	this->stop = stop;
 
 	for (int i = 0; i < BMS_NUM_BMS_MODULES; i++) {
 		bms_module_init(&this->_bms_modules[i], i, spi_handle, spi_cs_ports[i], spi_cs_pins[i]);
 	}
+	this->_run_thread_handle = NULL;
 }
 
 
@@ -59,16 +62,17 @@ static void set_current(Bms* this, float current)
 
 static void run(Bms* this)
 {
-	// TODO: create thread which calls _measure_all_bms_modules at certain intervals
-	BaseType_t status = xTaskCreate(
-			run_thread,  //Function that implements the task.
-			"BMS run thread",  //Text name for the task.
-			5000, 		 //5000 words *4(bytes/word) = 20000 bytes allocated for task's stack
-			this,  //Parameter passed into the task.
-			4,  //Priority at which the task is created.
-			&this->_run_thread_handle  //Used to pass out the created task's handle.
-		);
-	configASSERT(status == pdPASS);	// Error checking
+	if (this->_run_thread_handle == NULL) {
+		BaseType_t status = xTaskCreate(
+				run_thread,  //Function that implements the task.
+				"BMS run thread",  //Text name for the task.
+				256, 		 //256 words *4(bytes/word) = 1024 bytes allocated for task's stack (note even this size is unnecessary as this thread barely creates any variables)
+				this,  //Parameter passed into the task.
+				4,  //Priority at which the task is created.
+				&this->_run_thread_handle  //Used to pass out the created task's handle.
+			);
+		configASSERT(status == pdPASS);	// Error checking
+	}
 }
 
 static void run_thread(void* parameters)
@@ -86,4 +90,10 @@ static void measure_with_all_bms_modules(Bms* this)
 		this->_bms_modules[i].measure_voltage(&this->_bms_modules[i]);
 		this->_bms_modules[i].compute_soc(&this->_bms_modules[i]);
 	}
+}
+
+static void stop(Bms* this)
+{
+	if (this->_run_thread_handle != NULL)
+		vTaskDelete(this->_run_thread_handle);
 }
