@@ -399,8 +399,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			  float temperatures[BMS_MODULE_NUM_TEMPERATURES];
 			  bms.get_temperature(&bms, temperatures, module_id);
 			  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
-			  buf_soc[0] = BMS_CELL_TEMP_ID;
-			  buf_soc[1] = module_id;
+			  buf_temp[0] = BMS_CELL_TEMP_ID;
+			  buf_temp[1] = module_id;
 			  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
 				  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
 			  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
@@ -409,8 +409,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			  float voltages[BMS_MODULE_NUM_VOLTAGES];
 			  bms.get_voltage(&bms, voltages, module_id);
 			  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
-			  buf_soc[0] = BMS_CELL_VOLT_ID;
-			  buf_soc[1] = module_id;
+			  buf_volt[0] = BMS_CELL_VOLT_ID;
+			  buf_volt[1] = module_id;
 			  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
 				  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
 			  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
