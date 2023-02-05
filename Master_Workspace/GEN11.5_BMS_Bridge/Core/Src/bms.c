@@ -96,4 +96,5 @@ static void stop(Bms* this)
 {
 	if (this->_run_thread_handle != NULL)
 		vTaskDelete(this->_run_thread_handle);
+	this->_run_thread_handle = NULL;
 }

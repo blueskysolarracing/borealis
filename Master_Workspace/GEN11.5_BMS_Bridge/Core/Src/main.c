@@ -406,7 +406,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
 
 			  /* =============== Voltage ====================== */
-			  float voltages[BMS_MODULE_NUM_TEMPERATURES];
+			  float voltages[BMS_MODULE_NUM_VOLTAGES];
 			  bms.get_voltage(&bms, voltages, module_id);
 			  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
 			  buf_soc[0] = BMS_CELL_VOLT_ID;
