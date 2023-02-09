@@ -63,6 +63,31 @@ void set_read_mode(struct PSM_P* PSM, bool bus_voltage, bool shunt_voltage, bool
 
 
 	PSM_write(PSM, CONFIG, buffer, numBytes);
+}
 
+
+void set_temp_cal(struct PSM_P* PSM, uint16_t set) {
+	if (set < 0x3FFF)
+		throw
 
 }
+
+void set_shunt_cal(struct PSM_P* PSM, int setting) {
+
+}
+
+void read_status(struct PSM_P* PSM) {
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
