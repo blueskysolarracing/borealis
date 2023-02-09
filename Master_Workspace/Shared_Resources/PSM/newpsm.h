@@ -117,7 +117,14 @@ void set_adc_average_count(struct PSM_P* PSM, int setting);
 void set_shunt_cal(struct PSM_P* PSM, int setting); // TODO FIGURE OUT SETTING VALUE TYPE
 void set_shunt_temp_co(struct PSM_P* PSM, int setting); // TODO FIGURE OUT SETTING VALUE TYP
 
-void read_status(struct PSM_P* PSM);
+// Measurements and results
+float read_shunt_voltage(struct PSM_P* PSM);
+float read_bus_voltage(struct PSM_P* PSM);
+float read_temperature(struct PSM_P* PSM);
+float read_current(struct PSM_P* PSM);
+float read_power(struct PSM_P* PSM);
+float read_energy(struct PSM_P* PSM);
+float read_charge(struct PSM_P* PSM);
 
 // Register: DIAG_ALRT
 uint16_t read_diag_alrt(struct PSM_P);
