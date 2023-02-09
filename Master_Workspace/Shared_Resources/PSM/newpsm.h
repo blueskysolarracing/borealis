@@ -23,6 +23,9 @@
 #define MANUFACTURER_ID	0x3E
 #define DEVICE_ID		0x3F
 
+// Conversion Factors
+#define VBUS_CONVERSION 195.3125
+
 
 struct PSM_FIR {
 	float* buf_voltage;
@@ -75,10 +78,8 @@ void PSM_FIR_init(struct PSM_P* psm);
 void PSM_update(struct PSM_P* psm, struct PSM_FIR* psm_fir);
 void PSM_read_voltage(struct PSM_FIR* psm_fir, float* result);
 void PSM_read_current(struct PSM_FIR* psm_fir, float* result);
-void PSM_write(struct PSM_P* PSM, SPI_HandleTypeDef* spiInterface,
-		UART_HandleTypeDef* uartInterface, uint8_t address, uint16_t data);
-void PSM_read(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface,
-		UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer,
+void PSM_write(struct PSM_P* PSM, uint8_t address, uint16_t data);
+void PSM_read(struct PSM_Peripheral* PSM, uint8_t address, uint8_t* buffer,
 		uint8_t numBytes)
 
 // ----------- HELPER FUNCTIONS FOR CHIP ----------- //
