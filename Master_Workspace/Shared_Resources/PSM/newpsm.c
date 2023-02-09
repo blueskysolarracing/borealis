@@ -62,17 +62,22 @@ void set_read_mode(struct PSM_P* PSM, bool bus_voltage, bool shunt_voltage, bool
 	else if (temp) buffer += 0x4;
 
 
-	PSM_write(PSM, CONFIG, buffer, numBytes);
+	PSM_write(PSM, CONFIG, buffer);
 }
 
+
+// REFERENCE CHAPTER 8
 void set_temp_cal(struct PSM_P* PSM, uint16_t set) {
-	if (set < 0x3FFF)
-		throw
-
+	if (set < 0x3FFF) { // first 14 bits are data
+		PSM_write(PSM, SHUNT_TEMP_CAL, set)
+	}
 }
 
+// REFERENCE CHAPTER 8
 void set_shunt_cal(struct PSM_P* PSM, int setting) {
-
+	if (set < 32767) { // first 15 bits are data
+		PSM_write(PSM, SHUNT_TEMP_CAL, set)
+	}
 }
 
 void read_status(struct PSM_P* PSM) {
@@ -80,7 +85,7 @@ void read_status(struct PSM_P* PSM) {
 	buffer = uint8_t[3];
 	PSM_read(PSM, VHUNT, buffer, buffer, 3);
 
-	
+
 }
 
 
