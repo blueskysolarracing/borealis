@@ -4,7 +4,7 @@
 #define CONFIG 			0x0
 #define ADC_CONFIG		0x1
 #define SHUNT_CAL		0x2
-#define SHUNT_TEMPCO	0x3
+#define SHUNT_TEMP_CAL  0x3
 #define VSHUNT			0x4
 #define VBUS			0x5
 #define DIETEMP			0x5
@@ -100,9 +100,10 @@ void PSM_read(struct PSM_Peripheral* PSM, uint8_t address, uint8_t* buffer,
 void reset_psm_power(struct PSM_P* PSM);
 void reset_accumulation_reg(struct PSM_P* PSM);
 
+void set_config(struct PSM_P* PSM);
 void set_adc_delay(struct PSM_P* PSM); // ms
-void set_adc_averaging_count(struct PSM_P* PSM);
-void set_temp_comp(struct PSM_P* PSM, bool set);
+void set_adc_averaging_count(struct PSM_P* PSM, uint8_t count);
+void set_temp_cal(struct PSM_P* PSM, uint16_t set);
 void set_adc_range(struct PSM_P* PSM, double min, double max);
 
 // Register: ADC_CONFIG
@@ -119,7 +120,6 @@ void set_shunt_temp_co(struct PSM_P* PSM, int setting); // TODO FIGURE OUT SETTI
 void read_status(struct PSM_P* PSM);
 
 // Register: DIAG_ALRT
-
 uint16_t read_diag_alrt(struct PSM_P);
 
 // ALATCH (bit 15) = 1 ->Latched, alert pin and flag will remain active until DIAG_ALRT is read
@@ -153,5 +153,4 @@ void set_shunt_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_bus_overvoltage_threshold(struct PSM_P* PSM, int setting);
 void set_bus_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_temperature_limit_threshold(struct PSM_P* PSM, int setting);
-
 void set_device_ID(struct PSM_P* PSM, int setting);
