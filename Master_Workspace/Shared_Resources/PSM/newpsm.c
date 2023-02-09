@@ -48,10 +48,25 @@ void PSM_read(struct PSM_P* PSM, uint8_t address, uint8_t* buffer, uint8_t numBy
 }
 
 
+void set_config(struct PSM_P* PSM){
+
+}
+
+
+
+
 void set_read_mode(struct PSM_P* PSM, bool bus_voltage, bool shunt_voltage, bool temp, bool continuous) {
 	uint16_t buffer = 0x0;
 	if (continuous)
 		buffer = 0x8;
+
+	uint8_t* exisitng_settings[2];
+	PSM_read(PSM, CONFIG, existing_settings, 2);
+
+	uint16_t old_buffer = existing_settings[1] << 8;
+	old_buffer += existing_settings[0];
+
+	old_buffer = old_buffer & 0b111111111111; // Save first 12 old bits
 
 	if (bus_voltage && shunt_voltage && temp) buffer += 0x7;
 	else if (bus_voltage && shunt_voltage) buffer += 0x3;
@@ -61,37 +76,79 @@ void set_read_mode(struct PSM_P* PSM, bool bus_voltage, bool shunt_voltage, bool
 	else if (bus_voltage) buffer += 0x1;
 	else if (temp) buffer += 0x4;
 
+	// Saves the current avg count
+	uint8_t* exisitng_settings[2];
+	PSM_read(PSM, CONFIG, existing_settings, 2);
+
+	buffer = buffer << 12; // The buffer is in the last 4 bits of a uint16
+	buffer = buffer | old_buffer;
 
 	PSM_write(PSM, CONFIG, buffer);
 }
 
 
-// REFERENCE CHAPTER 8
+// REFERENCE CHAPTER 8 FOR CALCULATION
 void set_temp_cal(struct PSM_P* PSM, uint16_t set) {
-	if (set < 0x3FFF) { // first 14 bits are data
-		PSM_write(PSM, SHUNT_TEMP_CAL, set)
+	if (set < 0x3FFF) { // only first 14 bits are data
+		PSM_write(PSM, SHUNT_TEMP_CAL, set);
 	}
 }
 
-// REFERENCE CHAPTER 8
+// REFERENCE CHAPTER 8 FOR CALCULATION
 void set_shunt_cal(struct PSM_P* PSM, int setting) {
-	if (set < 32767) { // first 15 bits are data
-		PSM_write(PSM, SHUNT_TEMP_CAL, set)
+	if (set < 32767) { // only first 15 bits are data
+		PSM_write(PSM, SHUNT_TEMP_CAL, setting);
 	}
 }
 
-void read_status(struct PSM_P* PSM) {
+void set_adc_averaging_count(struct PSM_P* PSM, uint8_t count) {
+	if (count > 0x8)
+		return; // Out of bounds
 
+	uint8_t* exisitng_settings[2];
+	PSM_read(PSM, CONFIG, existing_settings, 2);
+
+	uint16_t new_settings = existing_settings[1] << 8;
+	new_settings += existing_settings[0];
+
+	new_settings = new_settings & 0b1000;
+	new_settings += count;
+}
+
+void set_conversion_time(struct PSM_P* PSM, uint8_t time) {
+	// time is from 50us to 4120us
+	// represented by a value of [0, 7]
+	// See documentation section 7.6.1.2
+
+	uint8_t* exisitng_settings[2];
+	PSM_read(PSM, CONFIG, existing_settings, 2);
+
+	uint16_t new_settings = existing_settings[1] << 8;
+	new_settings += existing_settings[0];
+
+	// New Settings now holds the contents of
+	// the existing 16 bit settings
+	bool bits[3];
+	for (int n = 3; n <= 9; n += 3) {
+		for (int i = 0; i < 3; i++) {
+			// This shifts the three rightmost bits and puts them into the correct spot
+			bits[i] = (time & (1 << i)) != 0;
+			new_settings = (((new_settings | (1 << n+i)) ^ (1 << n+i))) | (bits[i] << n+i);
+		}
+	}
+
+	PSM_write(PSM, CONFIG, new_settings);
 }
 
 
 
 
-
-
-
-
-
-
-
-
+void PSM_init(struct PSM_P* PSM) {
+	// Default config. Can rerun these functions after init.
+	set_config(psm);
+	set_adc_averaging_count(psm, 0x2);
+	set_temp_cal(psm, 0x0);
+	set_shunt_cal(psm, 0x0);
+	set_conversion_time(0x0);
+	set_read_mode(psm, true, true, true, true);
+}

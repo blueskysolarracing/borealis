@@ -5,7 +5,7 @@
 #define CONFIG 			0x0
 #define ADC_CONFIG		0x1
 #define SHUNT_CAL		0x2
-#define SHUNT_TEMPCO	0x3
+#define SHUNT_TEMP_CAL  0x3
 #define VSHUNT			0x4
 #define VBUS			0x5
 #define DIETEMP			0x5
@@ -75,10 +75,8 @@ void PSM_FIR_init(struct PSM_P* psm);
 void PSM_update(struct PSM_P* psm, struct PSM_FIR* psm_fir);
 void PSM_read_voltage(struct PSM_FIR* psm_fir, float* result);
 void PSM_read_current(struct PSM_FIR* psm_fir, float* result);
-void PSM_write(struct PSM_P* PSM, SPI_HandleTypeDef* spiInterface,
-		UART_HandleTypeDef* uartInterface, uint8_t address, uint16_t data);
-void PSM_read(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface,
-		UART_HandleTypeDef* uartInterface, uint8_t address, uint8_t* buffer,
+void PSM_write(struct PSM_P* PSM, uint8_t address, uint16_t data);
+void PSM_read(struct PSM_Peripheral* PSM, uint8_t address, uint8_t* buffer,
 		uint8_t numBytes)
 
 // ----------- HELPER FUNCTIONS FOR CHIP ----------- //
@@ -86,9 +84,10 @@ void PSM_read(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface,
 void reset_psm_power(struct PSM_P* PSM);
 void reset_accumulation_reg(struct PSM_P* PSM);
 
+void set_config(struct PSM_P* PSM);
 void set_adc_delay(struct PSM_P* PSM); // ms
-void set_adc_averaging_count(struct PSM_P* PSM);
-void set_temp_comp(struct PSM_P* PSM, bool set);
+void set_adc_averaging_count(struct PSM_P* PSM, uint8_t count);
+void set_temp_cal(struct PSM_P* PSM, uint16_t set);
 void set_adc_range(struct PSM_P* PSM, double min, double max);
 
 // Register: ADC_CONFIG
@@ -105,7 +104,6 @@ void set_shunt_temp_co(struct PSM_P* PSM, int setting); // TODO FIGURE OUT SETTI
 void read_status(struct PSM_P* PSM);
 
 // Register: DIAG_ALRT
-
 uint16_t read_diag_alrt(struct PSM_P);
 
 // ALATCH (bit 15) = 1 ->Latched, alert pin and flag will remain active until DIAG_ALRT is read
@@ -139,5 +137,4 @@ void set_shunt_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_bus_overvoltage_threshold(struct PSM_P* PSM, int setting);
 void set_bus_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_temperature_limit_threshold(struct PSM_P* PSM, int setting);
-
 void set_device_ID(struct PSM_P* PSM, int setting);
