@@ -1,6 +1,5 @@
 `#ifndef PSM_H__
 #define PSM_H__
-
 // INA229 REGISTERS
 #define CONFIG 			0x0
 #define ADC_CONFIG		0x1
@@ -24,7 +23,12 @@
 #define DEVICE_ID		0x3F
 
 // Conversion Factors
-#define VBUS_CONVERSION 195.3125
+#define VBUS_CONVERSION 195.3125 // uV/LSB
+#define FULL_SHUNT_RANGE_CONVERSION 78.125 // nV/LSB
+#define LIM_SHUNT_RANGE_CONVERSION 312.5 // nV/LSB
+#define DIETEMP_CONVERSION 7.8125 // m°C/LSB
+#define POWER_CONVERSION 3.2 // W
+#define ENERGY_CONVERSION 16 * POWER_CONVERSION// J
 
 
 struct PSM_FIR {
@@ -67,8 +71,17 @@ struct PSM_P {
 
 	 float VDCOS;
 	 float CDCOS;
-	 float VM;
-	 float CM;
+
+     // m = measurement, r = result
+     float shunt_voltage_m;
+     float bus_voltage_m;
+     float temperature_m;
+	 float voltage_r;
+	 float current_r;
+     float energy_r;
+     float charge_r;
+
+     float current_lsb; // refer to 8.1.2 for calculation
 };
 
 
