@@ -29,7 +29,11 @@
 #define DIETEMP_CONVERSION 7.8125 // m°C/LSB
 #define POWER_CONVERSION 3.2 // W
 #define ENERGY_CONVERSION 16 * POWER_CONVERSION// J
-
+#define SHUNT_FULL_OVERVOLTAGE_CONVERSION 5 // 5uV/LSB
+#define SHUNT_LIM_OVERVOLTAGE_CONVERSION 1.25 // 5uV/LSB
+#define BUS_OVERVOLTAGE_CONVERSION 3.125 // mV/LSB
+#define TEMP_LIMIT_CONVERSION 7.8125 // m°C/LSB
+#define POWER_LIMIT_CONVERSION 256*POWER_CONVERSION // 256 * POWERLSB
 
 struct PSM_FIR {
 	float* buf_voltage;
@@ -71,15 +75,6 @@ struct PSM_P {
 
 	 float VDCOS;
 	 float CDCOS;
-
-     // m = measurement, r = result
-     float shunt_voltage_m;
-     float bus_voltage_m;
-     float temperature_m;
-	 float voltage_r;
-	 float current_r;
-     float energy_r;
-     float charge_r;
 
      float current_lsb; // refer to 8.1.2 for calculation
 };
@@ -160,4 +155,5 @@ void set_shunt_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_bus_overvoltage_threshold(struct PSM_P* PSM, int setting);
 void set_bus_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_temperature_limit_threshold(struct PSM_P* PSM, int setting);
+void set_power_limit_threshold(struct PSM_P* PSM, int setting);
 void set_device_ID(struct PSM_P* PSM, int setting);

@@ -48,7 +48,20 @@ void PSM_read(struct PSM_P* PSM, uint8_t address, uint8_t* buffer, uint8_t numBy
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
 }
 
+int adc_range(struct PSM_P* PSM) {
+	abuffer = uint8_t[2];
+	PSM_READ(PSM, ADC_CONFIG, abuffer, 2);
 
+	// check bit 4 is high
+	if (abuffer[1] & 0x1 != 0) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+// end of helper functions
 void set_config(struct PSM_P* PSM){
 
 }
@@ -112,10 +125,9 @@ float read_shunt_voltage(struct PSM_P* PSM) {
 		vbuffer[1] << 6 |
 		vbuffer[0] >> 2; // bottom 4 bits of register are 0
 
-	abuffer = uint8_t[2];
-	PSM_READ(PSM, ADC_CONFIG, abuffer, 2)
-	// check bit 4 is high
-	if (abuffer[1] & 0x1 != 0) {
+	
+	uint8_t adc_rangeb = adc_range(PSM);
+	if (adc_rangeb == 1) {
 		// full range +/- 163.84 mV
 		return (float) vbuffer * FULL_SHUNT_RANGE_CONVERSION
 	}
@@ -244,7 +256,57 @@ void set_conversion_time(struct PSM_P* PSM, uint8_t time) {
 	PSM_write(PSM, CONFIG, new_settings);
 }
 
+// setting should be overvoltage in uV
+void set_shunt_overvoltage_threshold(struct PSM_P* PSM, int setting) {
+	uint8_t adc_rangeb = adc_range(PSM);
+	int16_t val;
+	if (adc_rangeb == 1) {
+		val = (int16_t) setting * SHUNT_FULL_OVERVOLTAGE_CONVERSION;
+	}
+	else {
+		val = (int16_t) setting * SHUNT_FULL_OVERVOLTAGE_CONVERSION;
+	}
 
+	PSM_write(PSM, SOVL, val);
+}
+
+// setting should be undervoltage in uV
+void set_shunt_undervoltage_threshold(struct PSM_P* PSM, int setting) {
+	uint8_t adc_rangeb = adc_range(PSM);
+	int16_t val;
+	if (adc_rangeb == 1) {
+		val = (int16_t) setting / SHUNT_FULL_OVERVOLTAGE_CONVERSION;
+	}
+	else {
+		val = (int16_t) setting / SHUNT_FULL_OVERVOLTAGE_CONVERSION;
+	}
+
+	PSM_write(PSM, SUVL, val);
+}
+
+// setting should be overvoltage in mV
+void set_bus_overvoltage_threshold(struct PSM_P* PSM, int setting) {
+	val = (int16_t) setting / BUS_OVERVOLTAGE_CONVERSION;
+	PSM_write(PSM, BOVL, val);
+}
+
+// setting should be overvoltage in mV
+void set_bus_undervoltage_threshold(struct PSM_P* PSM, int setting) {
+	val = (int16_t) setting / BUS_OVERVOLTAGE_CONVERSION;
+	PSM_write(PSM, BUVL, val);
+}
+
+void set_temperature_limit_threshold(struct PSM_P* PSM, int setting) {
+	val = (int16_t) setting / TEMP_LIMIT_CONVERSION;
+	PSM_write(PSM, TEMP_LIMIT, val);
+}
+
+void set_power_limit_threshold(struct PSM_P* PSM, int setting) {
+	val = (int16_t) setting / POWER_LIMIT_CONVERSION;
+	PSM_write(PSM, PWR_LIMIT, val);
+}
+
+void set_device_ID(struct PSM_P* PSM, int setting);
 
 
 void PSM_init(struct PSM_P* PSM) {
