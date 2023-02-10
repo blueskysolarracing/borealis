@@ -1,6 +1,9 @@
 /*
  * Helper functions used on 1+ motherboard
  */
+#ifndef BMISC_H
+#define BMISC_H
+
 #include "main.h"
 
 #define PRECHARGE_TIME 2500 //Delay to wait after closing pre-charge relay before closing other relays
@@ -34,3 +37,5 @@ struct relay_periph{
 
 void open_relays(struct relay_periph* relay);
 void close_relays(struct relay_periph* relay);
+
+#endif
