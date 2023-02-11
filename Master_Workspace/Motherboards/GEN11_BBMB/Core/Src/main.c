@@ -49,16 +49,31 @@
 #define HV_BATT_UV_THRESHOLD 	2.50 	//Should be set to 2.50V
 #define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
 #define BATT_OVERCURRENT_CNT_THRESHOLD 5
+#define BATT_OVERCURRENT_CNT_RESET_TIME 1000 // 1000 ms
+#define BATTERY_CELL_VOLTAGES_INITIAL_VALUE (-1.0)
+#define BATTERY_CELL_VOLTAGES_FAKE_VALUE 0
+#define BATTERY_TEMPERATURES_INITIAL_VALUE (-1.0)
 
-#define NUM_BATT_CELLS 			29 		//Number of series parallel groups in battery pack
-#define NUM_BMS					6 		//Number of BMS to read from
-#define NUM_BATT_TEMP_SENSORS 	3 * 6 	//Number of temperature sensors in battery pack
-#define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h). It also implicitly calculates a new SoC estimation on the BMS.
+
+#define NUM_CELLS_PER_MODULE 	5
+#define NUM_BMS_MODULES			6 		//Number of BMS modules to read from
+#define NUM_BATT_CELLS 			(NUM_BMS_MODULES*NUM_CELLS_PER_MODULE) 		//Number of series parallel groups in battery pack (module 4 and 5 only have 4 cells, but we place fake values for them)
+#define NUM_TEMP_SENSORS_PER_MODULE 3
+#define NUM_BATT_TEMP_SENSORS 	(NUM_TEMP_SENSORS_PER_MODULE*NUM_BMS_MODULES) 	//Number of temperature sensors in battery pack
+#define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h)
 #define BMS_FLT_CHECK_INTERVAL 	10 		//Interval at which to read the BMS_FLT pin
 #define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
 
 #define RELAY_STATE_TIMER_INTERVAL 	500 // Interval at which BBMB broadcasts the battery relay state in ms
 
+
+enum BATTER_FAULT_TYPE {
+	BATTERY_FAULT_OVERTEMPERATURE,
+	BATTERY_FAULT_OVERVOLTAGE,
+	BATTERY_FAULT_UNDERVOLTAGE,
+	BATTERY_FAULT_OVERCURRENT,
+	BATTERY_FAULT_NONE
+};
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -120,7 +135,6 @@ struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
 float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
 
-uint8_t battery_overcurrent_cnt; //Variable to hold number of overcurrent faults detected to implement threshold to reduce sensitivity
 
 //--- RELAYS ---//
 struct relay_periph relay;
@@ -134,9 +148,19 @@ uint32_t BMS_tick_count_last_packet;
 
 //--- Battery ---/
 uint8_t batteryState;
-uint8_t batteryFaultType = 4; //Default to fault type 4, which doesn't correspond to any fault
+uint8_t batteryFaultType = BATTERY_FAULT_NONE; //Default to fault type 4, which doesn't correspond to any fault
 uint8_t batteryFaultCell = 0;
 uint8_t batteryFaultTherm = 0;
+uint8_t battery_overvoltage = 0;
+uint8_t battery_undervoltage = 0;
+uint8_t battery_overtemperature = 0;
+uint8_t battery_overcurrent = 0;
+
+float battery_cell_voltages[NUM_BATT_CELLS] = {
+		[0 ... 13] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE,
+		[14 ... 15] = BATTERY_CELL_VOLTAGES_FAKE_VALUE, // Note two voltages are fake voltage value for modules that only have 4 cells.
+		[16 ... (NUM_BATT_CELLS-1)] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE};
+float battery_temperatures[NUM_BATT_TEMP_SENSORS] = {[0 ... (NUM_BATT_TEMP_SENSORS-1)] = BATTERY_TEMPERATURES_INITIAL_VALUE};
 
 //--- Discharge test ---//
 float cellUnderTestVoltage = -1;
@@ -170,9 +194,11 @@ void measurementSender(void* p);
 void HeartbeatHandler(TimerHandle_t xTimer);
 void BMSPeriodicReadHandler(TimerHandle_t xTimer);
 void sendNewBMSRequest();
-void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor);
+void battery_faulted_routine(/*uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor*/);
+void battery_unfaulted_routine();
 void RelayStateTimer(TimerHandle_t xTimer);
 void dischargeTest(TimerHandle_t xTimer);
+void battery_state_setter();
 
 /* USER CODE END PFP */
 
@@ -388,6 +414,17 @@ int main(void)
 						"none",  // Parameter passed into the task.
 						4,  // Priority at which the task is created.
 						&measurementSenderHandle  // Used to pass out the created task's handle.
+									);
+  configASSERT(status == pdPASS);// Error checking
+
+
+  TaskHandle_t battery_state_setter_handle;
+  status = xTaskCreate(battery_state_setter,  //Function that implements the task.
+						"measurementSender",  // Text name for the task.
+						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+						"none",  // Parameter passed into the task.
+						4,  // Priority at which the task is created.
+						&battery_state_setter_handle  // Used to pass out the created task's handle.
 									);
   configASSERT(status == pdPASS);// Error checking
 
@@ -1407,11 +1444,11 @@ void serialParse(B_tcpPacket_t *pkt){
 				vTaskSuspendAll(); BMS_data_received[0] = RECEIVED; xTaskResumeAll();
 
 				//Check for overtemperature for each cell and call routine when battery has faulted
-				for (int i = 1; i < 4; i ++){ //3 thermistors
+				for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){ //3 thermistors
 					float temperature = arrayToFloat( &(pkt->data[4 * i]) );
-					if ( temperature > HV_BATT_OT_THRESHOLD ){
-						battery_faulted_routine(0, 0, pkt->data[1]*3 + i - 1);
-					}
+					vTaskSuspendAll();
+					battery_temperatures[pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i - 1] = temperature;
+					xTaskResumeAll();
 				}
 
 			//BMS voltage
@@ -1423,14 +1460,11 @@ void serialParse(B_tcpPacket_t *pkt){
 				vTaskSuspendAll(); BMS_data_received[1] = RECEIVED; xTaskResumeAll();
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
-				for (int i = 1; i < 6; i ++){ //5 cells
+				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i ++){ //5 cells
 					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-					if ((voltage > HV_BATT_OV_THRESHOLD)){
-						battery_faulted_routine(1, pkt->data[1]*5 + i - 1, 0);
-
-					} else if (voltage < HV_BATT_UV_THRESHOLD){
-						battery_faulted_routine(2, pkt->data[1]*5 + i - 1, 0);
-					}
+					vTaskSuspendAll();
+					battery_cell_voltages[pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1] = voltage;
+					xTaskResumeAll();
 				}
 
 				//Update global for discharge test
@@ -1616,6 +1650,8 @@ void PSMTaskHandler(void * parameters){
 
 void measurementSender(void* p){
 	int delay = pdMS_TO_TICKS(PSM_SEND_INTERVAL);
+	uint8_t battery_overcurrent_cnt = 0; //Variable to hold number of overcurrent faults detected to implement threshold to reduce sensitivity
+	uint32_t time_last_overcurrent = 0;
 	while (1) {
 		uint8_t busMetrics_HV[3 * 4] = {0};
 		busMetrics_HV[0] = BBMB_BUS_METRICS_ID;
@@ -1630,19 +1666,33 @@ void measurementSender(void* p){
 
 		xTaskResumeAll();
 
-		//Check overcurrent protection
-		if (HV_current >= HV_BATT_OC_DISCHARGE){
-			battery_overcurrent_cnt++;
-		}
-
-		if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
-			battery_faulted_routine(3, 0, 0);
-		}
-
 		floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
 		floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
 
 		B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
+
+		if (battery_current >= HV_BATT_OC_DISCHARGE){
+			if (battery_overcurrent_cnt == 0) {
+				battery_overcurrent_cnt++;
+				time_last_overcurrent = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
+			} else {
+				uint32_t time_now = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
+				if (time_now - time_last_overcurrent >= BATT_OVERCURRENT_CNT_RESET_TIME) {
+					battery_overcurrent_cnt = 0;
+				} else {
+					battery_overcurrent_cnt++;
+				}
+				time_last_overcurrent = time_now;
+			}
+		}
+		vTaskSuspendAll();
+		if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
+			battery_overcurrent = 1;
+		} else {
+			battery_overcurrent = 0;
+		}
+		xTaskResumeAll();
+
 
 //	//LV
 //		uint8_t busMetrics_LV[3 * 4] = {0};
@@ -1668,7 +1718,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	//If all data from a BMS has been received, we are ready to read the next
 	if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
 		sendNewBMSRequest();
-		if (BMS_requesting_from >= NUM_BMS - 1){	BMS_requesting_from = -1;	};//We've received from all BMS, start requesting from the first one again (BMS_ID == 0)
+		if (BMS_requesting_from >= NUM_BMS_MODULES - 1){	BMS_requesting_from = -1;	};//We've received from all BMS, start requesting from the first one again (BMS_ID == 0)
 	}
 
 	//If we haven't received a BMS message for a while, resend request to same BMS
@@ -1716,16 +1766,16 @@ void sendNewBMSRequest(){
 	fault_thermistor: Indicates which thermistor is faulted in overtemperature (0 to 35)
  *
  */
-void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor){
+void battery_faulted_routine(/*uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor*/){
 	//Call this function when the battery has faulted (OV, UV, OT, OC)
 
-	//Update globals
-	vTaskSuspendAll();
-	batteryState = FAULTED;
-	batteryFaultType  = fault_type;
-	batteryFaultCell  = fault_cell;
-	batteryFaultTherm = fault_thermistor;
-	xTaskResumeAll();
+	//Update globals (not done since we will set these outside the function)
+//	vTaskSuspendAll();
+//	batteryState = FAULTED;
+//	batteryFaultType  = fault_type;
+//	batteryFaultCell  = fault_cell;
+//	batteryFaultTherm = fault_thermistor;
+//	xTaskResumeAll();
 
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 
@@ -1736,14 +1786,93 @@ void battery_faulted_routine(uint8_t fault_type, uint8_t fault_cell, uint8_t fau
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
 
 
-	//Change BMS power from battery module to 12V supplemental
-	HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_RESET);
+	//Change BMS power from battery module to 12V supplemental (not needed for WSC)
+	// HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_RESET);
 
 	//BPS strobe light
 	xQueueSend(lightsCtrl, &strobe_light_EN_cmd, 50); //Send to lights control task
 
-	//BMS fault light and switch 12V to supplemental battery
+	//BMS fault light and safe state pin
 	HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_RESET);
+}
+
+void battery_unfaulted_routine() {
+	//--- Battery ---/
+	vTaskSuspendAll();
+	batteryState = HEALTHY;
+	batteryFaultType = BATTERY_FAULT_NONE; //Default to fault type 4, which doesn't correspond to any fault
+	batteryFaultCell = 0;
+	batteryFaultTherm = 0;
+	battery_overvoltage = 0;
+	battery_undervoltage = 0;
+	battery_overtemperature = 0;
+	xTaskResumeAll();
+
+
+	uint8_t strobe_light_EN_cmd = 0b00100000; //Stop BPS strobe light
+
+	//BPS strobe light
+	xQueueSend(lightsCtrl, &strobe_light_EN_cmd, 50); //Send to lights control task
+
+	//BMS fault light and safe state pin
+	HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET);
+}
+
+void battery_state_setter(void* parameters) {
+	uint8_t run_unfaulted_routine = 1;
+	uint8_t run_faulted_routine = 1;
+	while(1) {
+		uint8_t local_battery_overvoltage = 0;
+		uint8_t local_battery_undervoltage = 0;
+		uint8_t local_battery_overtemperature = 0;
+
+		vTaskSuspendAll();
+		for (int i = 0; i < NUM_BATT_CELLS; i++) {
+			float voltage = battery_cell_voltages[i];
+			if (voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE && voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE) {
+				if ((voltage > HV_BATT_OV_THRESHOLD)){
+					local_battery_overvoltage = 1;
+					batteryFaultType = BATTERY_FAULT_OVERVOLTAGE;
+					batteryFaultCell = i;
+				} else if (voltage < HV_BATT_UV_THRESHOLD){
+					local_battery_undervoltage = 1;
+					batteryFaultType = BATTERY_FAULT_UNDERVOLTAGE;
+					batteryFaultCell = i;
+				}
+			}
+		}
+		for (int i = 0; i < NUM_BATT_TEMP_SENSORS; i++) {
+			float temperature = battery_temperatures[i];
+			if (temperature != BATTERY_TEMPERATURES_INITIAL_VALUE) {
+				if (temperature > HV_BATT_OT_THRESHOLD) {
+					local_battery_overtemperature = 1;
+					batteryFaultType = BATTERY_FAULT_OVERTEMPERATURE;
+					batteryFaultTherm = i;
+				}
+			}
+		}
+		xTaskResumeAll();
+
+		battery_overvoltage = local_battery_overvoltage;
+		battery_undervoltage = local_battery_undervoltage;
+		battery_overtemperature = local_battery_overtemperature;
+
+		if (battery_overcurrent || battery_overvoltage || battery_undervoltage || battery_overtemperature) {
+			if (run_faulted_routine) {
+				battery_faulted_routine();
+				run_faulted_routine = 0;
+			}
+			run_unfaulted_routine = 1;
+		} else {
+			if (run_unfaulted_routine) {
+				battery_unfaulted_routine();
+				run_unfaulted_routine = 0;
+			}
+			run_faulted_routine = 1;
+		}
+
+		vTaskDelay(pdMS_TO_TICKS(BMS_READ_INTERVAL)); // Don't need to run faster since the voltages , current, and temperatures are not updated more frequently than this.
+	}
 }
 
 /* USER CODE END 4 */
