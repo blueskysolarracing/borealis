@@ -52,9 +52,15 @@ void bms_module_init(
 	this->_spi_cs_pin = spi_cs_pin;
 
 
-	//--- SOC algorithm ---//
-	this->measure_voltage(this);
+	// Get voltages. Note we can't call this->get_voltage() because it requires freertos scheduler, but freertos scheduler is not initialized yet
+	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
+	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
 
+	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
+		this->_voltages[i] = local_voltage_array[i];
+	}
+
+	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_CELLS; i++){
 		this->_tick_last_soc_compute[i] = HAL_GetTick();
 		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
