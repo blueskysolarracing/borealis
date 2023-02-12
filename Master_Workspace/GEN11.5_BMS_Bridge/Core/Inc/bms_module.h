@@ -9,7 +9,7 @@
 #include "cmsis_os.h"
 #include "batteryEKF.h"
 #include "stdint.h"
-
+#include "cQueue.h"
 
 #ifndef INC_BMS_MODULE_H_
 #define INC_BMS_MODULE_H_
@@ -20,13 +20,25 @@
 #define BMS_MODULE_NUM_VOLTAGES BMS_MODULE_NUM_CELLS
 #define BMS_MODULE_NUM_TEMPERATURES BMS_MODULE_NUM_TEMPERATURE_SENSOR
 #define BMS_MODULE_NUM_STATE_OF_CHARGES BMS_MODULE_NUM_CELLS
+#define STATIC_FLOAT_QUEUE_NUM_VALUES 5
+
+typedef enum {
+	GET_MOST_RECENT,
+	GET_PAST_AVERAGE,
+	GET_FILTERED_RESULT
+} get_mode_t;
+
+typedef struct StaticFloatQueue {
+	float vals[STATIC_FLOAT_QUEUE_NUM_VALUES];
+	Queue_t q;
+}StaticFloatQueue;
 
 typedef struct BmsModule {
 
 	/* Public */
 	// Retrieves measurements stored in member variables
-	void (*get_temperature)(struct BmsModule* this, float* temperatures);
-	void (*get_voltage)(struct BmsModule* this, float* voltages);
+	void (*get_temperature)(struct BmsModule* this, float* temperatures, get_mode_t get_mode);
+	void (*get_voltage)(struct BmsModule* this, float* voltages, get_mode_t get_mode);
 	void (*get_state_of_charge)(struct BmsModule* this, float* state_of_charges);
 
 	void (*set_current)(struct BmsModule* this, float current);
@@ -42,7 +54,11 @@ typedef struct BmsModule {
 
 	/* Private */
 	float _voltages[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
+	StaticFloatQueue past_voltages[BMS_MODULE_NUM_VOLTAGES];
+
 	float _temperatures[BMS_MODULE_NUM_TEMPERATURES];
+	StaticFloatQueue past_temperatures[BMS_MODULE_NUM_TEMPERATURES];
+
 	float _state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
 	EKF_Model_14p _EKF_models[BMS_MODULE_NUM_STATE_OF_CHARGES];
 	uint32_t _tick_last_soc_compute[BMS_MODULE_NUM_STATE_OF_CHARGES];

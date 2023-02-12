@@ -8,8 +8,8 @@
 #include "bms.h"
 #include "main.h"
 
-static void get_temperature(Bms* this, float* temperatures, int bms_module_id);
-static void get_voltage(Bms* this, float* voltages, int bms_module_id);
+static void get_temperature(Bms* this, float* temperatures, int bms_module_id, get_mode_t get_mode);
+static void get_voltage(Bms* this, float* voltages, int bms_module_id, get_mode_t get_mode);
 static void get_state_of_charge(Bms* this, float* state_of_charges, int bms_module_id);
 static void set_current(Bms* this, float current);
 static void run(Bms* this);
@@ -38,14 +38,14 @@ void bms_init(
 }
 
 
-static void get_temperature(Bms* this, float* temperatures, int bms_module_id)
+static void get_temperature(Bms* this, float* temperatures, int bms_module_id, get_mode_t get_mode)
 {
-	this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperatures);
+	this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperatures, get_mode);
 }
 
-static void get_voltage(Bms* this, float* voltages, int bms_module_id)
+static void get_voltage(Bms* this, float* voltages, int bms_module_id, get_mode_t get_mode)
 {
-	this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltages);
+	this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltages, get_mode);
 }
 
 static void get_state_of_charge(Bms* this, float* state_of_charges, int bms_module_id)

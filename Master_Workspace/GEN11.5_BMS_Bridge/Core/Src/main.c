@@ -397,7 +397,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			  /* =============== Temperature ================= */
 			  float temperatures[BMS_MODULE_NUM_TEMPERATURES];
-			  bms.get_temperature(&bms, temperatures, module_id);
+			  bms.get_temperature(&bms, temperatures, module_id, GET_PAST_AVERAGE);
 			  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
 			  buf_temp[0] = BMS_CELL_TEMP_ID;
 			  buf_temp[1] = module_id;
@@ -407,7 +407,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			  /* =============== Voltage ====================== */
 			  float voltages[BMS_MODULE_NUM_VOLTAGES];
-			  bms.get_voltage(&bms, voltages, module_id);
+			  bms.get_voltage(&bms, voltages, module_id, GET_PAST_AVERAGE);
 			  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
 			  buf_volt[0] = BMS_CELL_VOLT_ID;
 			  buf_volt[1] = module_id;

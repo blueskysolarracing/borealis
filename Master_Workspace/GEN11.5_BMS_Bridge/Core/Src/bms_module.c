@@ -7,8 +7,8 @@
 #include "bms_module.h"
 #include <math.h>
 
-static void get_temperature(BmsModule* this, float* temperature);
-static void get_voltage(BmsModule* this, float* voltage);
+static void get_temperature(BmsModule* this, float* temperature, get_mode_t get_mode);
+static void get_voltage(BmsModule* this, float* voltage, get_mode_t get_mode);
 static void get_state_of_charge(BmsModule* this, float* soc);
 static void set_current(BmsModule* this, float current);
 static void measure_temperature(BmsModule* this);
@@ -26,6 +26,43 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 static void LTC6810Convert_to_temp(float input_voltage[3], float output_temperature[3]);
 static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
 static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
+
+static void sfq_init(StaticFloatQueue* this)
+{
+	q_init_static(
+			&this->q,
+			sizeof(float),
+			STATIC_FLOAT_QUEUE_NUM_VALUES,
+			FIFO,
+			true, // Overwrite old values (so we only need to call push() and no need to pop())
+			this->vals,
+			sizeof(this->vals)
+		);
+}
+
+static bool sfq_push(StaticFloatQueue* this, float val)
+{
+	return q_push(&this->q, &val);
+}
+
+static bool sfq_peek_idx(StaticFloatQueue* this, float* ret_val, int idx)
+{
+	return q_peekIdx(&this->q, ret_val, idx);
+}
+
+static float sfq_get_avg(StaticFloatQueue* this)
+{
+	float total_past_vals = 0;
+	int num_past_vals = 0;
+	for (int idx = 0; idx < STATIC_FLOAT_QUEUE_NUM_VALUES; idx++){
+		float past_val;
+		if (sfq_peek_idx(this, &past_val, idx)) { // evaluates to true if val is available
+			num_past_vals++;
+			total_past_vals += past_val;
+		}
+	}
+	return total_past_vals / (float)num_past_vals;
+}
 
 void bms_module_init(
 		BmsModule* this,
@@ -52,13 +89,24 @@ void bms_module_init(
 	this->_spi_cs_pin = spi_cs_pin;
 
 
+
 	// Get voltages. Note we can't call this->get_voltage() because it requires freertos scheduler, but freertos scheduler is not initialized yet
 	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
 	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
 
+	float local_temperature_array[BMS_MODULE_NUM_TEMPERATURES];
+	LTC6810ReadTemp(this, local_temperature_array, 0, 0, 0, 0, 0);
+
 	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
 		this->_voltages[i] = local_voltage_array[i];
+		sfq_init(&this->past_voltages[i]);
+		sfq_push(&this->past_voltages[i], local_voltage_array[i]);
+
+		this->_temperatures[i] = local_temperature_array[i];
+		sfq_init(&this->past_temperatures[i]);
+		sfq_push(&this->past_temperatures[i], local_temperature_array[i]);
 	}
+
 
 	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_CELLS; i++){
@@ -68,22 +116,34 @@ void bms_module_init(
 
 }
 
-static void get_temperature(BmsModule* this, float* temperatures)
+static void get_temperature(BmsModule* this, float* temperatures, get_mode_t get_mode)
 {
 	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
 		for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
-			temperatures[i] = this->_temperatures[i];
+			if (get_mode == GET_MOST_RECENT) {
+				temperatures[i] = this->_temperatures[i];
+			} else if (get_mode == GET_PAST_AVERAGE) {
+				temperatures[i] = sfq_get_avg(&this->past_temperatures[i]);
+			} else if (get_mode == GET_FILTERED_RESULT) {
+				// Can consider running past temperatures through Moving Average Filter, not necessary for now
+			}
 		}
 
 		xSemaphoreGive(this->_temperature_lock);
 	}
 }
 
-static void get_voltage(BmsModule* this, float* voltages)
+static void get_voltage(BmsModule* this, float* voltages, get_mode_t get_mode)
 {
 	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
 		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
-			voltages[i] = this->_voltages[i];
+			if (get_mode == GET_MOST_RECENT) {
+				voltages[i] = this->_voltages[i];
+			} else if (get_mode == GET_PAST_AVERAGE) {
+				voltages[i] = sfq_get_avg(&this->past_voltages[i]);
+			} else if (get_mode == GET_FILTERED_RESULT) {
+				// Can consider running past voltages through Moving Average Filter, not necessary for now
+			}
 		}
 
 		xSemaphoreGive(this->_voltage_lock);
@@ -118,6 +178,7 @@ static void measure_temperature(BmsModule* this)
 	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
 		for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
 			this->_temperatures[i] = local_temp_array[i];
+			sfq_push(&this->past_temperatures[i], local_temp_array[i]);
 		}
 		xSemaphoreGive(this->_temperature_lock);
 	}
@@ -131,6 +192,7 @@ static void measure_voltage(BmsModule* this)
 	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
 		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
 			this->_voltages[i] = local_voltage_array[i];
+			sfq_push(&this->past_voltages[i], local_voltage_array[i]);
 		}
 		xSemaphoreGive(this->_voltage_lock);
 	}
