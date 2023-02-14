@@ -156,10 +156,7 @@ uint8_t battery_undervoltage = 0;
 uint8_t battery_overtemperature = 0;
 uint8_t battery_overcurrent = 0;
 
-float battery_cell_voltages[NUM_BATT_CELLS] = {
-		[0 ... 13] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE,
-		[14 ... 15] = BATTERY_CELL_VOLTAGES_FAKE_VALUE, // Note two voltages are fake voltage value for modules that only have 4 cells.
-		[16 ... (NUM_BATT_CELLS-1)] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE};
+float battery_cell_voltages[NUM_BATT_CELLS] = {[0 ... (NUM_BATT_CELLS-1)] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE};
 float battery_temperatures[NUM_BATT_TEMP_SENSORS] = {[0 ... (NUM_BATT_TEMP_SENSORS-1)] = BATTERY_TEMPERATURES_INITIAL_VALUE};
 
 //--- Discharge test ---//
