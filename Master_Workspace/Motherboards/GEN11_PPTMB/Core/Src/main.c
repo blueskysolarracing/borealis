@@ -26,6 +26,7 @@
 #include "bmisc.h"
 #include "buart.h"
 #include "btcp.h"
+#include "h7Boot.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
