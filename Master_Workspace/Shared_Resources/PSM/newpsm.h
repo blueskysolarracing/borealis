@@ -1,5 +1,14 @@
-`#ifndef PSM_H__
+#ifndef PSM_H__
 #define PSM_H__
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <math.h>
+#include "main.h"
+
+#define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
+#define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
+
 // INA229 REGISTERS
 #define CONFIG 			0x0
 #define ADC_CONFIG		0x1
@@ -56,8 +65,8 @@ struct PSM_FIR {
 	float (*pop_voltage) (struct PSM_FIR_Filter* self);
 	float (*get_average_voltage) (struct PSM_FIR_Filter* self);
 
-	void (*push) (struct PSM_FIR_Filter* self, float new_voltage, float new_current)
-}
+	void (*push) (struct PSM_FIR_Filter* self, float new_voltage, float new_current);
+};
 
 
 struct PSM_P {
@@ -70,25 +79,25 @@ struct PSM_P {
 	 GPIO_TypeDef* LVDSPort;
 	 uint16_t LVDSPin;
 
-	 GPIO_TypeDef* DreadyPort;
-	 uint16_t DreadyPin;
+	//  GPIO_TypeDef* DreadyPort;
+	//  uint16_t DreadyPin;
 
-	 float VDCOS;
-	 float CDCOS;
+	//  float VDCOS;
+	//  float CDCOS;
 
      float current_lsb; // refer to 8.1.2 for calculation
 };
 
 
 // For use in other files
-void PSM_init(struct PSM_P* psm, uint8_t psm_id);
+void PSM_init(struct PSM_P* psm);
 void PSM_FIR_init(struct PSM_P* psm);
 void PSM_update(struct PSM_P* psm, struct PSM_FIR* psm_fir);
 void PSM_read_voltage(struct PSM_FIR* psm_fir, float* result);
 void PSM_read_current(struct PSM_FIR* psm_fir, float* result);
 void PSM_write(struct PSM_P* PSM, uint8_t address, uint16_t data);
-void PSM_read(struct PSM_Peripheral* PSM, uint8_t address, uint8_t* buffer,
-		uint8_t numBytes)
+void PSM_read(struct PSM_P* PSM, uint8_t address, uint8_t* buffer,
+		uint8_t numBytes);
 
 // ----------- HELPER FUNCTIONS FOR CHIP ----------- //
 // Register: CONFIG
@@ -98,11 +107,12 @@ void reset_accumulation_reg(struct PSM_P* PSM);
 void set_config(struct PSM_P* PSM);
 void set_adc_delay(struct PSM_P* PSM); // ms
 void set_adc_averaging_count(struct PSM_P* PSM, uint8_t count);
+void set_conversion_time(struct PSM_P* PSM, uint8_t time);
 void set_temp_cal(struct PSM_P* PSM, uint16_t set);
 void set_adc_range(struct PSM_P* PSM, double min, double max);
 
 // Register: ADC_CONFIG
-void set_read_mode(struct PSM_P* PSM, bool bus_voltage, bool shunt_voltage, bool temp, bool continuous);
+void set_read_mode(struct PSM_P* PSM, uint8_t bus_voltage, uint8_t shunt_voltage, uint8_t temp, uint8_t continuous);
 void set_voltage_bus_conversion_time(struct PSM_P* PSM, int setting);
 void set_voltage_shunt_conversion_time(struct PSM_P* PSM, int setting);
 void set_temp_conversion_time(struct PSM_P* PSM, int setting);
@@ -157,3 +167,5 @@ void set_bus_undervoltage_threshold(struct PSM_P* PSM, int setting);
 void set_temperature_limit_threshold(struct PSM_P* PSM, int setting);
 void set_power_limit_threshold(struct PSM_P* PSM, int setting);
 void set_device_ID(struct PSM_P* PSM, int setting);
+
+#endif

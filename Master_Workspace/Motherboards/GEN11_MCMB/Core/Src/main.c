@@ -27,7 +27,7 @@
 #include "h7Boot.h"
 #include "buart.h"
 #include "btcp.h"
-#include "psm.h"
+#include "newpsm.h"
 #include "protocol_ids.h"
 #include "math.h"
 #include "mitsuba_motor.h"
