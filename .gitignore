@@ -80,6 +80,9 @@ Master_Workspace/.DS_Store
 .DS_Store
 /.DS_Store
 
+#others
+*.bak
+
 #Licenses
 *.md
 /Master_Workspace/.project

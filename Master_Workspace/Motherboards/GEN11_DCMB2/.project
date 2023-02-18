@@ -29,16 +29,16 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>btcp_inc</name>
-			<type>2</type>
-			<location>C:/Users/Albert/Documents/GitHub/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
-		</link>
-		<link>
-			<name>btcp_src</name>
-			<type>2</type>
-			<location>C:/Users/Albert/Documents/GitHub/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
-		</link>
-	</linkedResources>
+      <linkedResources>
+                <link>
+                        <name>btcp_inc</name>
+                        <type>2</type>
+                        <location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
+                </link>
+                <link>
+                        <name>btcp_src</name>
+                        <type>2</type>
+                        <location>C:/Users/goodb/Documents/code/stm/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+                </link>
+      </linkedResources>
 </projectDescription>

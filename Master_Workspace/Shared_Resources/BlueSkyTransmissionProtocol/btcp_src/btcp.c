@@ -1,8 +1,8 @@
 #include "btcp.h"
-//#define PAD
 #include "main.h"
-// Define pad if we need to pad buffer to multiple of 4
-// PAD is defined for BMS Receive, which is in interrupt mode and is designed to fire a callback every 4 bytes received
+
+#define PAD
+// Define pad if we need to pad the pre-escapted-buffer to multiple of 4
 
 // ########  ##     ##
 // ##     ## ##     ##
@@ -23,7 +23,6 @@
 
 //static void tcpTxTask(void *pv);
 static void tcpRxTask(void *pv);
-static void tcpRxTask_BBMB_BMS(void *pv);
 
 // ######## ##     ## ##    ##  ######
 // ##       ##     ## ###   ## ##    ##
@@ -89,11 +88,23 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     buf[1] = length;
     buf[2] = btcp->senderID;
     buf[3] = btcp->tcpSeqNum;
-    memcpy(buf+4, msg, length);
-    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
 
-    //buf with escape character
-    uint16_t buf_pos = 0;
+    memcpy(buf+4, msg, length);
+    uint16_t buf_pos = length + 4;
+
+#ifdef PAD // To pad the data to a multiple of 4 since CRC algorithm computes an array of bytes
+    if(buf_pos % 4 != 0) {
+    	int paddingNum = 4 - buf_pos % 4;
+    	for (int i = paddingNum; i > 0; i--) {
+    	   buf[buf_pos++] = 0x00;
+    	}
+        buf[1] = length + paddingNum;
+   }
+#endif
+    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, buf_pos/4);
+
+    // Reset pos and refill buffer to escape characters if necessary
+    buf_pos = 0;
 	
     buf[buf_pos] = BSSR_SERIAL_START;
     buf_pos++;
@@ -150,15 +161,6 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     		buf_pos++;
     	}
     }
-#ifdef PAD // To pad the data to a multiple of 4
-    if(buf_pos%4 != 0) {
-    	int paddingNum = 4 - buf_pos % 4;
-    	for (int i = paddingNum; i > 0; i--) {
-    	   buf[buf_pos] = 0x00;
-    	   buf_pos++;
-    	}
-   }
-#endif
 
 	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array 
     for(int i = 0; i < btcp->numTransmitBuarts; i++){
@@ -175,14 +177,26 @@ void B_tcpSendToBMS(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 	uint8_t* buf = btcp->txBuf;
   //buf without escape character to generate crc
 	buf[0] = BSSR_SERIAL_START;
-  buf[1] = length;
-  buf[2] = btcp->senderID;
-  buf[3] = btcp->tcpSeqNum;
-  memcpy(buf+4, msg, length);
-  uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
+    buf[1] = length;
+    buf[2] = btcp->senderID;
+    buf[3] = btcp->tcpSeqNum;
 
-  //buf with escape character
-  uint16_t buf_pos = 0;
+    memcpy(buf+4, msg, length);
+    uint16_t buf_pos = length + 4;
+
+#ifdef PAD // To pad the data to a multiple of 4 since CRC algorithm computes an array of bytes
+    if(buf_pos % 4 != 0) {
+    	int paddingNum = 4 - buf_pos % 4;
+    	for (int i = paddingNum; i > 0; i--) {
+    	   buf[buf_pos++] = 0x00;
+    	}
+        buf[1] = length + paddingNum;
+   }
+#endif
+    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, buf_pos/4);
+
+    // Reset pos and refill buffer to escape characters if necessary
+    buf_pos = 0;
 
   buf[buf_pos] = BSSR_SERIAL_START;
   buf_pos++;
@@ -241,7 +255,7 @@ void B_tcpSendToBMS(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
   }
 
 // To pad the data to constant length, for BMS to receive in IT mode
-  while (buf_pos < 30) {
+  while (buf_pos < 32) {
   	buf[buf_pos] = 0x00;
   	buf_pos++;
   }
@@ -264,11 +278,23 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     buf[1] = length;
     buf[2] = btcp->senderID;
     buf[3] = btcp->tcpSeqNum;
-    memcpy(buf+4, msg, length);
-    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, length+4);
 
-    //buf with escape character
-    uint16_t buf_pos = 0;
+    memcpy(buf+4, msg, length);
+    uint16_t buf_pos = length + 4;
+
+#ifdef PAD // To pad the data to a multiple of 4 since CRC algorithm computes an array of bytes
+    if(buf_pos % 4 != 0) {
+    	int paddingNum = 4 - buf_pos % 4;
+    	for (int i = paddingNum; i > 0; i--) {
+    	   buf[buf_pos++] = 0x00;
+    	}
+        buf[1] = length + paddingNum;
+   }
+#endif
+    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, buf_pos/4);
+
+    // Reset pos and refill buffer to escape characters if necessary
+    buf_pos = 0;
 
     buf[buf_pos] = BSSR_SERIAL_START;
     buf_pos++;
@@ -325,15 +351,6 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     		buf_pos++;
     	}
     }
-#ifdef PAD
-    if(buf_pos%4 != 0) {
-    	int paddingNum = 4 - buf_pos % 4;
-    	for (int i = paddingNum; i > 0; i--) {
-    	   buf[buf_pos] = 0x00;
-    	   buf_pos++;
-    	}
-   }
-#endif
 
     uint8_t *bufLocal = pvPortMalloc(sizeof(uint8_t)*(buf_pos));
     memcpy(bufLocal, buf, buf_pos);
@@ -435,7 +452,7 @@ static void tcpRxTask(void *pv){
                 crc |= e->buf[i] << ((3-crcAcc)*8);
                 crcAcc++;
                 if(crcAcc == 4){
-                	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos);
+                	crcExpected = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)input_buffer, buf_pos/4);
 
 					if(crcExpected == crc && sender != btcp->senderID){ // If CRC correct and the sender is not this motherboard
 

@@ -63,6 +63,8 @@ void Error_Handler(void);
 #define DISP_CS_1_GPIO_Port GPIOE
 #define BACKUP_CAMERA_CTRL_Pin GPIO_PIN_14
 #define BACKUP_CAMERA_CTRL_GPIO_Port GPIOI
+#define brakeDetect_Pin GPIO_PIN_4
+#define brakeDetect_GPIO_Port GPIOC
 #define BACKUP_SCREEN_CTRL_Pin GPIO_PIN_15
 #define BACKUP_SCREEN_CTRL_GPIO_Port GPIOI
 #define GPIO_IN0_Pin GPIO_PIN_0
