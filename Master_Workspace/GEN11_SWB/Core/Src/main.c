@@ -38,6 +38,7 @@
 #define REGEN_IDLE_VAL 52.0
 #define REGEN_MAX_VAL 115.0
 #define REGEN_NEW_MAX 255
+//#define USE_ADC_REGEN
 
 /* USER CODE END PD */
 
@@ -195,6 +196,7 @@ int main(void)
 	uint8_t newRegenValue = 0;
 	float regenTotalReading = 0;
 
+#ifdef USE_ADC_REGEN
 	for (int i = 0; i < ADC_NUM_AVG; i++){
 		HAL_ADC_Start(&hadc1);
 		if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){
@@ -202,12 +204,15 @@ int main(void)
 			regenTotalReading += currRegenValue;
 		}
 	}
+
 	newRegenValue = (uint8_t)(regenTotalReading/ADC_NUM_AVG);
+#endif
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
 
 		//Map regen range from 52-115 to 0-255
 		uint8_t mappedRegenValue = 0;
+#ifdef USE_ADC_REGEN
 		if (newRegenValue > REGEN_IDLE_VAL){
 			if (newRegenValue >= REGEN_MAX_VAL){
 				mappedRegenValue = REGEN_NEW_MAX;
@@ -216,7 +221,7 @@ int main(void)
 				mappedRegenValue = (uint8_t)(mappingRatio * REGEN_NEW_MAX);
 			}
 		}
-
+#endif
 		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, 0x00}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
