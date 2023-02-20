@@ -309,7 +309,10 @@ void set_power_limit_threshold(struct PSM_P* PSM, int setting) {
 void set_device_ID(struct PSM_P* PSM, int setting);
 
 
-void PSM_init(struct PSM_P* PSM) {
+void PSM_init(struct PSM_P* PSM, SPI_HandleTypeDef* spiHandle, UART_HandleTypeDef* uartHandle) {
+	PSM->spiInterface = spiHandle;
+	PSM->uartInterface = uartHandle;
+
 	// Default config. Can rerun these functions after init.
 	set_config(PSM);
 	set_adc_averaging_count(PSM, 0x2);

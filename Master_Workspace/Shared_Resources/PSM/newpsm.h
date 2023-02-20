@@ -99,11 +99,13 @@ struct PSM_P {
 
 
 // For use in other files
-void PSM_init(struct PSM_P* psm);
+void PSM_init(struct PSM_P* psm, SPI_HandleTypeDef* spiHandle, UART_HandleTypeDef* uartHandle);
 void PSM_FIR_init(struct PSM_P* psm);
-void PSM_update(struct PSM_P* psm, struct PSM_FIR* psm_fir);
-void PSM_read_voltage(struct PSM_FIR* psm_fir, float* result);
-void PSM_read_current(struct PSM_FIR* psm_fir, float* result);
+void PSM_update(struct PSM_P* psm, struct PSM_FIR_Filter* psm_fir);
+//void PSM_read_voltage(struct PSM_P* psm, float* result);
+//void PSM_read_current(struct PSM_P* psm, float* result);
+void PSM_read_voltage(struct PSM_FIR_Filter* psm_fir, float* result);
+void PSM_read_current(struct PSM_FIR_Filter* psm_fir, float* result);
 void PSM_write(struct PSM_P* PSM, uint8_t address, uint16_t data);
 void PSM_read(struct PSM_P* PSM, uint8_t address, uint8_t* buffer,
 		uint8_t numBytes);

@@ -194,13 +194,11 @@ int main(void)
   psmPeriph.DreadyPin = PSM_DReady_Pin;
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
-  PSM_Init(&psmPeriph); //2nd argument is PSM ID
+  PSM_init(&psmPeriph, &hspi2, &huart2);
 
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "1234", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
 //  }
-
-  PSM_init(&psmPeriph);
 
 //  PSM_FIR_Init(&psmFilter_string1); //Initialize FIR averaging filter for PSM
 //  PSM_FIR_Init(&psmFilter_string2); //Initialize FIR averaging filter for PSM
@@ -705,10 +703,8 @@ void PSMTaskHandler(void * parameters){
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB));
 
 	while (1){
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data_string1, 2);
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 3, HV_data_string2, 2);
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, HV_data_string3, 2);
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data_HV, 2);
+		float voltage = read_bus_voltage(&psmPeriph);
+		float current = read_current(&psmPeriph);
 
 		vTaskSuspendAll();
 
