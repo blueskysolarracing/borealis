@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "psm.h"
+#include "newpsm.h"
 #include "bmisc.h"
 #include "buart.h"
 #include "btcp.h"
@@ -74,7 +74,7 @@ uint8_t relayCtrlMessage;
 uint8_t batteryState = FAULTED; //Assume battery is faulted
 
 //--- PSM ---//
-struct PSM_Peripheral psmPeriph;
+struct PSM_P psmPeriph;
 
 struct PSM_FIR_Filter psmFilter_string1;
 struct PSM_FIR_Filter psmFilter_string2;
@@ -178,15 +178,15 @@ int main(void)
   relay.array_relay_state = OPEN; 	//Open array relays at startup
 
   //--- PSM ---//
-  psmPeriph.CSPin0 = PSM_CS_0_Pin;
-  psmPeriph.CSPin1 = PSM_CS_1_Pin;
-  psmPeriph.CSPin2 = PSM_CS_2_Pin;
-  psmPeriph.CSPin3 = PSM_CS_3_Pin;
+  psmPeriph.CSPin = PSM_CS_0_Pin;
+//  psmPeriph.CSPin1 = PSM_CS_1_Pin;
+//  psmPeriph.CSPin2 = PSM_CS_2_Pin;
+//  psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
+  psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
+//  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
+//  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
+//  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
 
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
@@ -194,32 +194,34 @@ int main(void)
   psmPeriph.DreadyPin = PSM_DReady_Pin;
   psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
-  PSM_Init(&psmPeriph, 3); //2nd argument is PSM ID
+  PSM_Init(&psmPeriph); //2nd argument is PSM ID
 
-  if (configPSM(&psmPeriph, &hspi2, &huart2, "1234", 2000) == -1){ //2000ms timeout
-	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
-  }
+//  if (configPSM(&psmPeriph, &hspi2, &huart2, "1234", 2000) == -1){ //2000ms timeout
+//	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+//  }
 
-  PSM_FIR_Init(&psmFilter_string1); //Initialize FIR averaging filter for PSM
-  PSM_FIR_Init(&psmFilter_string2); //Initialize FIR averaging filter for PSM
-  PSM_FIR_Init(&psmFilter_string3); //Initialize FIR averaging filter for PSM
-  PSM_FIR_Init(&psmFilter_HV); //Initialize FIR averaging filter for PSM
+  PSM_init(&psmPeriph);
 
-  psmFilter_string1.buf_voltage = PSM_FIR_voltage_string1;
-  psmFilter_string1.buf_current = PSM_FIR_current_string1;
-  psmFilter_string1.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
-
-  psmFilter_string2.buf_voltage = PSM_FIR_voltage_string2;
-  psmFilter_string2.buf_current = PSM_FIR_current_string2;
-  psmFilter_string2.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
-
-  psmFilter_string3.buf_voltage = PSM_FIR_voltage_string3;
-  psmFilter_string3.buf_current = PSM_FIR_current_string3;
-  psmFilter_string3.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
-
-  psmFilter_HV.buf_voltage = PSM_FIR_voltage_HV;
-  psmFilter_HV.buf_current = PSM_FIR_current_HV;
-  psmFilter_HV.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
+//  PSM_FIR_Init(&psmFilter_string1); //Initialize FIR averaging filter for PSM
+//  PSM_FIR_Init(&psmFilter_string2); //Initialize FIR averaging filter for PSM
+//  PSM_FIR_Init(&psmFilter_string3); //Initialize FIR averaging filter for PSM
+//  PSM_FIR_Init(&psmFilter_HV); //Initialize FIR averaging filter for PSM
+//
+//  psmFilter_string1.buf_voltage = PSM_FIR_voltage_string1;
+//  psmFilter_string1.buf_current = PSM_FIR_current_string1;
+//  psmFilter_string1.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
+//
+//  psmFilter_string2.buf_voltage = PSM_FIR_voltage_string2;
+//  psmFilter_string2.buf_current = PSM_FIR_current_string2;
+//  psmFilter_string2.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
+//
+//  psmFilter_string3.buf_voltage = PSM_FIR_voltage_string3;
+//  psmFilter_string3.buf_current = PSM_FIR_current_string3;
+//  psmFilter_string3.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
+//
+//  psmFilter_HV.buf_voltage = PSM_FIR_voltage_HV;
+//  psmFilter_HV.buf_current = PSM_FIR_current_HV;
+//  psmFilter_HV.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
   //--- COMMS ---//
   buart = B_uartStart(&huart4);
@@ -710,17 +712,17 @@ void PSMTaskHandler(void * parameters){
 
 		vTaskSuspendAll();
 
-		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGE);
-		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENT);
+		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGEF);
+		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENTF);
 
-		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGE);
-		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENT);
+		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGEF);
+		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENTF);
 
-		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGE);
-		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENT);
+		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGEF);
+		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENTF);
 
-		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGE);
-		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENT);
+		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGEF);
+		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENTF);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -736,18 +738,18 @@ void measurementSender(TimerHandle_t xTimer){
 
 	vTaskSuspendAll();
 	//Get HV average
-	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGE);
-	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENT);
+	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGEF);
+	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENTF);
 
 	//Get strings average
-	float string1_voltage = psmFilter_string1.get_average(&psmFilter_string1, VOLTAGE);
-	float string1_current = psmFilter_string1.get_average(&psmFilter_string1, CURRENT);
+	float string1_voltage = psmFilter_string1.get_average(&psmFilter_string1, VOLTAGEF);
+	float string1_current = psmFilter_string1.get_average(&psmFilter_string1, CURRENTF);
 
-	float string2_voltage = psmFilter_string2.get_average(&psmFilter_string2, VOLTAGE);
-	float string2_current = psmFilter_string2.get_average(&psmFilter_string2, CURRENT);
+	float string2_voltage = psmFilter_string2.get_average(&psmFilter_string2, VOLTAGEF);
+	float string2_current = psmFilter_string2.get_average(&psmFilter_string2, CURRENTF);
 
-	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGE);
-	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENT);
+	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGEF);
+	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENTF);
 
 	xTaskResumeAll();
 

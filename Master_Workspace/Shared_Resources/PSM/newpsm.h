@@ -8,6 +8,10 @@
 
 #define MAX_SPI_TRANSMIT_TIMEOUT 50 //in ms
 #define MAX_UART_TRANSMIT_TIMEOUT 50 //in ms
+#define PSM_SEND_INTERVAL 250 //250ms between measurements
+#define PSM_FIR_FILTER_SAMPLING_FREQ_MCMB 125 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
+#define PSM_FIR_FILTER_SAMPLING_FREQ_BBMB 200 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
+#define PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB 50 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
 
 // INA229 REGISTERS
 #define CONFIG 			0x0
@@ -44,7 +48,7 @@
 #define TEMP_LIMIT_CONVERSION 7.8125 // m°C/LSB
 #define POWER_LIMIT_CONVERSION 256*POWER_CONVERSION // 256 * POWERLSB
 
-struct PSM_FIR {
+struct PSM_FIR_Filter {
 	float* buf_voltage;
 	float* buf_current;
 
@@ -59,13 +63,18 @@ struct PSM_FIR {
 
 	void (*push_current) (struct PSM_FIR_Filter* self, float new_value);
 	float (*pop_current) (struct PSM_FIR_Filter* self);
-	float (*get_average_current) (struct PSM_FIR_Filter* self);
 
 	void (*push_voltage) (struct PSM_FIR_Filter* self, float new_value);
 	float (*pop_voltage) (struct PSM_FIR_Filter* self);
-	float (*get_average_voltage) (struct PSM_FIR_Filter* self);
+
+	float (*get_average) (struct PSM_FIR_Filter* self, uint8_t voltage_or_current);
 
 	void (*push) (struct PSM_FIR_Filter* self, float new_voltage, float new_current);
+};
+
+enum measurementType{
+	VOLTAGEF,
+	CURRENTF
 };
 
 
@@ -79,8 +88,8 @@ struct PSM_P {
 	 GPIO_TypeDef* LVDSPort;
 	 uint16_t LVDSPin;
 
-	//  GPIO_TypeDef* DreadyPort;
-	//  uint16_t DreadyPin;
+	  GPIO_TypeDef* DreadyPort;
+	  uint16_t DreadyPin;
 
 	//  float VDCOS;
 	//  float CDCOS;
