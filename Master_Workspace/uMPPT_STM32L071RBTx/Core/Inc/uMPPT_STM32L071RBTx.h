@@ -23,6 +23,7 @@
 #define NUM_AVG_CURRENT 5 //Number of samples in current measurements averaging
 #define MIN_INPUT_VOLTAGE 1.0 //Minimum allowed input voltage on uMPPT #1 and #3
 #define NUM_UMPPT 2 //Number of uMPPT on the board (1 to 5). Assumes that uMPPT are populated from #1 upwards and unused uMPPT are jumped
+#define MAX_SPI_TIMEOUT 100
 
 #define APB1_Initial_clk_freq 32000 //32 MHz
 #define APB2_Initial_clk_freq 32000 //32 MHz
@@ -58,12 +59,13 @@ struct board_param { //Struct to hold values from the board level
 	ADC_ChannelConfTypeDef* ADC_config;
 	UART_HandleTypeDef* huart_handle;
 	ADC_HandleTypeDef* hadc_handle;
+	SPI_HandleTypeDef* hspi_handle;
 
 	TIM_HandleTypeDef** PWM_TIM;
 	uint32_t* PWM_CHANNEL;
 
-	uint32_t* EN_Pins;
-	GPIO_TypeDef** EN_Ports;
+	uint32_t* CS_Pins;
+	GPIO_TypeDef** CS_Ports;
 
 	TIM_HandleTypeDef* MCU_OK_LED_TIM;
 	struct uMPPT** uMPPT_list;

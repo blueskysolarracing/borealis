@@ -62,16 +62,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define PWM1_Pin GPIO_PIN_0
 #define PWM1_GPIO_Port GPIOA
-#define PV2_ADC_Pin GPIO_PIN_1
-#define PV2_ADC_GPIO_Port GPIOA
 #define PV1_ADC_Pin GPIO_PIN_4
 #define PV1_ADC_GPIO_Port GPIOA
-#define PV3_ADC_Pin GPIO_PIN_5
-#define PV3_ADC_GPIO_Port GPIOA
-#define PV4_ADC_Pin GPIO_PIN_6
-#define PV4_ADC_GPIO_Port GPIOA
-#define PV5_ADC_Pin GPIO_PIN_7
-#define PV5_ADC_GPIO_Port GPIOA
 #define SHUNT_ADC_Pin GPIO_PIN_0
 #define SHUNT_ADC_GPIO_Port GPIOB
 #define Vout_ADC_Pin GPIO_PIN_1
@@ -80,39 +72,22 @@ void Error_Handler(void);
 #define GPIO_LED_GPIO_Port GPIOB
 #define PWM4_Pin GPIO_PIN_10
 #define PWM4_GPIO_Port GPIOB
-#define EN3_Pin GPIO_PIN_11
-#define EN3_GPIO_Port GPIOB
-#define EN5_Pin GPIO_PIN_12
-#define EN5_GPIO_Port GPIOB
 #define PWM2_Pin GPIO_PIN_13
 #define PWM2_GPIO_Port GPIOB
-#define EN4_Pin GPIO_PIN_15
-#define EN4_GPIO_Port GPIOB
 #define PWM5_Pin GPIO_PIN_8
 #define PWM5_GPIO_Port GPIOC
 #define PWM3_Pin GPIO_PIN_9
 #define PWM3_GPIO_Port GPIOC
-#define EN1_Pin GPIO_PIN_8
-#define EN1_GPIO_Port GPIOA
-#define EN2_Pin GPIO_PIN_9
-#define EN2_GPIO_Port GPIOA
-#define FLT5_Pin GPIO_PIN_11
-#define FLT5_GPIO_Port GPIOA
-#define FLT5_EXTI_IRQn EXTI4_15_IRQn
 #define MCU_OK_LED_Pin GPIO_PIN_12
 #define MCU_OK_LED_GPIO_Port GPIOA
-#define FLT4_Pin GPIO_PIN_5
-#define FLT4_GPIO_Port GPIOB
-#define FLT4_EXTI_IRQn EXTI4_15_IRQn
-#define FLT3_Pin GPIO_PIN_7
-#define FLT3_GPIO_Port GPIOB
-#define FLT3_EXTI_IRQn EXTI4_15_IRQn
-#define FLT2_Pin GPIO_PIN_8
-#define FLT2_GPIO_Port GPIOB
-#define FLT2_EXTI_IRQn EXTI4_15_IRQn
-#define FLT1_Pin GPIO_PIN_9
-#define FLT1_GPIO_Port GPIOB
-#define FLT1_EXTI_IRQn EXTI4_15_IRQn
+#define ADC_CS_PV2_Pin GPIO_PIN_10
+#define ADC_CS_PV2_GPIO_Port GPIOC
+#define ADC_CS_PV3_Pin GPIO_PIN_11
+#define ADC_CS_PV3_GPIO_Port GPIOC
+#define ADC_CS_PV4_Pin GPIO_PIN_12
+#define ADC_CS_PV4_GPIO_Port GPIOC
+#define ADC_CS_PV5_Pin GPIO_PIN_2
+#define ADC_CS_PV5_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
