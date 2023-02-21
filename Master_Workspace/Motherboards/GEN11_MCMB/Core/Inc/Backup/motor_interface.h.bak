@@ -31,8 +31,8 @@ typedef struct MotorInterface {
 	int (*setForward)(struct MotorInterface* self);
 	int (*setReverse)(struct MotorInterface* self);
 
-	/* Note: The input to setAccel() and setRegen() should be a value between 0 - 255
-	 * Then, in your implementation of setAccel(), you are responsible for mapping this 0 - 200 value...
+	/* Note: The input to setAccel() and setRegen() should be a 8 bit value between 0 - 255
+	 * Then, in your implementation of setAccel(), you are responsible for mapping this 0 - 255 value...
 	 * ...to whatever value is required by the motor control system (such as 0 - 100)
 	 */
 
