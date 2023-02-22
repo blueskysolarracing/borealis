@@ -534,16 +534,16 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measured
 		    // a priori state estimate
 		    multiply_EKF(inputBatt->matrix.A, inputBatt->stateX, inputBatt->matrix.A_X, inputBatt->matrix.dim1, inputBatt->matrix.dim2);
 		    multiply_EKF(inputBatt->matrix.B, inputBatt->matrix.U, inputBatt->matrix.B_U, inputBatt->matrix.dim5, inputBatt->matrix.dim6);
-		    addition_EKF(inputBatt->matrix.A_X, inputBatt->matrix.B_U, inputBatt->matrix.X_k1, inputBatt->matrix.dim3, 0);
+		    addition_EKF(inputBatt->matrix.A_X, inputBatt->matrix.B_U, inputBatt->matrix.X_k1, inputBatt->matrix.dim2, 0); //changed
 
 		    // a priori measurement
-		    multiply_EKF(inputBatt->matrix.C, inputBatt->matrix.X_k1, inputBatt->matrix.C_X, inputBatt->matrix.dim4, inputBatt->matrix.dim3);
+		    multiply_EKF(inputBatt->matrix.C, inputBatt->matrix.X_k1, inputBatt->matrix.C_X, inputBatt->matrix.dim3, inputBatt->matrix.dim2); //changed
 		    multiply_EKF(inputBatt->matrix.D, inputBatt->matrix.U, inputBatt->matrix.D_U, inputBatt->matrix.dim7, inputBatt->matrix.dim6);
 		    addition_EKF(inputBatt->matrix.C_X, inputBatt->matrix.D_U, inputBatt->matrix.CX_DU, inputBatt->matrix.dim4, 0);
 		    addition_EKF(inputBatt->matrix.V_OCV, inputBatt->matrix.CX_DU, inputBatt->matrix.Z_k1, inputBatt->matrix.dim4, 0);
 
 		    // update of the posteriori state estimate
-		    addition_EKF(inputBatt->matrix.V_Measured, inputBatt->matrix.Z_k1, inputBatt->matrix.Z_err, inputBatt->matrix.dim5, 1);
+		    addition_EKF(inputBatt->matrix.V_Measured, inputBatt->matrix.Z_k1, inputBatt->matrix.Z_err, inputBatt->matrix.dim4, 1); //changed
 		    multiply_EKF(inputBatt->matrix.W, inputBatt->matrix.Z_err, inputBatt->matrix.W_Zerr, inputBatt->matrix.dim2, inputBatt->matrix.dim4);
 		    addition_EKF(inputBatt->matrix.X_k1, inputBatt->matrix.W_Zerr, inputBatt->stateX, inputBatt->matrix.dim2, 0);    // SOC in inputBatt->stateX[0]
 }
