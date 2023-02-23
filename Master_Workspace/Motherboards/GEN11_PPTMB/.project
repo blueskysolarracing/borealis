@@ -33,22 +33,22 @@
 		<link>
 			<name>Miscellaneous</name>
 			<type>2</type>
-			<location>C:/Users/evanc/Documents/gen11_blueskyelec/Master_Workspace/Shared_Resources/Miscellaneous</location>
+			<location>C:/Users/tonyh/OneDrive/University/gen11_blueskyelec/Master_Workspace/Shared_Resources/Miscellaneous</location>
 		</link>
 		<link>
 			<name>PSM</name>
 			<type>2</type>
-			<location>C:/Users/evanc/Documents/gen11_blueskyelec/Master_Workspace/Shared_Resources/PSM</location>
+			<location>C:/Users/tonyh/OneDrive/University/gen11_blueskyelec/Master_Workspace/Shared_Resources/PSM</location>
 		</link>
 		<link>
 			<name>btcp_inc</name>
 			<type>2</type>
-			<location>C:/Users/evanc/Documents/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
+			<location>C:/Users/tonyh/OneDrive/University/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_inc</location>
 		</link>
 		<link>
 			<name>btcp_src</name>
 			<type>2</type>
-			<location>C:/Users/evanc/Documents/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
+			<location>C:/Users/tonyh/OneDrive/University/gen11_blueskyelec/Master_Workspace/Shared_Resources/BlueSkyTransmissionProtocol/btcp_src</location>
 		</link>
 	</linkedResources>
 </projectDescription>

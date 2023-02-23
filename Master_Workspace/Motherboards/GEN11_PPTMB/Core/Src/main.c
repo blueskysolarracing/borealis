@@ -76,19 +76,19 @@ uint8_t batteryState = FAULTED; //Assume battery is faulted
 //--- PSM ---//
 struct PSM_P psmPeriph;
 
-struct PSM_FIR_Filter psmFilter_string1;
-struct PSM_FIR_Filter psmFilter_string2;
-struct PSM_FIR_Filter psmFilter_string3;
-struct PSM_FIR_Filter psmFilter_HV;
-
-float PSM_FIR_voltage_string1[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_string1[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_voltage_string2[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_string2[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_voltage_string3[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_string3[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_voltage_HV[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_HV[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//struct PSM_FIR_Filter psmFilter_string1;
+//struct PSM_FIR_Filter psmFilter_string2;
+//struct PSM_FIR_Filter psmFilter_string3;
+//struct PSM_FIR_Filter psmFilter_HV;
+//
+//float PSM_FIR_voltage_string1[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_current_string1[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_voltage_string2[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_current_string2[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_voltage_string3[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_current_string3[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_voltage_HV[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+//float PSM_FIR_current_HV[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
 
 /* USER CODE END PV */
 
@@ -191,10 +191,11 @@ int main(void)
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
 
-  psmPeriph.DreadyPin = PSM_DReady_Pin;
-  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+//  psmPeriph.DreadyPin = PSM_DReady_Pin;
+//  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
 
   PSM_init(&psmPeriph, &hspi2, &huart2);
+//  test_config(&psmPeriph, &hspi2, &huart2);
 
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "1234", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
@@ -696,29 +697,35 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void PSMTaskHandler(void * parameters){
-	double HV_data_string1[2];
-	double HV_data_string2[2];
-	double HV_data_string3[2];
-	double HV_data_HV[2];
+//	double HV_data_string1[2];
+//	double HV_data_string2[2];
+//	double HV_data_string3[2];
+//	double HV_data_HV[2];
+//
+//	uint8_t voltage[3];
+	//uint8_t current[3];
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB));
 
 	while (1){
-		float voltage = read_bus_voltage(&psmPeriph);
-		float current = read_current(&psmPeriph);
+		//float voltage = readPSM(&psmPeriph, VBUS, 3);
+		//float current = readPSM(&psmPeriph, CURRENT, 3);
+
+		//float volt = readBusVoltage(&psmPeriph);
+		//float curr = readCurrent(&psmPeriph);
 
 		vTaskSuspendAll();
 
-		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGEF);
-		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENTF);
-
-		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGEF);
-		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENTF);
-
-		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGEF);
-		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENTF);
-
-		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGEF);
-		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENTF);
+//		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGEF);
+//		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENTF);
+//
+//		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGEF);
+//		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENTF);
+//
+//		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGEF);
+//		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENTF);
+//
+//		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGEF);
+//		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENTF);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -734,34 +741,34 @@ void measurementSender(TimerHandle_t xTimer){
 
 	vTaskSuspendAll();
 	//Get HV average
-	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGEF);
-	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENTF);
-
-	//Get strings average
-	float string1_voltage = psmFilter_string1.get_average(&psmFilter_string1, VOLTAGEF);
-	float string1_current = psmFilter_string1.get_average(&psmFilter_string1, CURRENTF);
-
-	float string2_voltage = psmFilter_string2.get_average(&psmFilter_string2, VOLTAGEF);
-	float string2_current = psmFilter_string2.get_average(&psmFilter_string2, CURRENTF);
-
-	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGEF);
-	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENTF);
+//	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGEF);
+//	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENTF);
+//
+//	//Get strings average
+//	float string1_voltage = psmFilter_string1.get_average(&psmFilter_string1, VOLTAGEF);
+//	float string1_current = psmFilter_string1.get_average(&psmFilter_string1, CURRENTF);
+//
+//	float string2_voltage = psmFilter_string2.get_average(&psmFilter_string2, VOLTAGEF);
+//	float string2_current = psmFilter_string2.get_average(&psmFilter_string2, CURRENTF);
+//
+//	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGEF);
+//	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENTF);
 
 	xTaskResumeAll();
 
-	//Build HV packet
-	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
-	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
-
-	//Build string packet
-	floatToArray(string1_voltage, busMetrics_PPT + 4); // fills 4 - 7 of busMetrics
-	floatToArray(string1_current, busMetrics_PPT + 8); // fills 8 - 11 of busMetrics
-
-	floatToArray(string2_voltage, busMetrics_PPT + 12); // fills 12 - 15 of busMetrics
-	floatToArray(string2_current, busMetrics_PPT + 16); // fills 16 - 19 of busMetrics
-
-	floatToArray(string3_voltage, busMetrics_PPT + 20); // fills 20 - 23 of busMetrics
-	floatToArray(string3_current, busMetrics_PPT + 24); // fills 24 - 27 of busMetrics
+//	//Build HV packet
+//	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
+//	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
+//
+//	//Build string packet
+//	floatToArray(string1_voltage, busMetrics_PPT + 4); // fills 4 - 7 of busMetrics
+//	floatToArray(string1_current, busMetrics_PPT + 8); // fills 8 - 11 of busMetrics
+//
+//	floatToArray(string2_voltage, busMetrics_PPT + 12); // fills 12 - 15 of busMetrics
+//	floatToArray(string2_current, busMetrics_PPT + 16); // fills 16 - 19 of busMetrics
+//
+//	floatToArray(string3_voltage, busMetrics_PPT + 20); // fills 20 - 23 of busMetrics
+//	floatToArray(string3_current, busMetrics_PPT + 24); // fills 24 - 27 of busMetrics
 
 	B_tcpSend(btcp, busMetrics_HV, sizeof(busMetrics_HV));
 	B_tcpSend(btcp, busMetrics_PPT, sizeof(busMetrics_PPT));

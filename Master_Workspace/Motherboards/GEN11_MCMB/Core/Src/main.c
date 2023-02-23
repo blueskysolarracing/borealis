@@ -27,7 +27,7 @@
 #include "h7Boot.h"
 #include "buart.h"
 #include "btcp.h"
-#include "newpsm.h"
+#include "psm.h"
 #include "protocol_ids.h"
 #include "math.h"
 #include "mitsuba_motor.h"
@@ -369,8 +369,12 @@ int main(void)
 
   //Gen11 regen write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(255, GPIOG, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //
 //  //Gen11 accel write below:
+//  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(200, GPIOK, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 
   //--- PSM ---//
