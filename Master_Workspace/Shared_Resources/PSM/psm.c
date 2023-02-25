@@ -652,64 +652,64 @@ void PSMPowerDown(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, U
 //read temperature from a specified PSM channel
 //casts temperature value from int16_t to two uint8_t for UART transmission, MAKE SURE TO RECAST THE RECEIVED TEMPERATURE VALUE BACK TO SIGNED 16-BIT INTEGER BEFORE USE
 void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM){
-	//enable LVDS by outputting logic high at pin PB13
-	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
-
-	//variables
-	uint8_t configCommand = 0; //byte to be sent to PSM channel
-	uint8_t TEMPOS_val = 0; //value from TEMPOS register
-	uint8_t dataIn[3] = {0}; //data received from ade7912
-	int16_t dataOut = 0; //temperature data sent through UART
-	uint32_t V2WV_val = 0; //value from V2WV register
-	double gain = 0; //gain value depends on BW (CONFIG[7]) values as outlined in ade7912 datasheet
-	double temperature = 0;
-
-	//disable write protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
-
-    readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
-    //assign gain value depending on BW (CONFIG[7])
-    if((configCommand>>7) & 1){ //if BW = 1
-    	gain = 8.21015e-5;
-    } else{ //BW = 0
-    	gain = 8.72101e-5;
-    }
-	//wakeup master ADE7912 by setting PWRDWN_EN = 0
-    configCommand &= (~(1<<2)); //PWRDWN_EN = 0
-    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
-
-    //get TEMPOS value
-    readFromPSM(PSM, spiInterface, uartInterface, TEMPOS, &TEMPOS_val, 1, masterPSM);
-
-    for(uint8_t i = 0; i<10; i++){
-        //wait for DREADY_n signal to go low before reading (pin PK2)
-        while(HAL_GPIO_ReadPin(PSM->DreadyPort, PSM->DreadyPin) == GPIO_PIN_SET){
-        } //TODO add something that will get us out of this loop if PK2 never reaches low
-        //get V2WV value
-        readFromPSM(PSM, spiInterface, uartInterface, V2WV, dataIn, 3, masterPSM);
-        V2WV_val = (dataIn[0]<<16)+(dataIn[1]<<8)+dataIn[2];
-        temperature += gain*V2WV_val + 8.72101e-5*TEMPOS_val*2048 - 306.47; //formula from ade7912 datasheet
-    }
-    //take average of 10 temperature readings from master ade7912
-    temperature /= 10;
-
-    //since this value is not for precise measurement, will round the temperature to int16_t and send this instead to facilitate uart
-    dataOut = (int16_t)(temperature < 0 ? (temperature - 0.5) : (temperature + 0.5));
-    //DATA IS SENT THROUGH UART AS TWO UNSIGNED 8 BIT INT, MAKE SURE TO RECAST VALUE BACK TO ONE SIGNED 16BIT INT AT RECEIVER BEFORE USE
-    //TODO CHECK ENDIANNNESS
-    //HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, 2, MAX_UART_TRANSMIT_TIMEOUT);
-    HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, sizeof(dataOut), MAX_UART_TRANSMIT_TIMEOUT);
-
-    //powerdown master ade7912 by setting PWRDWN_EN = 1
-    readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
-    configCommand |= (1<<2); //PWRDWN_EN = 1
-    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
-
-	//re-enable write protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
-
-	//disable LVDS by outputting logic low to pin PB13
-	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+//	//enable LVDS by outputting logic high at pin PB13
+//	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
+//
+//	//variables
+//	uint8_t configCommand = 0; //byte to be sent to PSM channel
+//	uint8_t TEMPOS_val = 0; //value from TEMPOS register
+//	uint8_t dataIn[3] = {0}; //data received from ade7912
+//	int16_t dataOut = 0; //temperature data sent through UART
+//	uint32_t V2WV_val = 0; //value from V2WV register
+//	double gain = 0; //gain value depends on BW (CONFIG[7]) values as outlined in ade7912 datasheet
+//	double temperature = 0;
+//
+//	//disable write protection
+//	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
+//
+//    readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+//    //assign gain value depending on BW (CONFIG[7])
+//    if((configCommand>>7) & 1){ //if BW = 1
+//    	gain = 8.21015e-5;
+//    } else{ //BW = 0
+//    	gain = 8.72101e-5;
+//    }
+//	//wakeup master ADE7912 by setting PWRDWN_EN = 0
+//    configCommand &= (~(1<<2)); //PWRDWN_EN = 0
+//    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+//
+//    //get TEMPOS value
+//    readFromPSM(PSM, spiInterface, uartInterface, TEMPOS, &TEMPOS_val, 1, masterPSM);
+//
+//    for(uint8_t i = 0; i<10; i++){
+//        //wait for DREADY_n signal to go low before reading (pin PK2)
+//        while(HAL_GPIO_ReadPin(PSM->DreadyPort, PSM->DreadyPin) == GPIO_PIN_SET){
+//        } //TODO add something that will get us out of this loop if PK2 never reaches low
+//        //get V2WV value
+//        readFromPSM(PSM, spiInterface, uartInterface, V2WV, dataIn, 3, masterPSM);
+//        V2WV_val = (dataIn[0]<<16)+(dataIn[1]<<8)+dataIn[2];
+//        temperature += gain*V2WV_val + 8.72101e-5*TEMPOS_val*2048 - 306.47; //formula from ade7912 datasheet
+//    }
+//    //take average of 10 temperature readings from master ade7912
+//    temperature /= 10;
+//
+//    //since this value is not for precise measurement, will round the temperature to int16_t and send this instead to facilitate uart
+//    dataOut = (int16_t)(temperature < 0 ? (temperature - 0.5) : (temperature + 0.5));
+//    //DATA IS SENT THROUGH UART AS TWO UNSIGNED 8 BIT INT, MAKE SURE TO RECAST VALUE BACK TO ONE SIGNED 16BIT INT AT RECEIVER BEFORE USE
+//    //TODO CHECK ENDIANNNESS
+//    //HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, 2, MAX_UART_TRANSMIT_TIMEOUT);
+//    HAL_UART_Transmit(uartInterface, (uint8_t *)&dataOut, sizeof(dataOut), MAX_UART_TRANSMIT_TIMEOUT);
+//
+//    //powerdown master ade7912 by setting PWRDWN_EN = 1
+//    readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+//    configCommand |= (1<<2); //PWRDWN_EN = 1
+//    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+//
+//	//re-enable write protection
+//	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
+//
+//	//disable LVDS by outputting logic low to pin PB13
+//	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 }
 
 //PSMCalib()
@@ -723,87 +723,87 @@ void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterf
 //SET masterPSM = 0 IF THERE IS ONLY ONE PSM CHANNEL IN TOTAL!
 void PSMCalib(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, double voltageToInputRatio,
 		double shuntResistance, uint8_t masterPSM, uint8_t channelNumber){
-	//enable LVDS by outputting logic high at pin PB13
-	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
-
-	uint8_t configCommand = 0; //byte to be written to CONFIG register
-	uint8_t dataIn[6] = {0};//data received from ade7912
-	uint8_t dataOut[256] = {0}; //data to be sent through UART
-	uint16_t dataOutLen = 256; //length of dataOut, in bytes
-	uint32_t IWV_val = 0, V1WV_val = 0; //for storing data from IWV, V1WV registers of ade7912 respectively
-	double voltageOffset_TH = 0, currentOffset_TH = 0; //THEORETICAL offsets
-	double voltageMultiplier_TH = 1, currentMultiplier_TH = 1; //THEORETICAL multipliers
-
-	//calculate theoretical multipliers
-	voltageMultiplier_TH = 0.5/(5320000*voltageToInputRatio);
-	currentMultiplier_TH = 0.03125/(5320000*shuntResistance);
-
-	//disable write protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, channelNumber);
-
-	//enable master ade7912 clock output by setting CLKOUT_EN = 1
-	if(masterPSM){
-		//disable write protection
-		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
-		readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
-		configCommand |= 1; //CLKOUT_EN = 1
-	    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
-	}
-
-	//wake up slave ade7912
-    readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
-    configCommand &= (~(1<<2)); //PWRDWN_EN = 0
-    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
-
-    //read from selected ade7912
-    for(uint8_t i = 0; i<50; i++){
-        //wait for DREADY_n signal to go low before reading (pin PK2)
-        while(HAL_GPIO_ReadPin(PSM->DreadyPort, PSM->DreadyPin) == GPIO_PIN_SET){
-        } //TODO add something that will get us out of this loop if PK2 never reaches low
-        //initiate burst-read mode by sending read instruction with address IWV, read 6 bytes
-        readFromPSM(PSM, spiInterface, uartInterface, IWV, dataIn, 6, channelNumber);
-        currentOffset_TH += (dataIn[0]<<16) + (dataIn[1]<<8) + dataIn[2]; //IWV value
-        voltageOffset_TH += (dataIn[3]<<16) + (dataIn[4]<<8) + dataIn[5]; //V1WV value
-    }
-    //get averages of 50 IWV and V1WV measurements to get theoretical offsets
-    voltageOffset_TH /= 50;
-    currentOffset_TH /= 50;
-
-    //output offsets and multipliers through uart to serial monitor
-    dataOutLen = (uint16_t)sprintf((char*)dataOut,
-    		"CALIBRATE CHANNEL %d, V_in/V_out = %lf, shuntResistance = %lf Ohm\r\n"
-    		"THEORETICAL voltageMultiplier = %lf\r\n"
-    		"THEORETICAL currentMultiplier = %lf\r\n"
-    		"THEORETICAL voltageOffset = %lf\r\n"
-    		"THEORETICAL currentOffset = %lf\r\n",
-			channelNumber,
-			voltageToInputRatio,
-			shuntResistance,
-			voltageMultiplier_TH,
-			currentMultiplier_TH,
-			voltageOffset_TH,
-			currentOffset_TH);
-    HAL_UART_Transmit(uartInterface, dataOut, dataOutLen, MAX_UART_TRANSMIT_TIMEOUT);
-
-    //power down slave ade7912
-    if (PWR_DWN_ENABLE){
-        readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
-        configCommand |= (1<<2); //PWRDWN_EN = 1
-        writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
-
-    	//disable master ade7912 clock output by setting CLKOUT_EN = 0
-        //power down master ade7912 as well by setting PWRDWN_EN = 1
-    	readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
-        configCommand &= (~1); //CLKOUT_EN = 0
-        configCommand |= (1<<2); //PWRDWN_EN = 1
-        writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
-    }
-	//re-enable write-protection
-	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
-	if(masterPSM){
-		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
-	}
-
-	//disable LVDS by outputting logic low to pin PB13
-	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+//	//enable LVDS by outputting logic high at pin PB13
+//	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
+//
+//	uint8_t configCommand = 0; //byte to be written to CONFIG register
+//	uint8_t dataIn[6] = {0};//data received from ade7912
+//	uint8_t dataOut[256] = {0}; //data to be sent through UART
+//	uint16_t dataOutLen = 256; //length of dataOut, in bytes
+//	uint32_t IWV_val = 0, V1WV_val = 0; //for storing data from IWV, V1WV registers of ade7912 respectively
+//	double voltageOffset_TH = 0, currentOffset_TH = 0; //THEORETICAL offsets
+//	double voltageMultiplier_TH = 1, currentMultiplier_TH = 1; //THEORETICAL multipliers
+//
+//	//calculate theoretical multipliers
+//	voltageMultiplier_TH = 0.5/(5320000*voltageToInputRatio);
+//	currentMultiplier_TH = 0.03125/(5320000*shuntResistance);
+//
+//	//disable write protection
+//	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, channelNumber);
+//
+//	//enable master ade7912 clock output by setting CLKOUT_EN = 1
+//	if(masterPSM){
+//		//disable write protection
+//		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, UNLOCK_COMMAND, masterPSM);
+//		readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+//		configCommand |= 1; //CLKOUT_EN = 1
+//	    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+//	}
+//
+//	//wake up slave ade7912
+//    readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
+//    configCommand &= (~(1<<2)); //PWRDWN_EN = 0
+//    writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
+//
+//    //read from selected ade7912
+//    for(uint8_t i = 0; i<50; i++){
+//        //wait for DREADY_n signal to go low before reading (pin PK2)
+//        while(HAL_GPIO_ReadPin(PSM->DreadyPort, PSM->DreadyPin) == GPIO_PIN_SET){
+//        } //TODO add something that will get us out of this loop if PK2 never reaches low
+//        //initiate burst-read mode by sending read instruction with address IWV, read 6 bytes
+//        readFromPSM(PSM, spiInterface, uartInterface, IWV, dataIn, 6, channelNumber);
+//        currentOffset_TH += (dataIn[0]<<16) + (dataIn[1]<<8) + dataIn[2]; //IWV value
+//        voltageOffset_TH += (dataIn[3]<<16) + (dataIn[4]<<8) + dataIn[5]; //V1WV value
+//    }
+//    //get averages of 50 IWV and V1WV measurements to get theoretical offsets
+//    voltageOffset_TH /= 50;
+//    currentOffset_TH /= 50;
+//
+//    //output offsets and multipliers through uart to serial monitor
+//    dataOutLen = (uint16_t)sprintf((char*)dataOut,
+//    		"CALIBRATE CHANNEL %d, V_in/V_out = %lf, shuntResistance = %lf Ohm\r\n"
+//    		"THEORETICAL voltageMultiplier = %lf\r\n"
+//    		"THEORETICAL currentMultiplier = %lf\r\n"
+//    		"THEORETICAL voltageOffset = %lf\r\n"
+//    		"THEORETICAL currentOffset = %lf\r\n",
+//			channelNumber,
+//			voltageToInputRatio,
+//			shuntResistance,
+//			voltageMultiplier_TH,
+//			currentMultiplier_TH,
+//			voltageOffset_TH,
+//			currentOffset_TH);
+//    HAL_UART_Transmit(uartInterface, dataOut, dataOutLen, MAX_UART_TRANSMIT_TIMEOUT);
+//
+//    //power down slave ade7912
+//    if (PWR_DWN_ENABLE){
+//        readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, channelNumber);
+//        configCommand |= (1<<2); //PWRDWN_EN = 1
+//        writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, channelNumber);
+//
+//    	//disable master ade7912 clock output by setting CLKOUT_EN = 0
+//        //power down master ade7912 as well by setting PWRDWN_EN = 1
+//    	readFromPSM(PSM, spiInterface, uartInterface, CONFIG, &configCommand, 1, masterPSM);
+//        configCommand &= (~1); //CLKOUT_EN = 0
+//        configCommand |= (1<<2); //PWRDWN_EN = 1
+//        writeOnePSM(PSM, spiInterface, uartInterface, CONFIG, configCommand, masterPSM);
+//    }
+//	//re-enable write-protection
+//	writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, channelNumber);
+//	if(masterPSM){
+//		writeOnePSM(PSM, spiInterface, uartInterface, LOCK_ADDRESS, LOCK_COMMAND, masterPSM);
+//	}
+//
+//	//disable LVDS by outputting logic low to pin PB13
+//	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 }
