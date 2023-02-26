@@ -1747,7 +1747,8 @@ void sendNewBMSRequest(){
 	BMS_Request[1] = BMS_requesting_from;
 	floatToArray((float) battery_current, BMS_Request + 4);
 
-	B_tcpSendToBMS(btcp_bms, BMS_Request, sizeof(BMS_Request));
+	//B_tcpSendToBMS(btcp_bms, BMS_Request, sizeof(BMS_Request));
+	B_tcpSend(btcp_bms, BMS_Request, sizeof(BMS_Request));
 }
 
 
