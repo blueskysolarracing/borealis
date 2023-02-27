@@ -17,9 +17,9 @@
 typedef struct Bms {
 
 	/* public */
-	void (*get_temperature)(struct Bms* this, float* temperatures, int bms_module_id, get_mode_t get_mode);
-	void (*get_voltage)(struct Bms* this, float* voltages, int bms_module_id, get_mode_t get_mode);
-	void (*get_state_of_charge)(struct Bms* this, float* state_of_charges, int bms_module_id);
+	bool (*get_temperature)(struct Bms* this, float* temperatures, uint8_t bms_module_id, get_mode_t get_mode);
+	bool (*get_voltage)(struct Bms* this, float* voltages, uint8_t bms_module_id, get_mode_t get_mode);
+	bool (*get_state_of_charge)(struct Bms* this, float* state_of_charges, uint8_t bms_module_id);
 	void (*set_current)(struct Bms* this, float current);
 
 	// Note: bms_module_id ranges from 0 - 5, each representing a physical battery module

@@ -80,9 +80,7 @@ void bms_module_init(
 	this->compute_soc = compute_soc;
 
 	this->_bms_module_id = bms_module_id;
-	this->_temperature_lock = xSemaphoreCreateMutex();
-	this->_voltage_lock = xSemaphoreCreateMutex();
-	this->_soc_lock = xSemaphoreCreateMutex();
+	this->_data_lock = xSemaphoreCreateMutex();
 
 	this->_spi_handle = spi_handle;
 	this->_spi_cs_port = spi_cs_port;
@@ -110,7 +108,7 @@ void bms_module_init(
 
 	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_CELLS; i++){
-		this->_tick_last_soc_compute[i] = HAL_GetTick();
+		this->_tick_last_soc_compute[i] = xTaskGetTickCount();
 		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
 	}
 
@@ -118,46 +116,41 @@ void bms_module_init(
 
 static void get_temperature(BmsModule* this, float* temperatures, get_mode_t get_mode)
 {
-	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
-			if (get_mode == GET_MOST_RECENT) {
-				temperatures[i] = this->_temperatures[i];
-			} else if (get_mode == GET_PAST_AVERAGE) {
-				temperatures[i] = sfq_get_avg(&this->past_temperatures[i]);
-			} else if (get_mode == GET_FILTERED_RESULT) {
-				// Can consider running past temperatures through Moving Average Filter, not necessary for now
-			}
+	vTaskSuspendAll();
+	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
+		if (get_mode == GET_MOST_RECENT) {
+			temperatures[i] = this->_temperatures[i];
+		} else if (get_mode == GET_PAST_AVERAGE) {
+			temperatures[i] = sfq_get_avg(&this->past_temperatures[i]);
+		} else if (get_mode == GET_FILTERED_RESULT) {
+			// Can consider running past temperatures through Moving Average Filter, not necessary for now
 		}
-
-		xSemaphoreGive(this->_temperature_lock);
 	}
+	xTaskResumeAll();
 }
 
 static void get_voltage(BmsModule* this, float* voltages, get_mode_t get_mode)
 {
-	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
-			if (get_mode == GET_MOST_RECENT) {
-				voltages[i] = this->_voltages[i];
-			} else if (get_mode == GET_PAST_AVERAGE) {
-				voltages[i] = sfq_get_avg(&this->past_voltages[i]);
-			} else if (get_mode == GET_FILTERED_RESULT) {
-				// Can consider running past voltages through Moving Average Filter, not necessary for now
-			}
+	vTaskSuspendAll();
+	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
+		if (get_mode == GET_MOST_RECENT) {
+			voltages[i] = this->_voltages[i];
+		} else if (get_mode == GET_PAST_AVERAGE) {
+			voltages[i] = sfq_get_avg(&this->past_voltages[i]);
+		} else if (get_mode == GET_FILTERED_RESULT) {
+			// Can consider running past voltages through Moving Average Filter, not necessary for now
 		}
-
-		xSemaphoreGive(this->_voltage_lock);
 	}
+	xTaskResumeAll();
 }
 
 static void get_state_of_charge(BmsModule* this, float* state_of_charges)
 {
-	if(xSemaphoreTake(this->_soc_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
-			state_of_charges[i] = this->_state_of_charges[i];
-		}
-		xSemaphoreGive(this->_soc_lock);
+	vTaskSuspendAll();
+	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
+		state_of_charges[i] = this->_state_of_charges[i];
 	}
+	xTaskResumeAll();
 }
 
 static void set_current(BmsModule* this, float current)
@@ -175,13 +168,13 @@ static void measure_temperature(BmsModule* this)
 	// The voltage needs to be converted to temperature
 	LTC6810Convert_to_temp(local_temp_array, local_temp_array);
 
-	if(xSemaphoreTake(this->_temperature_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
-			this->_temperatures[i] = local_temp_array[i];
-			sfq_push(&this->past_temperatures[i], local_temp_array[i]);
-		}
-		xSemaphoreGive(this->_temperature_lock);
+	vTaskSuspendAll();
+	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
+		this->_temperatures[i] = local_temp_array[i];
+		sfq_push(&this->past_temperatures[i], local_temp_array[i]);
 	}
+	xTaskResumeAll();
+
 }
 
 static void measure_voltage(BmsModule* this)
@@ -189,14 +182,12 @@ static void measure_voltage(BmsModule* this)
 	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
 	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
 
-	if(xSemaphoreTake(this->_voltage_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
-			this->_voltages[i] = local_voltage_array[i];
-			sfq_push(&this->past_voltages[i], local_voltage_array[i]);
-		}
-		xSemaphoreGive(this->_voltage_lock);
+	vTaskSuspendAll();
+	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
+		this->_voltages[i] = local_voltage_array[i];
+		sfq_push(&this->past_voltages[i], local_voltage_array[i]);
 	}
-
+	xTaskResumeAll();
 }
 
 static void compute_soc(BmsModule* this)
@@ -204,23 +195,22 @@ static void compute_soc(BmsModule* this)
 	float local_soc_array[BMS_MODULE_NUM_STATE_OF_CHARGES];
 
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++) {
-		uint32_t tick_now = HAL_GetTick();
+		uint32_t tick_now = xTaskGetTickCount();
 		this->_EKF_models[i].run_EKF(
 				&this->_EKF_models[i],
 				tick_now - this->_tick_last_soc_compute[i],
 				this->_current,
-				this->_voltages[i]
+				sfq_get_avg(&this->past_voltages[i])
 		);
 		local_soc_array[i] = this->_EKF_models[i].stateX[0];
 		this->_tick_last_soc_compute[i] = tick_now;
 	}
 
-	if(xSemaphoreTake(this->_soc_lock, portMAX_DELAY)){
-		for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
-			this->_state_of_charges[i] = local_soc_array[i];
-		}
-		xSemaphoreGive(this->_soc_lock);
+	vTaskSuspendAll();
+	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
+		this->_state_of_charges[i] = local_soc_array[i];
 	}
+	xTaskResumeAll();
 }
 
 static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {

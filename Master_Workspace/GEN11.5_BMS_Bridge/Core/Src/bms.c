@@ -8,9 +8,9 @@
 #include "bms.h"
 #include "main.h"
 
-static void get_temperature(Bms* this, float* temperatures, int bms_module_id, get_mode_t get_mode);
-static void get_voltage(Bms* this, float* voltages, int bms_module_id, get_mode_t get_mode);
-static void get_state_of_charge(Bms* this, float* state_of_charges, int bms_module_id);
+static bool get_temperature(Bms* this, float* temperatures, uint8_t bms_module_id, get_mode_t get_mode);
+static bool get_voltage(Bms* this, float* voltages, uint8_t bms_module_id, get_mode_t get_mode);
+static bool get_state_of_charge(Bms* this, float* state_of_charges, uint8_t bms_module_id);
 static void set_current(Bms* this, float current);
 static void run(Bms* this);
 static void run_thread(void* parameters);
@@ -38,19 +38,34 @@ void bms_init(
 }
 
 
-static void get_temperature(Bms* this, float* temperatures, int bms_module_id, get_mode_t get_mode)
+static bool get_temperature(Bms* this, float* temperatures, uint8_t bms_module_id, get_mode_t get_mode)
 {
-	this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperatures, get_mode);
+	if (bms_module_id < BMS_NUM_BMS_MODULES){
+		this->_bms_modules[bms_module_id].get_temperature(&this->_bms_modules[bms_module_id], temperatures, get_mode);
+		return true;
+	} else {
+		return false;
+	}
 }
 
-static void get_voltage(Bms* this, float* voltages, int bms_module_id, get_mode_t get_mode)
+static bool get_voltage(Bms* this, float* voltages, uint8_t bms_module_id, get_mode_t get_mode)
 {
-	this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltages, get_mode);
+	if (bms_module_id < BMS_NUM_BMS_MODULES){
+		this->_bms_modules[bms_module_id].get_voltage(&this->_bms_modules[bms_module_id], voltages, get_mode);
+		return true;
+	} else {
+		return false;
+	}
 }
 
-static void get_state_of_charge(Bms* this, float* state_of_charges, int bms_module_id)
+static bool get_state_of_charge(Bms* this, float* state_of_charges, uint8_t bms_module_id)
 {
-	this->_bms_modules[bms_module_id].get_state_of_charge(&this->_bms_modules[bms_module_id], state_of_charges);
+	if (bms_module_id < BMS_NUM_BMS_MODULES){
+		this->_bms_modules[bms_module_id].get_state_of_charge(&this->_bms_modules[bms_module_id], state_of_charges);
+		return true;
+	} else {
+		return false;
+	}
 }
 
 static void set_current(Bms* this, float current)
@@ -78,8 +93,10 @@ static void run(Bms* this)
 static void run_thread(void* parameters)
 {
 	Bms* this = (Bms*)parameters;
+	int i = 0;
 	while (1) {
 		measure_with_all_bms_modules(this);
+		i++;
 	}
 }
 

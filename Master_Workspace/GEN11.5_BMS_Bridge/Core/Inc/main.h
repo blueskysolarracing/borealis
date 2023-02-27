@@ -59,6 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LTC6820_CS_Pin GPIO_PIN_9
 #define LTC6820_CS_GPIO_Port GPIOC
+#define RS485_DE_Pin GPIO_PIN_5
+#define RS485_DE_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

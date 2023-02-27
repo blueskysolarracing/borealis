@@ -353,9 +353,13 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LTC6820_CS_GPIO_Port, LTC6820_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(RS485_DE_GPIO_Port, RS485_DE_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LTC6820_CS_Pin */
   GPIO_InitStruct.Pin = LTC6820_CS_Pin;
@@ -363,6 +367,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LTC6820_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : RS485_DE_Pin */
+  GPIO_InitStruct.Pin = RS485_DE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(RS485_DE_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -374,48 +385,52 @@ void serialParse(B_tcpPacket_t *pkt){
 		  if (pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) {
 
 			  // Update Current variable
-			  float current = arrayToFloat(pkt->data + 2);
+			  float current = arrayToFloat(pkt->data + 4);
 			  bms.set_current(&bms, current);
 
 			  int module_id = pkt->data[1];
 
 			  /* ================= SOC =================== */
 			  float state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
-			  bms.get_state_of_charge(&bms, state_of_charges, module_id);
-			  // Not sure which Module only has 4 cells, commented out for now, assuming they all have 5.
-			  // Module x has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
-			  // TODO: add fake values for modules missing one cell
-			  //if (module_id == X) state_of_charges[4] = 1.5;
+			  if (bms.get_state_of_charge(&bms, state_of_charges, module_id)) {
+				  // Not sure which Module only has 4 cells, commented out for now, assuming they all have 5.
+				  // Module x has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
+				  // TODO: add fake values for modules missing one cell
+				  //if (module_id == X) state_of_charges[4] = 1.5;
 
-			  // Pack state_of_charges into array of uint8_t to be sent to BBMB
-			  uint8_t buf_soc[4 + BMS_MODULE_NUM_STATE_OF_CHARGES*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
-			  buf_soc[0] = BMS_CELL_SOC_ID;
-			  buf_soc[1] = module_id;
-			  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
-				  floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
-			  B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+				  // Pack state_of_charges into array of uint8_t to be sent to BBMB
+				  uint8_t buf_soc[4 + BMS_MODULE_NUM_STATE_OF_CHARGES*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+				  buf_soc[0] = BMS_CELL_SOC_ID;
+				  buf_soc[1] = module_id;
+				  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
+					  floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
+				  B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+			  }
 
 
 			  /* =============== Temperature ================= */
 			  float temperatures[BMS_MODULE_NUM_TEMPERATURES];
-			  bms.get_temperature(&bms, temperatures, module_id, GET_PAST_AVERAGE);
-			  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
-			  buf_temp[0] = BMS_CELL_TEMP_ID;
-			  buf_temp[1] = module_id;
-			  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
-				  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
-			  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+			  if (bms.get_temperature(&bms, temperatures, module_id, GET_PAST_AVERAGE)) {
+				  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
+				  buf_temp[0] = BMS_CELL_TEMP_ID;
+				  buf_temp[1] = module_id;
+				  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
+					  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
+				  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+			  }
+
 
 			  /* =============== Voltage ====================== */
 			  float voltages[BMS_MODULE_NUM_VOLTAGES];
-			  bms.get_voltage(&bms, voltages, module_id, GET_PAST_AVERAGE);
-			  // TODO: add fake values for modules missing one cell
-			  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
-			  buf_volt[0] = BMS_CELL_VOLT_ID;
-			  buf_volt[1] = module_id;
-			  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
-				  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
-			  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
+			  if (bms.get_voltage(&bms, voltages, module_id, GET_PAST_AVERAGE)) {
+				  // TODO: add fake values for modules missing one cell
+				  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
+				  buf_volt[0] = BMS_CELL_VOLT_ID;
+				  buf_volt[1] = module_id;
+				  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
+					  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
+				  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
+			  }
 		  }
 		break;
 	}

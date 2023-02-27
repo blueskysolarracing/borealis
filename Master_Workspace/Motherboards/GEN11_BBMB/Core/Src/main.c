@@ -1711,7 +1711,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 	/*Used to request BMS readings. The rest is handled by serialParse.
 	*/
 
-	vTaskSuspendAll();
+	//vTaskSuspendAll();
 	//If all data from a BMS has been received, we are ready to read the next
 	if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
 		sendNewBMSRequest();
@@ -1724,7 +1724,7 @@ void BMSPeriodicReadHandler(TimerHandle_t xTimer){
 		sendNewBMSRequest();
 	}
 
-	xTaskResumeAll();
+	//xTaskResumeAll();
 }
 
 void dischargeTest(TimerHandle_t xTimer){

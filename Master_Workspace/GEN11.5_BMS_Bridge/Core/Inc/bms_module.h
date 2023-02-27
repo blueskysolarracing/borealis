@@ -65,9 +65,7 @@ typedef struct BmsModule {
 	float _current;
 	int _bms_module_id;
 
-	SemaphoreHandle_t _temperature_lock;
-	SemaphoreHandle_t _voltage_lock;
-	SemaphoreHandle_t _soc_lock;
+	SemaphoreHandle_t _data_lock;
 
 	SPI_HandleTypeDef* _spi_handle;
 	GPIO_TypeDef* _spi_cs_port;
