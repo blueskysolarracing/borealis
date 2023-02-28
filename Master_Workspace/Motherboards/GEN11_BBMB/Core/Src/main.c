@@ -1442,10 +1442,13 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				//Check for overtemperature for each cell and call routine when battery has faulted
 				for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){ //3 thermistors
-					float temperature = arrayToFloat( &(pkt->data[4 * i]) );
-					vTaskSuspendAll();
-					battery_temperatures[pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i - 1] = temperature;
-					xTaskResumeAll();
+					uint8_t j = pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i - 1;
+					if (j < NUM_BATT_TEMP_SENSORS) {
+						float temperature = arrayToFloat( &(pkt->data[4 * i]) );
+						vTaskSuspendAll();
+						battery_temperatures[j] = temperature;
+						xTaskResumeAll();
+					}
 				}
 
 			//BMS voltage
@@ -1458,10 +1461,13 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
 				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i ++){ //5 cells
-					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-					vTaskSuspendAll();
-					battery_cell_voltages[pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1] = voltage;
-					xTaskResumeAll();
+					uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
+					if (j < NUM_BATT_CELLS) {
+						float voltage = arrayToFloat( &(pkt->data[4 * i]) );
+						vTaskSuspendAll();
+						battery_cell_voltages[j] = voltage;
+						xTaskResumeAll();
+					}
 				}
 
 				//Update global for discharge test
