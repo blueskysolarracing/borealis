@@ -1,5 +1,5 @@
-#ifndef PSM_H__
-#define PSM_H__
+#ifndef NEW_PSM_H__
+#define NEW_PSM_H__
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,7 +24,7 @@
 #define SHUNT_TEMP_CAL  	0x3
 #define VSHUNT				0x4
 #define VBUS				0x5
-#define DIETEMP				0x5
+#define DIETEMP				0x6
 #define CURRENT				0x7
 #define POWER				0x8
 #define ENERGY				0x9
@@ -58,6 +58,8 @@
 #define TEMP_LIMIT_CONVERSION 					(7.8125 * 0.001)
 #define POWER_LIMIT_CONVERSION 					(256*POWER_CONVERSION)
 
+#define VOLTAGE_DIVIDER							((30000)/(30000 + 357000))
+
 struct PSM_P {
 	 SPI_HandleTypeDef* spi_handle;
 	 UART_HandleTypeDef* uart_handle;
@@ -67,6 +69,31 @@ struct PSM_P {
 
 	 GPIO_TypeDef* LVDSPort;
 	 uint16_t LVDSPin;
+};
+
+struct PSM_FIR_Filter {
+	//--- VARIABLES ---//
+	float* buf_voltage;
+	float* buf_current;
+
+	uint16_t buf_size; //Size of FIFO buffer
+	uint16_t live_buf_length_voltage; //Used for averaging (needed because buf will be initially empty)
+	uint16_t live_buf_length_current; //Used for averaging (needed because buf will be initially empty)
+	uint16_t live_index_voltage; //This tracks the location of the last added voltage
+	uint16_t live_index_current; //This tracks the location of the last added current
+
+	float avg_voltage; //Output of the filter
+	float avg_current; //Output of the filter
+
+	//--- API ---//
+	void (*push) (struct PSM_FIR_Filter* self, float new_value, uint8_t voltage_or_current);
+	float (*pop) (struct PSM_FIR_Filter* self, uint8_t voltage_or_current);
+	float (*get_average) (struct PSM_FIR_Filter* self, uint8_t voltage_or_current);
+};
+
+enum measurementType{
+	VOLTAGE_MEASUREMENT,
+	CURRENT_MEASUREMENT
 };
 
 //// Register: DIAG_ALRT
@@ -117,5 +144,10 @@ void set_bus_undervoltage_threshold(struct PSM_P* PSM, uint16_t voltage_threshol
 void set_power_limit_threshold(struct PSM_P* PSM, uint16_t power_threshold);
 void set_device_ID(struct PSM_P* PSM, uint16_t deviceID);
 
+// Filtering
+void PSM_FIR_Init(struct PSM_FIR_Filter* filter);
+float PSM_FIR_pop(struct PSM_FIR_Filter* filter, uint8_t voltage_or_current);
+void PSM_FIR_push(struct PSM_FIR_Filter* filter, float new_val, uint8_t voltage_or_current);
+float PSM_FIR_get_average(struct PSM_FIR_Filter* filter, uint8_t voltage_or_current);
 
 #endif

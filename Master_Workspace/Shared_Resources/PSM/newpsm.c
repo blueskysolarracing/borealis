@@ -1,6 +1,5 @@
 #include "newpsm.h"
 
-
 void PSM_init(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTypeDef* uart_handle){
 
 	PSM->spi_handle = spi_handle;
@@ -58,9 +57,9 @@ void resetPSM(struct PSM_P * PSM){
 	// not implemented, for device reset
 }
 
-
 float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 
+	HAL_Delay(1);
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
@@ -230,5 +229,97 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 
+}
+
+// FIR FILTER IMPLEMENTATION
+
+float PSM_FIR_get_average(struct PSM_FIR_Filter* filter, uint8_t voltage_or_current){
+	if (voltage_or_current == VOLTAGE_MEASUREMENT){
+		if (filter->live_buf_length_voltage == 0) return 0; //If no data has been added to the buffer
+
+		float accumulator = 0;
+
+		for (int i = 0; i < filter->live_buf_length_voltage; i++){
+			accumulator += filter->buf_voltage[i];
+		}
+
+		float average = accumulator / filter->live_buf_length_voltage;
+		filter->avg_voltage = average;
+		return average;
+
+	} else if (voltage_or_current == CURRENT_MEASUREMENT) {
+
+		float accumulator = 0;
+
+		for (int i = 0; i < filter->live_buf_length_current; i++){
+			accumulator += filter->buf_current[i];
+		}
+
+		float average = accumulator / filter->live_buf_length_current;
+		filter->avg_current = average;
+		return average;
+	}
+}
+
+float PSM_FIR_pop(struct PSM_FIR_Filter* filter, uint8_t voltage_or_current){
+	if (voltage_or_current == VOLTAGE_MEASUREMENT){
+		if (filter->live_buf_length_voltage == 0) return 0; //If empty
+
+		if (filter->live_index_voltage == 0){ //Wrap around if the last added value is at index 0
+			filter->live_index_voltage = filter->buf_size - 1;
+			return filter->buf_voltage[0];
+		} else {
+			filter->live_index_voltage--;
+			return filter->buf_voltage[filter->live_index_voltage + 1];
+		}
+
+	} else if (voltage_or_current == CURRENT_MEASUREMENT) {
+		if (filter->live_buf_length_current == 0) return 0; //If empty
+
+		if (filter->live_index_current == 0){ //Wrap around if the last added value is at index 0
+			filter->live_index_current = filter->buf_size - 1;
+			return filter->buf_current[0];
+		} else {
+			filter->live_index_current--;
+			return filter->buf_voltage[filter->live_index_current + 1];
+		}
+	}
+}
+
+void PSM_FIR_push(struct PSM_FIR_Filter* filter, float new_val, uint8_t voltage_or_current){
+	if (voltage_or_current == VOLTAGE_MEASUREMENT){
+		 //Tracks live content as buffer fills up after startup
+		if (filter->live_buf_length_voltage < filter->buf_size) filter->live_buf_length_voltage++;
+
+		 //Wrap around circular buffer
+		if (filter->live_index_voltage == filter->buf_size - 1)	filter->live_index_voltage = 0;
+		else filter->live_index_voltage++;
+
+		//Add new value
+		filter->buf_voltage[filter->live_index_voltage] = new_val;
+
+	} else if (voltage_or_current == CURRENT){
+		 //Tracks live content as buffer fills up after startup
+		if (filter->live_buf_length_current < filter->buf_size) filter->live_buf_length_current++;
+
+		 //Wrap around circular buffer
+		if (filter->live_index_current == filter->buf_size - 1)	filter->live_index_current = 0;
+		else filter->live_index_current++;
+
+		//Add new value
+		filter->buf_current[filter->live_index_current] = new_val;
+	}
+}
+
+void PSM_FIR_Init(struct PSM_FIR_Filter* filter){
+	filter->get_average = PSM_FIR_get_average;
+	filter->pop = PSM_FIR_pop;
+	filter->push = PSM_FIR_push;
+
+	filter->live_index_voltage = 0;
+	filter->live_index_current = 0;
+
+	filter->live_buf_length_voltage = 0;
+	filter->live_buf_length_current = 0;
 }
 
