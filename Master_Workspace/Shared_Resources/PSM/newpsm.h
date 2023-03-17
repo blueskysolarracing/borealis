@@ -40,7 +40,7 @@
 #define DEVICE_ID			0x3F
 
 // Design constants
-#define MAX_CURRENT 60
+#define MAX_CURRENT 50
 #define SHUNT_RESISTANCE 0.002
 
 // Conversion Factors
@@ -58,7 +58,9 @@
 #define TEMP_LIMIT_CONVERSION 					(7.8125 * 0.001)
 #define POWER_LIMIT_CONVERSION 					(256*POWER_CONVERSION)
 
-#define VOLTAGE_DIVIDER							((30000)/(30000 + 357000))
+#define VOLTAGE_DIVIDER							(((double)30000.0)/(double)(30000.0 + 357000.0))
+#define CURRENT_ERROR_MULTIPLIER				((double)(-0.1448))
+#define CURRENT_ERROR_OFFSET					((double)(0.0714))
 
 struct PSM_P {
 	 SPI_HandleTypeDef* spi_handle;
@@ -131,6 +133,7 @@ void resetPSM(struct PSM_P * PSM);
 
 // Function used for initial testing (reading and writing to registers)
 void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTypeDef* uart_handle);
+void test_read(struct PSM_P* PSM);
 
 // Read Data
 float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes);
