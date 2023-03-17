@@ -24,7 +24,8 @@ void config_PSM(struct PSM_P* PSM){
 
 	uint8_t config_buffer[3] = {(CONFIG << 2), 0b00000000, 0b01000000};
 	uint8_t adc_config_buffer[3] = {(ADC_CONFIG << 2), 0b10111001, 0b00100010};
-	uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001011, 0b10111000}; // Max current set as 60A
+	uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001001, 0b11000100}; // Max current set as 50A
+	//uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001011, 0b10111000}; // Max current set as 60A
 
 	char errorMessage[64];
 	uint8_t errorMessageLength;
@@ -55,19 +56,39 @@ void config_PSM(struct PSM_P* PSM){
 
 void resetPSM(struct PSM_P * PSM){
 	// not implemented, for device reset
+	HAL_Delay(0);
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
+
+	uint8_t buffer[3] = {0x0, 0b10000000, 0b00000000}; // Device Reset Settings
+	if (HAL_SPI_Transmit(PSM->spi_handle, buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
+		//data could not be written! transmit some error message to the computer
+		while(1){
+			// just idle here
+		}
+	}
+
+	HAL_Delay(0);
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+
 }
 
 float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 
-	HAL_Delay(1);
+	HAL_Delay(0);
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t reg_addr[1] = {((addr << 2) + 1)};
 	uint8_t buffer[numBytes];
 
+	for(uint8_t i = 0; i < numBytes; i++){
+		buffer[i] = 0;
+	}
+
 	if (HAL_SPI_Transmit(PSM->spi_handle, reg_addr, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
-		HAL_SPI_Receive(PSM->spi_handle, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
+		HAL_SPI_Receive(PSM->spi_handle, buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 	}
 
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
@@ -89,11 +110,11 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 	float result;
 	switch(addr){
 		case VBUS:
-			result = (raw_data >> 4) * VBUS_CONVERSION;
+			result = (raw_data >> 4) * VBUS_CONVERSION / VOLTAGE_DIVIDER;
 			break;
 
 		case CURRENT:
-			result = CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4);
+			result = (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4)) * (1-CURRENT_ERROR_MULTIPLIER) - CURRENT_ERROR_OFFSET;
 			break;
 
 		case POWER:
@@ -170,20 +191,18 @@ void set_device_ID(struct PSM_P* PSM, uint16_t deviceID){
 }
 
 
-// Test function
+// Test function to confirm config settings
 void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTypeDef* uart_handle){
-	// Test that I can read and write to registers
 
 	PSM->spi_handle = spi_handle;
 	PSM->uart_handle = uart_handle;
 
-	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(PSM->CSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 
 	// config register
 	uint8_t spi_frame[3] = {0x0, 0b00000000, 0b01000000}; // default settings for config register
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
+	//HAL_Delay(0);
 
 	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
 		//data could not be written! transmit some error message to the computer
@@ -205,6 +224,7 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 			// just idle here
 		}
 	}
+
 	spi_frame1[0]++;
 	uint8_t readbuf2[2];
 	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame1, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK) {
@@ -298,7 +318,7 @@ void PSM_FIR_push(struct PSM_FIR_Filter* filter, float new_val, uint8_t voltage_
 		//Add new value
 		filter->buf_voltage[filter->live_index_voltage] = new_val;
 
-	} else if (voltage_or_current == CURRENT){
+	} else if (voltage_or_current == CURRENT_MEASUREMENT){
 		 //Tracks live content as buffer fills up after startup
 		if (filter->live_buf_length_current < filter->buf_size) filter->live_buf_length_current++;
 

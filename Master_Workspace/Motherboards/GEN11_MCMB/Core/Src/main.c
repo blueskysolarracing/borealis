@@ -287,7 +287,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Resevt of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -387,12 +387,11 @@ int main(void)
   PSM_init(&psmPeriph, &hspi2, &huart2);
   PSM_FIR_Init(&psmFilter);
 
+  //test_config(&psmPeriph, &hspi2, &huart2);
+
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   psmFilter.buf_current = PSM_FIR_HV_Current;
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
-
-  test_config(&psmPeriph, &hspi2, &huart2);
-
 
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
@@ -943,9 +942,9 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -2296,8 +2295,10 @@ void measurementSender(TimerHandle_t xTimer){
 
 	//Get HV average
 	vTaskSuspendAll();
+
 	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
 	float HV_current = psmFilter.get_average(&psmFilter, CURRENT_MEASUREMENT);
+
 	xTaskResumeAll();
 
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
