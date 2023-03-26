@@ -27,7 +27,7 @@
 #include "h7Boot.h"
 #include "buart.h"
 #include "btcp.h"
-#include "psm.h"
+#include "newpsm.h"
 #include "protocol_ids.h"
 #include "math.h"
 #include "mitsuba_motor.h"
@@ -107,10 +107,11 @@ SRAM_HandleTypeDef hsram4;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+
 //--- PSM ---//
-struct PSM_Peripheral psmPeriph;
-double voltageCurrent_Motor[2] = {0, 0};
-double voltageCurrent_Supp[2] = {0, 0};
+struct PSM_P psmPeriph;
+//double voltageCurrent_Motor[2] = {0, 0};
+//double voltageCurrent_Supp[2] = {0, 0};
 
 struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB] = {0};
@@ -137,7 +138,7 @@ typedef enum {
 
 enum motorPowerState {
 	ECO,
-	POWER
+	POWER_STATE
 };
 
 MOTORSTATE motorState; //see below for description
@@ -369,36 +370,32 @@ int main(void)
 
   //Gen11 regen write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(255, GPIOG, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //
 //  //Gen11 accel write below:
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(200, GPIOK, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 
   //--- PSM ---//
-  psmPeriph.CSPin0 = PSM_CS_0_Pin;
-  psmPeriph.CSPin1 = PSM_CS_1_Pin;
-  psmPeriph.CSPin2 = PSM_CS_2_Pin;
-  psmPeriph.CSPin3 = PSM_CS_3_Pin;
-
-  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
-
-  psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+  psmPeriph.CSPin = PSM_CS_0_Pin;
+  psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+  psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
 
-  psmPeriph.DreadyPin = PSM_DReady_Pin;
-  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+  PSM_init(&psmPeriph, &hspi2, &huart2);
+  PSM_FIR_Init(&psmFilter);
 
-  PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
-  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
-  psmFilter.buf_current = PSM_FIR_HV_Current;
+  //test_config(&psmPeriph, &hspi2, &huart2);
+
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
+  psmFilter.buf_current = PSM_FIR_HV_Current;
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
 
-  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
-	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
-  }
+//  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
+//	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+//  }
 
   //--- FREERTOS ---//
   xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
@@ -945,7 +942,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
   hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
@@ -2270,17 +2267,21 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 //	}
 //}
 
-void PSMTaskHandler(void* parameters){
+void PSMTaskHandler(void * parameters){
 
-	double HV_data[2];
+	float voltage, current;
+
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB));
-	while (1) {
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data, 2);
+
+	while (1){
+
+		voltage = readPSM(&psmPeriph, VBUS, 3);
+		current = readPSM(&psmPeriph, CURRENT, 3);
 
 		vTaskSuspendAll();
 
-		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
-		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
+		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
+		psmFilter.push(&psmFilter, (float) current, CURRENT_MEASUREMENT);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -2294,8 +2295,10 @@ void measurementSender(TimerHandle_t xTimer){
 
 	//Get HV average
 	vTaskSuspendAll();
-	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
-	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
+	float HV_current = psmFilter.get_average(&psmFilter, CURRENT_MEASUREMENT);
+
 	xTaskResumeAll();
 
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics

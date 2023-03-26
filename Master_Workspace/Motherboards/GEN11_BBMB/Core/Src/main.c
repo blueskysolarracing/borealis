@@ -26,7 +26,7 @@
 #include "btcp.h"
 #include "protocol_ids.h"
 #include "bmisc.h"
-#include "psm.h"
+#include "newpsm.h"
 #include "h7Boot.h"
 #include "TMC5160_driver.h"
 #include "lights.h"
@@ -111,10 +111,10 @@ QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
 
 //--- PSM ---//
-struct PSM_Peripheral psmPeriph;
+struct PSM_P psmPeriph;
 float battery_current;
-double voltageCurrent_LV[2] = {0};
-double voltageCurrent_HV[2] = {0};
+//double voltageCurrent_LV[2] = {0};
+//double voltageCurrent_HV[2] = {0};
 
 struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
@@ -227,35 +227,25 @@ int main(void)
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
   //--- PSM ---//
-  psmPeriph.CSPin0 = PSM_CS_0_Pin;
-  psmPeriph.CSPin1 = PSM_CS_1_Pin;
-  psmPeriph.CSPin2 = PSM_CS_2_Pin;
-  psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
-
+  psmPeriph.CSPin = PSM_CS_0_Pin;
+  psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
 
-  psmPeriph.DreadyPin = PSM_DReady_Pin;
-  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+  PSM_init(&psmPeriph, &hspi2, &huart2);
+  PSM_FIR_Init(&psmFilter);
 
-  PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
-  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
-  psmFilter.buf_current = PSM_FIR_HV_Current;
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
+  psmFilter.buf_current = PSM_FIR_HV_Current;
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_BBMB;
+//  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
+//	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+//  }
 
-  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
-	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
-  }
-
-  double PSM_data[2];
-  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSM_data, 2);
-  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_data, 2);
+//  double PSM_data[2];
+//  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSM_data, 2);
+//  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_data, 2);
 
   //--- RDB ---//
   relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
@@ -1598,16 +1588,20 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 void PSMTaskHandler(void * parameters){
-	double HV_data[2];
+
+	double voltage, current;
+
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
 
 	while (1){
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
+
+		voltage = readPSM(&psmPeriph, VBUS, 3);
+		current = readPSM(&psmPeriph, CURRENT, 3);
 
 		vTaskSuspendAll();
 
-		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
-		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
+		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
+		psmFilter.push(&psmFilter, (float) current, CURRENT_MEASUREMENT);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -1622,8 +1616,8 @@ void measurementSender(void* p){
 
 		//Get HV average
 		vTaskSuspendAll();
-		float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
-		float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+		float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
+		float HV_current = psmFilter.get_average(&psmFilter, CURRENT_MEASUREMENT);
 
 		//Update battery pack current global variable (used for BMS communication)
 		battery_current = HV_current;
