@@ -651,6 +651,7 @@
 ////read temperature from a specified PSM channel
 ////casts temperature value from int16_t to two uint8_t for UART transmission, MAKE SURE TO RECAST THE RECEIVED TEMPERATURE VALUE BACK TO SIGNED 16-BIT INTEGER BEFORE USE
 //void PSMReadTemperature(struct PSM_Peripheral* PSM, SPI_HandleTypeDef* spiInterface, UART_HandleTypeDef* uartInterface, uint8_t masterPSM){
+
 //	//enable LVDS by outputting logic high at pin PB13
 //	HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_12, GPIO_PIN_SET);
 //
@@ -806,3 +807,4 @@
 //	//disable LVDS by outputting logic low to pin PB13
 //	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 //}
+

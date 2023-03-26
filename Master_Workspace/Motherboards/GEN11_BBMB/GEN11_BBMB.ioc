@@ -1,7 +1,8 @@
 #MicroXplorer Configuration settings - do not modify
-CRC.IPParameters=InputDataInversionMode,OutputDataInversionMode
-CRC.InputDataInversionMode=CRC_INPUTDATA_INVERSION_BYTE
-CRC.OutputDataInversionMode=CRC_OUTPUTDATA_INVERSION_ENABLE
+CRC.IPParameters=InputDataInversionMode,OutputDataInversionMode,InputDataFormat
+CRC.InputDataFormat=CRC_INPUTDATA_FORMAT_WORDS
+CRC.InputDataInversionMode=CRC_INPUTDATA_INVERSION_NONE
+CRC.OutputDataInversionMode=CRC_OUTPUTDATA_INVERSION_DISABLE
 Dma.Request0=SPI2_RX
 Dma.Request1=SPI2_TX
 Dma.Request2=UART4_RX

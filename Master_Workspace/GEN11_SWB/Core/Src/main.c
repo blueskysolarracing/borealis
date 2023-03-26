@@ -34,6 +34,11 @@
 /* USER CODE BEGIN PD */
 #define BSSR_SERIAL_START 0xa5
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
+#define ADC_NUM_AVG 30.0 // Number of times to loop to get average ADC value
+#define REGEN_IDLE_VAL 52.0
+#define REGEN_MAX_VAL 115.0
+#define REGEN_NEW_MAX 255
+//#define USE_ADC_REGEN
 
 /* USER CODE END PD */
 
@@ -43,6 +48,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart4;
@@ -57,6 +64,7 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART4_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 //static void switchStateTask(void const* pv);
 
@@ -168,9 +176,11 @@ int main(void)
   MX_I2C1_Init();
   MX_UART4_Init();
   MX_USART2_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   uint8_t oldSwitchState[3] = {0, 0, 0};
   uint8_t newSwitchState[3] = {0, 0, 0};
+  uint8_t oldRegenValue = 0;
 
   /* USER CODE END 2 */
 
@@ -183,9 +193,36 @@ int main(void)
 	newSwitchState[0] = getSwitchState(0);
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
+	uint8_t newRegenValue = 0;
+	float regenTotalReading = 0;
 
-	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2])){ //If any bit has changed, send data
-		uint8_t buf[6] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], 0x00}; //last byte could be used for CRC (optional)
+#ifdef USE_ADC_REGEN
+	for (int i = 0; i < ADC_NUM_AVG; i++){
+		HAL_ADC_Start(&hadc1);
+		if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){
+			float currRegenValue = HAL_ADC_GetValue(&hadc1);
+			regenTotalReading += currRegenValue;
+		}
+	}
+
+	newRegenValue = (uint8_t)(regenTotalReading/ADC_NUM_AVG);
+#endif
+
+	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
+
+		//Map regen range from 52-115 to 0-255
+		uint8_t mappedRegenValue = 0;
+#ifdef USE_ADC_REGEN
+		if (newRegenValue > REGEN_IDLE_VAL){
+			if (newRegenValue >= REGEN_MAX_VAL){
+				mappedRegenValue = REGEN_NEW_MAX;
+			} else {
+				float mappingRatio = (newRegenValue - REGEN_IDLE_VAL)/(REGEN_MAX_VAL - REGEN_IDLE_VAL);
+				mappedRegenValue = (uint8_t)(mappingRatio * REGEN_NEW_MAX);
+			}
+		}
+#endif
+		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, 0x00}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
@@ -201,8 +238,9 @@ int main(void)
 
 	//Update switch state
 	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
+	oldRegenValue = newRegenValue;
 
-	HAL_Delay(5); //Wait for 5ms; could be replaced with power down sleep
+	HAL_Delay(15); //Wait for 15ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
@@ -247,6 +285,70 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_MultiModeTypeDef multimode = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_8B;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure the ADC multi-mode
+  */
+  multimode.Mode = ADC_MODE_INDEPENDENT;
+  if (HAL_ADCEx_MultiModeConfigChannel(&hadc1, &multimode) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_10;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -403,12 +505,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA4 PA5 PA6 PA7
-                           PA8 PA9 PA10 PA11
-                           PA12 PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
-                          |GPIO_PIN_12|GPIO_PIN_15;
+  /*Configure GPIO pins : PA4 PA6 PA7 PA8
+                           PA9 PA10 PA11 PA12
+                           PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
+                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
+                          |GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);

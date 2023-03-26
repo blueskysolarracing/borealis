@@ -109,9 +109,9 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 
 //--- PSM ---//
-struct PSM_P psmPeriph;
-//double voltageCurrent_Motor[2] = {0, 0};
-//double voltageCurrent_Supp[2] = {0, 0};
+struct PSM_Peripheral psmPeriph;
+double voltageCurrent_Motor[2] = {0, 0};
+double voltageCurrent_Supp[2] = {0, 0};
 
 struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB] = {0};
@@ -393,6 +393,12 @@ int main(void)
 
   test_config(&psmPeriph, &hspi2, &huart2);
 
+
+  PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
+  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
+  psmFilter.buf_current = PSM_FIR_HV_Current;
+  psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
 
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
@@ -2268,21 +2274,18 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 //	}
 //}
 
-void PSMTaskHandler(void * parameters){
 
-	float voltage, current;
+void PSMTaskHandler(void* parameters){
 
+	double HV_data[2];
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB));
-
-	while (1){
-
-		voltage = readPSM(&psmPeriph, VBUS, 3);
-		current = readPSM(&psmPeriph, CURRENT, 3);
+	while (1) {
+		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data, 2);
 
 		vTaskSuspendAll();
 
-		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
-		psmFilter.push(&psmFilter, (float) current, CURRENT_MEASUREMENT);
+		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
+		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -2296,8 +2299,9 @@ void measurementSender(TimerHandle_t xTimer){
 
 	//Get HV average
 	vTaskSuspendAll();
-	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
-	float HV_current = psmFilter.get_average(&psmFilter, CURRENT_MEASUREMENT);
+
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
+	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
 	xTaskResumeAll();
 
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics

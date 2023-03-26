@@ -144,24 +144,6 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles EXTI line 4 to 15 interrupts.
-  */
-void EXTI4_15_IRQHandler(void)
-{
-  /* USER CODE BEGIN EXTI4_15_IRQn 0 */
-
-  /* USER CODE END EXTI4_15_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(FLT4_Pin);
-  HAL_GPIO_EXTI_IRQHandler(FLT3_Pin);
-  HAL_GPIO_EXTI_IRQHandler(FLT2_Pin);
-  HAL_GPIO_EXTI_IRQHandler(FLT1_Pin);
-  HAL_GPIO_EXTI_IRQHandler(FLT5_Pin);
-  /* USER CODE BEGIN EXTI4_15_IRQn 1 */
-
-  /* USER CODE END EXTI4_15_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 channel 4, channel 5, channel 6 and channel 7 interrupts.
   */
 void DMA1_Channel4_5_6_7_IRQHandler(void)
