@@ -32,32 +32,35 @@ void config_uMPPT(struct board_param* board){
 	for (int i = 0; i < NUM_UMPPT; i++){
 		HAL_TIM_PWM_Start(board->PWM_TIM[i], board->PWM_CHANNEL[i]);
 	}
+
+	for(int i = 0; i < 4; i++){
+		HAL_GPIO_WritePin(board->CS_Ports[i], board->CS_Pins[i], GPIO_PIN_SET);
+	}
 }
 
-uint16_t uMPPT_SPIread_ADC(uint8_t uMPPT_ID, struct board_param* board){
-	/*! \brief Returns raw reading from specified uMPPT number and, optionally, print it to UART port
-	 *
-	 */
-	uint16_t voltageBuffer[1];
+float SPI_readADC(uint8_t uMPPT_ID, struct board_param* board){
+
+	uint8_t voltageBuffer[2] = {0,0};
+
 	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_RESET);
 
+	//HAL_SPI_Transmit(board->hspi_handle, (uint8_t*)&voltageBuffer, 1, MAX_SPI_TIMEOUT);
 	if(HAL_SPI_Receive(board->hspi_handle, voltageBuffer, 1, MAX_SPI_TIMEOUT) == HAL_OK){
-		//Print to serial port if enabled
-		if (ADC_DEBUG_FLAG){
-			char string[100] = {0};
-			sprintf(string, "ADC reading for CH %d: %f\n", uMPPT_ID, voltageBuffer);
+
+		if(ADC_DEBUG_FLAG){
+			char string[100];
+			sprintf(string, "ADC reading for CH %d: 0x%x%x\n", uMPPT_ID, voltageBuffer[0], voltageBuffer[1]);
 			HAL_UART_Transmit(board->huart_handle, (uint8_t *) string, strlen(string), 10);
 		}
 	}
-	else{
-		// error message
-	}
-	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_SET);
 
-	return voltageBuffer[0];
+	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_SET);
+	uint16_t raw_voltage = (voltageBuffer[0] << 8) | (voltageBuffer[1]);
+
+	return (float) (raw_voltage / 8192.0);
 }
 
-float uMPPT_readADC_STM(uint32_t CH, struct board_param* board){
+float STM_readADC(uint32_t CH, struct board_param* board){
 
 	float ADC_Value = 0;
 
@@ -104,7 +107,7 @@ void update_MPP_IncCond(struct board_param *board, struct uMPPT *target_uMPPT){
 
 		//Update uMPPT current
 		for (int i = 0; i < NUM_AVG_CURRENT; i++){
-			raw_ADC += uMPPT_read_ADC(board->ADC_CH[3], board); //Measure output current
+			raw_ADC += STM_readADC(board->ADC_CH[3], board); //Measure output current
 		}
 
 		raw_ADC /= NUM_AVG_CURRENT;
@@ -113,7 +116,7 @@ void update_MPP_IncCond(struct board_param *board, struct uMPPT *target_uMPPT){
 		target_uMPPT->calc_input_current = board->I_Out * target_uMPPT->pwm_duty_cycle;
 
 		//Update uMPPT voltage (double check the pwm_num matches)
-		raw_ADC = uMPPT_SPIread_ADC(board->ADC_CH[target_uMPPT->pwm_num], board);
+		raw_ADC = SPI_readADC(board->ADC_CH[target_uMPPT->pwm_num], board);
 		target_uMPPT->prev_input_voltage = target_uMPPT->input_voltage;
 		target_uMPPT->input_voltage = (raw_ADC / 4095.0) * 2.0 * VDDA;
 
@@ -204,7 +207,7 @@ void update_MPP_HillClimb(struct board_param *board, struct uMPPT *target_uMPPT)
 
 		//Update uMPPT current
 		for (int i = 0; i < NUM_AVG_CURRENT; i++){
-			raw_ADC += uMPPT_read_ADC(board->ADC_CH[6], board); //Measure output current
+			raw_ADC += STM_readADC(board->ADC_CH[2], board); //Measure output current
 		}
 
 		raw_ADC /= NUM_AVG_CURRENT;
@@ -213,7 +216,8 @@ void update_MPP_HillClimb(struct board_param *board, struct uMPPT *target_uMPPT)
 		target_uMPPT->calc_input_current = board->I_Out * target_uMPPT->pwm_duty_cycle;
 
 		//Update uMPPT voltage
-		raw_ADC = uMPPT_SPIread_ADC(board->ADC_CH[target_uMPPT->pwm_num], board);
+		raw_ADC = SPI_readADC(target_uMPPT->pwm_num, board);
+
 		target_uMPPT->prev_input_voltage = target_uMPPT->input_voltage;
 		target_uMPPT->input_voltage = (raw_ADC / 4095.0) * 2.0 * VDDA;
 

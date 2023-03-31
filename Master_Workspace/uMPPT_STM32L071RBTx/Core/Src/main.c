@@ -57,7 +57,7 @@ DMA_HandleTypeDef hdma_usart2_rx;
 //----- VARIABLE INIT -----//
 //--- ADC VARIABLES ---//
 ADC_ChannelConfTypeDef sConfig_ADC;
-uint32_t ADC_CH_list[7] = {ADC_CHANNEL_4, ADC_CHANNEL_9, ADC_CHANNEL_8}; //ADC CH of CH1, output voltage and current
+uint32_t ADC_CH_list[3] = {ADC_CHANNEL_4, ADC_CHANNEL_9, ADC_CHANNEL_8}; //ADC CH of CH1, output voltage and current
 
 //--- PWM VARIABLES ---//
 uint32_t PWM_CHANNEL_list[5] = {TIM_CHANNEL_1, TIM_CHANNEL_1, TIM_CHANNEL_4, TIM_CHANNEL_3, TIM_CHANNEL_3};
@@ -165,7 +165,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   //Configure uMPPT
-  /////////////////////////////////////////////////// edit this
+
   board.CS_Pins = CS_Pins_list;
   board.CS_Ports = CS_Ports_list;
   board.MCU_OK_LED_TIM = &htim6;
@@ -199,28 +199,38 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-while (1){
-//	for (int i = 0; i < NUM_UMPPT; i++){
-//		update_MPP_HillClimb(&board, board.uMPPT_list[i]);
-//	}
-//	float raw_ADC;
-//	char print_str[50];
+	while (1){
+	//	for (int i = 0; i < NUM_UMPPT; i++){
+	//		update_MPP_HillClimb(&board, board.uMPPT_list[i]);
+	//	}
+	//	float raw_ADC;
+		//char print_str[50];
 
-//	for (int i = 0; i < NUM_AVG_CURRENT; i++){
-//		raw_ADC += uMPPT_read_ADC(ADC_CH_list[6], &board); //Measure output current
-//	}
+	//	for (int i = 0; i < NUM_AVG_CURRENT; i++){
+	//		raw_ADC += uMPPT_read_ADC(ADC_CH_list[6], &board); //Measure output current
+	//	}
 
-//	raw_ADC /= NUM_AVG_CURRENT;
-//	raw_ADC = (((raw_ADC / 4095.0) * VDDA) - I_MEAS_OFFSET) / I_SENSE_AMP_RATIO / I_SHUNT_VALUE;
-//	sprintf(print_str, "Output current: %fA\n", raw_ADC);
-//	HAL_UART_Transmit(board.huart_handle, (uint8_t *) print_str, strlen(print_str), 10);
 
-	HAL_Delay(DELAY_BT_MPPT/2);
+	//	raw_ADC /= NUM_AVG_CURRENT;
+	//	raw_ADC = (((raw_ADC / 4095.0) * VDDA) - I_MEAS_OFFSET) / I_SENSE_AMP_RATIO / I_SHUNT_VALUE;
+	//	sprintf(print_str, "Output current: %fA\n", raw_ADC);
+	//	HAL_UART_Transmit(board.huart_handle, (uint8_t *) print_str, strlen(print_str), 10);
+
+		//float adc_test = SPI_readADC(0, &board);
+		//HAL_Delay(100);
+		float adc_test2 = SPI_readADC(1, &board);
+		HAL_Delay(100);
+		//float adc_test3 = SPI_readADC(2, &board);
+		//HAL_Delay(100);
+		//sprintf(print_str, "Test Reading: %f\n", adc_test);
+		//HAL_UART_Transmit(board.huart_handle, (uint8_t *) print_str, sizeof(print_str), 10);
+
+		//HAL_Delay(DELAY_BT_MPPT/2);
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	  }
   /* USER CODE END 3 */
 }
 
@@ -364,12 +374,12 @@ static void MX_SPI1_Init(void)
   /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -680,7 +690,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, ADC_CS_PV2_Pin|ADC_CS_PV3_Pin|ADC_CS_PV4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, ADC_CS_PV5_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(ADC_CS_PV5_GPIO_Port, ADC_CS_PV5_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0
                            PC1 PC2 PC3 PC4
@@ -692,10 +702,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA1 PA7 PA8 PA9
-                           PA10 PA11 PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_15;
+  /*Configure GPIO pins : PA1 PA8 PA9 PA10
+                           PA11 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -741,6 +751,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	/*! \brief Check which version of the timer triggered this callback and update LED
 	 *
@@ -909,6 +921,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 	return;
 }
+
 /* USER CODE END 4 */
 
 /**
