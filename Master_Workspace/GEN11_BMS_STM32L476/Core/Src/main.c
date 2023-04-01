@@ -39,9 +39,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 // -------------- NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING --------------//
-#define MY_ID 0 //ID of this BMS (needed to determine if BBMB is talking to me or another BMS). Starts at 0.
-//BMS with 4 cells is ID 0. This is needed to send a fake nominal voltage of 3.7V to BBMB so as to not trip the system.
-
+#define THIS_MODULE_ID 0
 // ^^^^^^^^^^^^^^ NEED TO UPDATE FOR EVERY BMS BEFORE FLASHING ^^^^^^^^^^^^^^//
 
 #define NUM_CELLS 5 //have to make sure is the same as NUM_14P_UNITS in batteryEKF.h
@@ -55,8 +53,6 @@
 #define LTC6810_INTERVAL 100 //Interval of reading LTC6810 measurements
 
 #define PWR_EN_HACK 1 //Hack where the gate of Q3 is connected to 12V to only turn on Q2 when 12V is present. Also, EN_PWR is set as an input instead of output as it should.
-#define THIS_MODULE_ID 0
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -567,7 +563,9 @@ void serialParse(B_tcpPacket_t *pkt){
 					  buf_soc[1] = module_id;
 					  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
 						  floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
-					  B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+					  HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+					  B_tcpSendBlocking(btcp, buf_soc, sizeof(buf_soc));
+					  HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 				  }
 
 
@@ -579,7 +577,9 @@ void serialParse(B_tcpPacket_t *pkt){
 					  buf_temp[1] = module_id;
 					  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
 						  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
-					  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+					  HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+					  B_tcpSendBlocking(btcp, buf_temp, sizeof(buf_temp));
+					  HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 				  }
 
 
@@ -594,7 +594,9 @@ void serialParse(B_tcpPacket_t *pkt){
 					  buf_volt[1] = module_id;
 					  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
 						  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
-					  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
+					  HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
+					  B_tcpSendBlocking(btcp, buf_volt, sizeof(buf_volt));
+					  HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
 				  }
 			  }
 		  }
