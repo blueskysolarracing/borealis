@@ -1,18 +1,5 @@
 #include "batteryEKF.h"
 
-#if _WINDOWS
-void printMatrix(float* input, uint8_t* size){
-
-    for(int i = 0; i < size[0]; i++){
-        for(int j = 0; j < size[1]; j++){
-            printf("%.8f  ", input[i*size[1] + j]);
-        }
-        printf("\n");
-    }
-
-}
-#endif
-
 float SOC(float ocv){
     float dsoc = 0.0f;
     float docv = 0.0f;
@@ -50,21 +37,227 @@ float SOC(float ocv){
     }
 }
 
-void initBatteryAlgo(EKF_Battery* inBatteryPack, float* initial_v, float initial_deltaT){
+void initBatteryAlgo(EKF_Model_14p* inBattery, float initial_v, float initial_deltaT){
 
-    for(uint8_t unit = 0; unit < NUM_14P_UNITS; unit++){  
-        initEKFModel(&inBatteryPack->batteryPack[unit], initial_v[unit]);
-    }
-
-    compute_A_B_dt(initial_deltaT);
+        initEKFModel(inBattery, initial_v);
+        compute_A_B_dt(inBattery, initial_deltaT);
 
     return;
 }
 
 void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
 
+	inBattery->run_EKF = run_EKF;
+
     uint8_t i = 0;  
     uint8_t j = 0;
+
+    // initialize all helper matrix
+    inBattery->matrix.dim1[0] = 3;
+    inBattery->matrix.dim1[1] = 3;
+    //dim2 {3, 1}
+    inBattery->matrix.dim2[0] = 3;
+    inBattery->matrix.dim2[1] = 1;
+    //dim3 {1, 3}
+    inBattery->matrix.dim3[0] = 1;
+    inBattery->matrix.dim3[1] = 3;
+    //dim4 {1, 1}
+    inBattery->matrix.dim4[0] = 1;
+    inBattery->matrix.dim4[1] = 1;
+    //dim5 {3, 2}
+    inBattery->matrix.dim5[0] = 3;
+    inBattery->matrix.dim5[1] = 2;
+    //dim6 {2, 1}
+    inBattery->matrix.dim6[0] = 2;
+    inBattery->matrix.dim6[1] = 1;
+    //dim7 {1, 2}
+    inBattery->matrix.dim7[0] = 1;
+    inBattery->matrix.dim7[1] = 2;
+
+    // a priori state covariance matrix - k+1|k (prediction)
+    //float P_k[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.P_k[0] = 0.0f;
+    inBattery->matrix.P_k[1] = 0.0f;
+    inBattery->matrix.P_k[2] = 0.0f;
+    inBattery->matrix.P_k[3] = 0.0f;
+    inBattery->matrix.P_k[4] = 0.0f;
+    inBattery->matrix.P_k[5] = 0.0f;
+    inBattery->matrix.P_k[6] = 0.0f;
+    inBattery->matrix.P_k[7] = 0.0f;
+    inBattery->matrix.P_k[8] = 0.0f;
+    // noise in state measurement (sampled) - expected value of the distribution
+    //float Q[STATE_NUM*STATE_NUM] = {VAR_INPT, 0.0f, 0.0f, 0.0f, VAR_INPT, 0.0f, 0.0f, 0.0f, VAR_INPT};
+    inBattery->matrix.Q[0] = VAR_INPT;
+    inBattery->matrix.Q[1] = 0.0f;
+    inBattery->matrix.Q[2] = 0.0f;
+    inBattery->matrix.Q[3] = 0.0f;
+    inBattery->matrix.Q[4] = VAR_INPT;
+    inBattery->matrix.Q[5] = 0.0f;
+    inBattery->matrix.Q[6] = 0.0f;
+    inBattery->matrix.Q[7] = 0.0f;
+    inBattery->matrix.Q[8] = VAR_INPT;
+    // noise in output sensor (sampled) - expected value of the distribution
+    //float R[OUTPUT_NUM] = {VAR_SENS};
+    inBattery->matrix.R[0] = VAR_SENS;
+    // a priori measurement covariance
+    //float S[OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.S[0] = 0.0f;
+    // Kalman Weight
+    //float W[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.W[0] = 0.0f;
+    inBattery->matrix.W[1] = 0.0f;
+    inBattery->matrix.W[2] = 0.0f;
+
+    //float covList[STATE_NUM] = {VAR_Z, VAR_I_CT, VAR_I_D};
+    inBattery->matrix.covList[0] = VAR_Z;
+    inBattery->matrix.covList[1] = VAR_I_CT;
+    inBattery->matrix.covList[2] = VAR_I_D;
+    //float A[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.A[0] = 0.0f;
+    inBattery->matrix.A[1] = 0.0f;
+    inBattery->matrix.A[2] = 0.0f;
+    inBattery->matrix.A[3] = 0.0f;
+    inBattery->matrix.A[4] = 0.0f;
+    inBattery->matrix.A[5] = 0.0f;
+    inBattery->matrix.A[6] = 0.0f;
+    inBattery->matrix.A[7] = 0.0f;
+    inBattery->matrix.A[8] = 0.0f;
+    //float B[STATE_NUM*INPUT_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.B[0] = 0.0f;
+    inBattery->matrix.B[1] = 0.0f;
+    inBattery->matrix.B[2] = 0.0f;
+    inBattery->matrix.B[3] = 0.0f;
+    inBattery->matrix.B[4] = 0.0f;
+    inBattery->matrix.B[5] = 0.0f;
+    //float C[STATE_NUM*OUTPUT_NUM] = {0, -R_CT, -R_D};
+    inBattery->matrix.C[0] = 0.0f;
+    inBattery->matrix.C[1] = -R_CT;
+    inBattery->matrix.C[2] = -R_D;
+    //float D[INPUT_NUM] = {-R_INT, 0.0f};
+    inBattery->matrix.D[0] = -R_INT;
+    inBattery->matrix.D[1] = 0.0f;
+    //float U[INPUT_NUM] = {0.0f, 0.0f};
+    inBattery->matrix.U[0] = 0.0f;
+    inBattery->matrix.U[1] = 0.0f;
+    //float V_Measured[1] = {0.0f};
+    inBattery->matrix.V_Measured[0] = 0.0f;
+    //float V_OCV[1] = {0.0f};
+    inBattery->matrix.V_OCV[0] = 0.0f;
+
+// ------------- HELPER VARIABLES TO COMPUTE INVERSES -------------
+
+    //float A_T[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.A_T[0] = 0.0f;
+    inBattery->matrix.A_T[1] = 0.0f;
+    inBattery->matrix.A_T[2] = 0.0f;
+    inBattery->matrix.A_T[3] = 0.0f;
+    inBattery->matrix.A_T[4] = 0.0f;
+    inBattery->matrix.A_T[5] = 0.0f;
+    inBattery->matrix.A_T[6] = 0.0f;
+    inBattery->matrix.A_T[7] = 0.0f;
+    inBattery->matrix.A_T[8] = 0.0f;
+    //float A_P[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.A_P[0] = 0.0f;
+    inBattery->matrix.A_P[1] = 0.0f;
+    inBattery->matrix.A_P[2] = 0.0f;
+    inBattery->matrix.A_P[3] = 0.0f;
+    inBattery->matrix.A_P[4] = 0.0f;
+    inBattery->matrix.A_P[5] = 0.0f;
+    inBattery->matrix.A_P[6] = 0.0f;
+    inBattery->matrix.A_P[7] = 0.0f;
+    inBattery->matrix.A_P[8] = 0.0f;
+    //float A_P_AT[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.A_P_AT[0] = 0.0f;
+    inBattery->matrix.A_P_AT[1] = 0.0f;
+    inBattery->matrix.A_P_AT[2] = 0.0f;
+    inBattery->matrix.A_P_AT[3] = 0.0f;
+    inBattery->matrix.A_P_AT[4] = 0.0f;
+    inBattery->matrix.A_P_AT[5] = 0.0f;
+    inBattery->matrix.A_P_AT[6] = 0.0f;
+    inBattery->matrix.A_P_AT[7] = 0.0f;
+    inBattery->matrix.A_P_AT[8] = 0.0f;
+
+    //float P_k1[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.P_k1[0] = 0.0f;
+    inBattery->matrix.P_k1[1] = 0.0f;
+    inBattery->matrix.P_k1[2] = 0.0f;
+    inBattery->matrix.P_k1[3] = 0.0f;
+    inBattery->matrix.P_k1[4] = 0.0f;
+    inBattery->matrix.P_k1[5] = 0.0f;
+    inBattery->matrix.P_k1[6] = 0.0f;
+    inBattery->matrix.P_k1[7] = 0.0f;
+    inBattery->matrix.P_k1[8] = 0.0f;
+
+    //float C_T[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.C_T[0] = 0.0f;
+    inBattery->matrix.C_T[1] = 0.0f;
+    inBattery->matrix.C_T[2] = 0.0f;
+    //float C_P[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.C_P[0] = 0.0f;
+    inBattery->matrix.C_P[1] = 0.0f;
+    inBattery->matrix.C_P[2] = 0.0f;
+    //float C_P_CT[OUTPUT_NUM*OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.C_P_CT[0] = 0.0f;
+
+    //float SInv[OUTPUT_NUM*OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.SInv[0] = 0.0f;
+
+    //float P_CT[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.P_CT[0] = 0.0f;
+    inBattery->matrix.P_CT[1] = 0.0f;
+    inBattery->matrix.P_CT[2] = 0.0f;
+
+    //float W_T[OUTPUT_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.W_T[0] = 0.0f;
+    inBattery->matrix.W_T[1] = 0.0f;
+    inBattery->matrix.W_T[2] = 0.0f;
+
+    //float W_S[STATE_NUM*OUTPUT_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.W_S[0] = 0.0f;
+    inBattery->matrix.W_S[1] = 0.0f;
+    inBattery->matrix.W_S[2] = 0.0f;
+    //float W_S_WT[STATE_NUM*STATE_NUM] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    inBattery->matrix.W_S_WT[0] = 0.0f;
+    inBattery->matrix.W_S_WT[1] = 0.0f;
+    inBattery->matrix.W_S_WT[2] = 0.0f;
+    inBattery->matrix.W_S_WT[3] = 0.0f;
+    inBattery->matrix.W_S_WT[4] = 0.0f;
+    inBattery->matrix.W_S_WT[5] = 0.0f;
+    inBattery->matrix.W_S_WT[6] = 0.0f;
+    inBattery->matrix.W_S_WT[7] = 0.0f;
+    inBattery->matrix.W_S_WT[8] = 0.0f;
+
+    //float A_X[STATE_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.A_X[0] = 0.0f;
+    inBattery->matrix.A_X[1] = 0.0f;
+    inBattery->matrix.A_X[2] = 0.0f;
+    //float B_U[STATE_NUM*INPUT_NUM] = {0.0f, 0.0f}; //might be an error because the size should be 3X1
+    inBattery->matrix.B_U[0] = 0.0f;
+    inBattery->matrix.B_U[1] = 0.0f;
+    inBattery->matrix.B_U[2] = 0.0f;
+    inBattery->matrix.B_U[3] = 0.0f;
+    inBattery->matrix.B_U[4] = 0.0f;
+    inBattery->matrix.B_U[5] = 0.0f;
+
+    //float X_k1[STATE_NUM] = {0.0f, 0.0f, 0.0f};
+    inBattery->matrix.X_k1[0] = 0.0f;
+    inBattery->matrix.X_k1[1] = 0.0f;
+    inBattery->matrix.X_k1[2] = 0.0f;
+    //float Z_k1[OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.Z_k1[0] = 0.0f;
+    //float CX_DU[OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.CX_DU[0] = 0.0f;
+    //float C_X[OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.C_X[0] = 0.0f;
+    //float D_U[OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.D_U[0] = 0.0f;
+
+    //float Z_err[OUTPUT_NUM] = {0.0f};
+    inBattery->matrix.Z_err[0] = 0.0f;
+	//float W_Zerr[STATE_NUM] = {0.0f};
+    inBattery->matrix.W_Zerr[0] = 0.0f;
+    inBattery->matrix.W_Zerr[1] = 0.0f;
+    inBattery->matrix.W_Zerr[2] = 0.0f;
 
     // initialize state variables
     for (i = 0; i < STATE_NUM; i++){
@@ -80,7 +273,7 @@ void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
         for(j = 0; j < STATE_NUM; j++){
             
             if (i == j){
-                inBattery->covP[i*STATE_NUM + j] = covList[i];
+                inBattery->covP[i*STATE_NUM + j] = inBattery->matrix.covList[i];
             } else {
                 inBattery->covP[i*STATE_NUM + j] = 0.0f;
             }
@@ -89,18 +282,12 @@ void initEKFModel(EKF_Model_14p* inBattery, float initial_v){
 
     return;
 }
-
+/*
 void init_A_Matrix(){
 
     A[0] = 1.0f;
     A[4] = exp(-DELTA_T/(R_CT*C_CT));
     A[8] = exp(-DELTA_T/(R_D*C_D));
-
-#if DEBUG_PRINTS
-    printf("A initial\n");
-    printMatrix(A, dim1);
-    printf("\n");
-#endif
 
     return;
 }
@@ -111,24 +298,18 @@ void init_B_Matrix(){
     B[2] = 1 - exp(-DELTA_T/(R_CT*C_CT));
     B[4] = 1 - exp(-DELTA_T/(R_D*C_D));
 
-#if DEBUG_PRINTS
-    printf("B initial\n");
-    printMatrix(B, dim5);
-    printf("\n");
-#endif
-
     return;
 }
+*/
+void compute_A_B_dt(EKF_Model_14p* inBattery, float dt){
 
-void compute_A_B_dt(float dt){
+    inBattery->matrix.A[0] = 1.0f;
+    inBattery->matrix.A[4] = exp(-dt/(R_CT*C_CT));
+    inBattery->matrix.A[8] = exp(-dt/(R_D*C_D));
 
-    A[0] = 1.0f;
-    A[4] = exp(-dt/(R_CT*C_CT));
-    A[8] = exp(-dt/(R_D*C_D));
-
-    B[0] = -COULOMB_ETA*dt/Q_CAP; //in example, this equation is only multiplied by ETA when the current is negative
-    B[2] = 1 - exp(-dt/(R_CT*C_CT));
-    B[4] = 1 - exp(-dt/(R_D*C_D));
+    inBattery->matrix.B[0] = ((-COULOMB_ETA)*(dt)/Q_CAP); //in example, this equation is only multiplied by ETA when the current is negative
+    inBattery->matrix.B[2] = 1 - exp(-dt/(R_CT*C_CT));
+    inBattery->matrix.B[4] = 1 - exp(-dt/(R_D*C_D));
 
     return;
 }
@@ -214,9 +395,6 @@ uint8_t inverse_EKF(float* in, float* out, uint8_t* dim){
     uint8_t cols = dim[1];
 
     if(rows != cols){       
-#if _WINDOWS
-        printf("Matrix is not square - cannot compute inverse with this method... \n");
-#endif
         return 0;
     }
 
@@ -280,6 +458,7 @@ uint8_t inverse_EKF(float* in, float* out, uint8_t* dim){
        free(copyIn);
 
     }
+    return 1;
 }
 
 float OCV(float soc){
@@ -313,246 +492,58 @@ float OCV(float soc){
     }
 }
 
-#if OFFLINE_TEST
-
-void run_EKF(EKF_Model_14p* inputBatt, uint32_t testDataID){
-
-    // insert code for reading from CSVs
-#if DEBUG_PRINTS
-    printf("Iteration#%d\n", testDataID);
-    printf("Current %f, Voltage %f \n", current[testDataID], voltage[testDataID]);
-#endif
-
-    float dt = deltaT[testDataID];
-    compute_A_B_dt(dt);
-
-    float I_Input = current[testDataID]; // current reading
-    float I_InSign = 0.0f;
-    
-    if (I_Input != 0){
-        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
-    }
-
-    U[0] = I_Input;
-    U[1] = I_InSign;
-
-    V_Measured[0] = voltage[testDataID]; // voltage reading
-    V_OCV[0] = OCV(inputBatt->stateX[0]);
-
-#if DEBUG_PRINTS
-    printf("OCV: %f | %f \n", V_OCV[0], inputBatt->stateX[0]);
-    printf("U\n");
-    printMatrix(U, dim6);
-    printf("A\n");
-    printMatrix(A, dim1);
-    printf("B\n");
-    printMatrix(B, dim5);
-    printf("stateX\n");
-    printMatrix(inputBatt->stateX, dim2);
-    printf("covP\n");
-    printMatrix(inputBatt->covP, dim1);
-#endif
-
-#else
-
-void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measuredV){
-
-    // insert code for using APIs
-    compute_A_B_dt(dt);
-
-    float I_Input = currentIn; // current reading
-    float I_InSign = 0.0f;
-
-    if (I_Input != 0){
-        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
-    }
-
-    V_Measured[0] = measuredV; // voltage reading
-    V_OCV[0] = OCV(inputBatt->stateX[0]);
-
-#endif // OFFLINE_TEST
-
-    // compute the a priori state covariance
-    transpose_EKF(A, A_T, dim1);
-
-#if DEBUG_PRINTS
-    printf("\nA_T\n");
-    printMatrix(A_T, dim1);
-#endif
-
-    multiply_EKF(A, inputBatt->covP, A_P, dim1, dim1);
-
-#if DEBUG_PRINTS
-    printf("\nA_P\n");
-    printMatrix(A_P, dim1);
-#endif
-
-    multiply_EKF(A_P, A_T, A_P_AT, dim1, dim1);
-
-#if DEBUG_PRINTS
-    printf("\nA_P_AT\n");
-    printMatrix(A_P_AT, dim1);
-#endif
-
-    addition_EKF(A_P_AT, Q, P_k1, dim1, 0);
-
-#if DEBUG_PRINTS
-    printf("\nP_k1\n");
-    printMatrix(P_k1, dim1);
-#endif
-
-    // compute the a priori state covariance
-    transpose_EKF(C, C_T, dim3);
-
-#if DEBUG_PRINTS
-    printf("\nC\n");
-    printMatrix(C, dim3);
-    printf("\nC_T\n");
-    printMatrix(C_T, dim2);
-#endif
-
-    multiply_EKF(C, P_k1, C_P, dim3, dim1);
-
-#if DEBUG_PRINTS
-    printf("\nC_P\n");
-    printMatrix(C_P, dim3);
-#endif
-
-    multiply_EKF(C_P, C_T, C_P_CT, dim3, dim2);
-
-#if DEBUG_PRINTS
-    printf("\nC_P_CT\n");
-    printMatrix(C_P_CT, dim4);
-#endif
-
-    addition_EKF(C_P_CT, R, S, dim4, 0);
-
-#if DEBUG_PRINTS
-    printf("\nS\n");
-    printMatrix(S, dim4);
-#endif
-
-    // compute Kalman Gain
-    inverse_EKF(S, SInv, dim4);
-
-#if DEBUG_PRINTS
-    printf("S, S_inv: %f, %f",S[0], SInv[0]);
-#endif
-
-    multiply_EKF(P_k1, C_T, P_CT, dim1, dim2);
-
-#if DEBUG_PRINTS
-    printf("\nP_CT\n");
-    printMatrix(P_CT, dim2);
-#endif
-
-    multiply_EKF(P_CT, SInv, W, dim2, dim4);
-
-#if DEBUG_PRINTS
-    printf("\nW\n");
-    printMatrix(W, dim2);
-#endif
-
-    // update Posteriori covariance
-    transpose_EKF(W, W_T, dim2);
-
-#if DEBUG_PRINTS
-    printf("\nW_T\n");
-    printMatrix(W_T, dim3);
-#endif
-
-    multiply_EKF(W, S, W_S, dim2, dim4);
-
-#if DEBUG_PRINTS
-    printf("\nW_S\n");
-    printMatrix(W_S, dim2);
-#endif
-
-    multiply_EKF(W_S, W_T, W_S_WT, dim2, dim3);
-
-#if DEBUG_PRINTS
-    printf("\nW_S_WT\n");
-    printMatrix(W_S_WT, dim1);
-#endif
-
-    addition_EKF(P_k1, W_S_WT, inputBatt->covP, dim1, 1);
-
-#if DEBUG_PRINTS
-    printf("\ninputBatt->covP\n");
-    printMatrix(inputBatt->covP, dim1);
-#endif
-
-    // a priori state estimate
-    multiply_EKF(A, inputBatt->stateX, A_X, dim1, dim2);
-
-#if DEBUG_PRINTS
-    printf("\nA_X\n");
-    printMatrix(A_X, dim2);
-#endif
-
-#if DEBUG_PRINTS
-    printf("\nU\n");
-    printMatrix(U, dim6);
-#endif
-
-    multiply_EKF(B, U, B_U, dim5, dim6);
-
-#if DEBUG_PRINTS
-    printf("\nB_U\n");
-    printMatrix(B_U, dim2);
-#endif
-
-    addition_EKF(A_X, B_U, X_k1, dim3, 0);
-
-#if DEBUG_PRINTS
-    printf("\nX_k1\n");
-    printMatrix(X_k1, dim2);
-#endif
-
-    // a priori measurement
-    multiply_EKF(C, X_k1, C_X, dim4, dim3);
-
-#if DEBUG_PRINTS
-    printf("Matrix C_X \n");
-    printMatrix(C_X, dim4);
-#endif
-
-    multiply_EKF(D, U, D_U, dim7, dim6);
-
-#if DEBUG_PRINTS
-    printf("Matrix D_U \n");
-    printMatrix(D_U, dim4);
-#endif
-
-    addition_EKF(C_X, D_U, CX_DU, dim4, 0);
-    addition_EKF(V_OCV, CX_DU, Z_k1, dim4, 0);
-
-#if DEBUG_PRINTS
-    printf("Predicted output Z_k1: ");
-    printMatrix(Z_k1, dim4);
-#endif
-
-    // update of the posteriori state estimate
-    addition_EKF(V_Measured, Z_k1, Z_err, dim5, 1);
-
-#if DEBUG_PRINTS
-    printf("\nZ_err\n");
-    printMatrix(Z_err, dim4);
-#endif
-
-    multiply_EKF(W, Z_err, W_Zerr, dim2, dim4);
-
-#if DEBUG_PRINTS
-    printf("\nW_Zerr\n");
-    printMatrix(W_Zerr, dim2);
-#endif
-
-    addition_EKF(X_k1, W_Zerr, inputBatt->stateX, dim2, 0);    // SOC in inputBatt->stateX[0]
-
-#if DEBUG_PRINTS
-    printf("\nStateX\n");
-    printMatrix(inputBatt->stateX, dim2);
-#endif
-
-    return;
+void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measuredV){ //deltat, current same for all unit, voltage different for each unit
+
+		// insert code for using APIs
+		    compute_A_B_dt(inputBatt, dt);
+
+		    float I_Input = currentIn; // current reading
+		    float I_InSign = 0.0f;
+
+		    if (I_Input != 0){
+		        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
+		    }
+
+		    inputBatt->matrix.V_Measured[0] = measuredV; // voltage reading
+		    inputBatt->matrix.V_OCV[0] = OCV(inputBatt->stateX[0]);
+
+		    // compute the a priori state covariance
+		    transpose_EKF(inputBatt->matrix.A, inputBatt->matrix.A_T, inputBatt->matrix.dim1);
+		    multiply_EKF(inputBatt->matrix.A, inputBatt->covP, inputBatt->matrix.A_P, inputBatt->matrix.dim1, inputBatt->matrix.dim1);
+		    multiply_EKF(inputBatt->matrix.A_P, inputBatt->matrix.A_T,inputBatt->matrix.A_P_AT, inputBatt->matrix.dim1, inputBatt->matrix.dim1);
+		    addition_EKF(inputBatt->matrix.A_P_AT, inputBatt->matrix.Q, inputBatt->matrix.P_k1, inputBatt->matrix.dim1, 0);
+
+		    // compute the a priori state covariance
+		    transpose_EKF(inputBatt->matrix.C, inputBatt->matrix.C_T, inputBatt->matrix.dim3);
+		    multiply_EKF(inputBatt->matrix.C, inputBatt->matrix.P_k1, inputBatt->matrix.C_P, inputBatt->matrix.dim3, inputBatt->matrix.dim1);
+		    multiply_EKF(inputBatt->matrix.C_P, inputBatt->matrix.C_T, inputBatt->matrix.C_P_CT, inputBatt->matrix.dim3, inputBatt->matrix.dim2);
+		    addition_EKF(inputBatt->matrix.C_P_CT, inputBatt->matrix.R, inputBatt->matrix.S, inputBatt->matrix.dim4, 0);
+
+		    // compute Kalman Gain
+		    inverse_EKF(inputBatt->matrix.S, inputBatt->matrix.SInv, inputBatt->matrix.dim4);
+		    multiply_EKF(inputBatt->matrix.P_k1, inputBatt->matrix.C_T, inputBatt->matrix.P_CT, inputBatt->matrix.dim1, inputBatt->matrix.dim2);
+		    multiply_EKF(inputBatt->matrix.P_CT, inputBatt->matrix.SInv, inputBatt->matrix.W, inputBatt->matrix.dim2, inputBatt->matrix.dim4);
+
+		    // update Posteriori covariance
+		    transpose_EKF(inputBatt->matrix.W, inputBatt->matrix.W_T, inputBatt->matrix.dim2);
+		    multiply_EKF(inputBatt->matrix.W, inputBatt->matrix.S, inputBatt->matrix.W_S, inputBatt->matrix.dim2, inputBatt->matrix.dim4);
+		    multiply_EKF(inputBatt->matrix.W_S, inputBatt->matrix.W_T, inputBatt->matrix.W_S_WT, inputBatt->matrix.dim2, inputBatt->matrix.dim3);
+		    addition_EKF(inputBatt->matrix.P_k1, inputBatt->matrix.W_S_WT, inputBatt->covP, inputBatt->matrix.dim1, 1);
+
+
+		    // a priori state estimate
+		    multiply_EKF(inputBatt->matrix.A, inputBatt->stateX, inputBatt->matrix.A_X, inputBatt->matrix.dim1, inputBatt->matrix.dim2);
+		    multiply_EKF(inputBatt->matrix.B, inputBatt->matrix.U, inputBatt->matrix.B_U, inputBatt->matrix.dim5, inputBatt->matrix.dim6);
+		    addition_EKF(inputBatt->matrix.A_X, inputBatt->matrix.B_U, inputBatt->matrix.X_k1, inputBatt->matrix.dim2, 0); //changed
+
+		    // a priori measurement
+		    multiply_EKF(inputBatt->matrix.C, inputBatt->matrix.X_k1, inputBatt->matrix.C_X, inputBatt->matrix.dim3, inputBatt->matrix.dim2); //changed
+		    multiply_EKF(inputBatt->matrix.D, inputBatt->matrix.U, inputBatt->matrix.D_U, inputBatt->matrix.dim7, inputBatt->matrix.dim6);
+		    addition_EKF(inputBatt->matrix.C_X, inputBatt->matrix.D_U, inputBatt->matrix.CX_DU, inputBatt->matrix.dim4, 0);
+		    addition_EKF(inputBatt->matrix.V_OCV, inputBatt->matrix.CX_DU, inputBatt->matrix.Z_k1, inputBatt->matrix.dim4, 0);
+
+		    // update of the posteriori state estimate
+		    addition_EKF(inputBatt->matrix.V_Measured, inputBatt->matrix.Z_k1, inputBatt->matrix.Z_err, inputBatt->matrix.dim4, 1); //changed
+		    multiply_EKF(inputBatt->matrix.W, inputBatt->matrix.Z_err, inputBatt->matrix.W_Zerr, inputBatt->matrix.dim2, inputBatt->matrix.dim4);
+		    addition_EKF(inputBatt->matrix.X_k1, inputBatt->matrix.W_Zerr, inputBatt->stateX, inputBatt->matrix.dim2, 0);    // SOC in inputBatt->stateX[0]
 }

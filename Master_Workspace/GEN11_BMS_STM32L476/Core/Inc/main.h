@@ -76,8 +76,8 @@ void Error_Handler(void);
 #define RS485_EN_Pin GPIO_PIN_5
 #define RS485_EN_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-#define NUM_TEMP_SENSORS 3
-#define BUART_INTERRUPT_MODE
+//#define NUM_TEMP_SENSORS 3
+//#define BUART_INTERRUPT_MODE
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

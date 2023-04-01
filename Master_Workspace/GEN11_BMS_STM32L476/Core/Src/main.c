@@ -26,8 +26,8 @@
 #include "btcp.h"
 #include "protocol_ids.h"
 #include "batteryEKF.h"
-#include "LTC6810.h"
 #include "timers.h"
+#include "bms.h"
 
 /* USER CODE END Includes */
 
@@ -55,6 +55,8 @@
 #define LTC6810_INTERVAL 100 //Interval of reading LTC6810 measurements
 
 #define PWR_EN_HACK 1 //Hack where the gate of Q3 is connected to 12V to only turn on Q2 when 12V is present. Also, EN_PWR is set as an input instead of output as it should.
+#define THIS_MODULE_ID 0
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -78,6 +80,7 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
+Bms bms;
 
 //--- SOC ---//
 EKF_Battery inBattery;
@@ -91,29 +94,27 @@ uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC681
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART1_UART_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_CRC_Init(void);
-static void MX_DMA_Init(void);
+static void MX_USART1_UART_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-void LTC6810Handler(TimerHandle_t xTimer);
-void PWR_CHECK_Timer(TimerHandle_t xTimer);
-int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
-void readTemp(float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);//DCC5~1 passed in so no mess up discharge
-void readVolt(float* voltArray);
-void send_error_msg(uint8_t cell_id, uint8_t error_code,  float data_to_send);
-void send_temp_volt();
-void convert_to_temp(float input_voltage[3], float output_temperature[3]);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-float voltage_array[NUM_CELLS];
-float temperature_array[NUM_TEMP_SENSORS];
+// For Testing only
+//void btcp_sent_thread(void* parameters) {
+//	while(1) {
+//		uint8_t msg[] = {1, 2, 3, 4};
+//		B_tcpSend(btcp, msg, sizeof(msg));
+//	}
+//}
 /* USER CODE END 0 */
 
 /**
@@ -144,39 +145,19 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART1_UART_Init();
+  MX_DMA_Init();
   MX_TIM7_Init();
   MX_CRC_Init();
-  MX_DMA_Init();
+  MX_USART1_UART_Init();
   MX_SPI3_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-
-  //--- COMMS ---//
-  buart = B_uartStart(&huart1);
-  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
 
   //--- MCU OK LED ---//
   NVIC_EnableIRQ(TIM7_IRQn);
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
   //--- FREERTOS ---//
-  xTimerStart(xTimerCreate("LTC6810Handler",  pdMS_TO_TICKS(LTC6810_INTERVAL), pdTRUE, (void *)0, LTC6810Handler), 0); //Temperature and voltage measurements
-  xTimerStart(xTimerCreate("PWR_CHECK_Timer",  pdMS_TO_TICKS(1000), pdTRUE, (void *)0, PWR_CHECK_Timer), 0); //Periodically checks BMS_WKUP pin
-  //^^^ Eventually, this should be made with EXTI interrupts ^^^//
-
-  //--- BMS_FLT ---//
-  HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_SET); //Signal is active-high (high when no fault)
-
-  //--- SOC algorithm ---//
-  float local_voltage_array[6]; //Initial voltage of each cell
-  readVolt(local_voltage_array); //Places voltage in temp 1, temp
-
-  float tickNow = HAL_GetTick();
-  for (int i = 0; i < NUM_CELLS; i++){
-	  tickLastMeasurement[i] = tickNow;
-  }
-  initBatteryAlgo(&inBattery, &local_voltage_array[0], tickNow);
 
   /* USER CODE END 2 */
 
@@ -207,6 +188,28 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 #endif
+  //--- COMMS ---//
+  buart = B_uartStart(&huart1);
+  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+
+  GPIO_TypeDef* spi_cs_ports[] = {[0 ... (BMS_NUM_BMS_MODULES-1)] = GPIOC};
+  uint16_t spi_cs_pins[] = {[0 ... (BMS_NUM_BMS_MODULES-1)] = GPIO_PIN_9};
+
+  // Initialize and run bms
+  bms_init(&bms, &hspi3, spi_cs_ports, spi_cs_pins);
+  bms.run(&bms);
+
+// For testing only
+//  TaskHandle_t t = NULL;
+//	BaseType_t status = xTaskCreate(
+//			btcp_sent_thread,  //Function that implements the task.
+//			"btcp test run thread",  //Text name for the task.
+//			500, 		 //256 words *4(bytes/word) = 1024 bytes allocated for task's stack (note even this size is unnecessary as this thread barely creates any variables)
+//			NULL,  //Parameter passed into the task.
+//			4,  //Priority at which the task is created.
+//			&t//Used to pass out the created task's handle.
+//		);
+//	configASSERT(status == pdPASS);	// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -292,9 +295,9 @@ static void MX_CRC_Init(void)
   hcrc.Instance = CRC;
   hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
   hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
-  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
-  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
-  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_WORDS;
   if (HAL_CRC_Init(&hcrc) != HAL_OK)
   {
     Error_Handler();
@@ -487,20 +490,19 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13|LTC6810_CS_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BBMB_INT_GPIO_Port, BBMB_INT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, EN_BLN_PWR_Pin|MCU_LED_Pin|RS485_EN_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 LTC6810_CS_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|LTC6810_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LTC6810_CS_GPIO_Port, LTC6810_CS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : AFE_WDT_Pin */
+  GPIO_InitStruct.Pin = AFE_WDT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(AFE_WDT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BMS_WKUP_Pin PSENSE_ALERT_Pin */
   GPIO_InitStruct.Pin = BMS_WKUP_Pin|PSENSE_ALERT_Pin;
@@ -528,142 +530,76 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : LTC6810_CS_Pin */
+  GPIO_InitStruct.Pin = LTC6810_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LTC6810_CS_GPIO_Port, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
 	switch(pkt->senderID){
 	  case BBMB_ID: //Parse data from BBMB
-		  //--- SoC REQUEST FROM BBMB ---//
-		  /* BBMB will receive SoC packet, voltage packet and temperature packet*/
-		if ((pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) && (pkt->data[1] == MY_ID)){ //BBMB is asking SoC from me
-			HAL_GPIO_WritePin(MCU_LED_GPIO_Port, MCU_LED_Pin, GPIO_PIN_RESET); //Turn on MCU LED
 
-			float current;
-			float SoC_array[NUM_CELLS];
-			current = arrayToFloat(pkt->data + 2);
+		  if (pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) {
 
-			//SoC computation for each 14P group (the assumption is that the voltage measurements are recent enough)
-			for (int i = 0; i < NUM_CELLS; i++){
-				long currentTick = HAL_GetTick();
-				run_EKF(&inBattery.batteryPack[i], currentTick - tickLastMeasurement[i], current, voltage_array[i]);
-				SoC_array[i]=inBattery.batteryPack[i].stateX[0];
-				tickLastMeasurement[i] = currentTick;
-			}
+			  // Update Current variable
+			  float current = arrayToFloat(pkt->data + 4);
+			  bms.set_current(&bms, current);
 
-			//Send back SoC for all cells
-			uint8_t buf_soc[4 + 5*4]; //[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
-			buf_soc[0] = BMS_CELL_SOC_ID;
-			buf_soc[1] = MY_ID;
+			  int module_id = pkt->data[1];
 
-			//BMS #0 has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
-			if (MY_ID == 0) {
-				SoC_array[4] = 1.5;
-			}
+			  if (module_id == THIS_MODULE_ID) {
+				  /* ================= SOC =================== */
+				  float state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
+				  if (bms.get_state_of_charge(&bms, state_of_charges, module_id)) {
+					  // Not sure which Module only has 4 cells, commented out for now, assuming they all have 5.
+					  // Module x has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
+					  // add fake values for modules missing one cell
+					  if (module_id == 5) state_of_charges[4] = 1.5;
 
-			//Pack SoCs into buffer
-			for (int i = 0; i < 5; i++){
-				if (i >= NUM_CELLS){
-					for (int j = 0; j < sizeof(float); j++){	buf_soc[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
+					  // Pack state_of_charges into array of uint8_t to be sent to BBMB
+					  uint8_t buf_soc[4 + BMS_MODULE_NUM_STATE_OF_CHARGES*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+					  buf_soc[0] = BMS_CELL_SOC_ID;
+					  buf_soc[1] = module_id;
+					  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
+						  floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
+					  B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+				  }
 
-				} else {
-					uint8_t floatArray[4];
-					floatToArray(SoC_array[i], floatArray); //Convert float into array
 
-					//Pack into buffer
-					for (int j = 0; j < sizeof(float); j++){
-						buf_soc[4 + sizeof(float) * i + j] = floatArray[j];
-					}
-				}
-			}
-			//Send
-			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-			B_tcpSendBlocking(btcp, buf_soc, sizeof(buf_soc));
-			HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
+				  /* =============== Temperature ================= */
+				  float temperatures[BMS_MODULE_NUM_TEMPERATURES];
+				  if (bms.get_temperature(&bms, temperatures, module_id, GET_PAST_AVERAGE)) {
+					  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
+					  buf_temp[0] = BMS_CELL_TEMP_ID;
+					  buf_temp[1] = module_id;
+					  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
+						  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
+					  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+				  }
 
-			//Also, send temp and volt
-			send_temp_volt();
-			HAL_GPIO_WritePin(MCU_LED_GPIO_Port, MCU_LED_Pin, GPIO_PIN_SET); //Turn on MCU LED
-		}
+
+				  /* =============== Voltage ====================== */
+				  float voltages[BMS_MODULE_NUM_VOLTAGES];
+				  if (bms.get_voltage(&bms, voltages, module_id, GET_PAST_AVERAGE)) {
+					  // add fake values for modules missing one cell
+					  if (module_id == 5) voltages[4] = 0;
+
+					  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
+					  buf_volt[0] = BMS_CELL_VOLT_ID;
+					  buf_volt[1] = module_id;
+					  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
+						  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
+					  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
+				  }
+			  }
+		  }
 		break;
 	}
-}
-
-void send_temp_volt(){
-	//--- SEND TEMPERATURE ---//
-		uint8_t buf_temp[4 + 6*4]; //[DATA ID, MODULE ID, Temp group #0, Temp group #1, ... , Temp group #4]
-		buf_temp[0] = BMS_CELL_TEMP_ID;
-		buf_temp[1] = MY_ID;
-
-		//Pack temperatures into buffer
-		for (int i = 0; i < 6; i++){
-			if (i >= 3){ //Thermistors not populated
-				for (int j = 0; j < sizeof(float); j++){	buf_temp[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
-
-			} else {
-				uint8_t floatArray[4];
-				floatToArray(temperature_array[i], floatArray); //Convert float into array
-
-				//Pack into buffer
-				for (int j = 0; j < sizeof(float); j++){
-					buf_temp[4 + sizeof(float) * i + j] = floatArray[j];
-				}
-			}
-		}
-
-		//Send
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-		B_tcpSendBlocking(btcp, buf_temp, sizeof(buf_temp));
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-
-	//--- SEND VOLTAGE ---//
-		uint8_t buf_voltage[4 + 5*4]; //[DATA ID, MODULE ID, Voltage group #0, Voltage group #1, ... , Voltage group #4]
-		buf_voltage[0] = BMS_CELL_VOLT_ID;
-		buf_voltage[1] = MY_ID;
-
-		//Pack voltage into buffer
-		for (int i = 0; i < 6; i++){
-			if (i >= NUM_CELLS){
-				for (int j = 0; j < sizeof(float); j++){	buf_voltage[4 + sizeof(float) * i + j] = -1; }	//Just fill with -1 if it is to be empty
-
-			} else {
-				uint8_t floatArray[4];
-				floatToArray(voltage_array[i], floatArray); //Convert float into array
-
-				//Pack into buffer
-				for (int j = 0; j < sizeof(float); j++){
-					buf_voltage[4 + sizeof(float) * i + j] = floatArray[j];
-				}
-			}
-		}
-
-		//BMS #0 has only 4 cells, so we place a fake nominal voltage of 3.7V at cell #4 to avoid tripping battery protection
-		if (MY_ID == 0) {
-			floatToArray((float) 3.7, &buf_voltage[0x14]);
-		}
-
-		//Send
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET); //Enable RS485 driver
-		B_tcpSendBlocking(btcp, buf_voltage, sizeof(buf_voltage));
-		HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET); //Disable RS485 driver
-}
-
-void LTC6810Handler(TimerHandle_t xTimer){
-	//This callback is called periodically to update voltage and temperature measurements
-	float local_voltage_array[6]; //Voltage of each cell
-	float local_temp_array[3]; //Temperature readings
-
-	//---- LTC6810 MEASUREMENTS ----//
-	readVolt(local_voltage_array); //Places voltage in temp 1, temp
-	readTemp(local_temp_array, 0, 0, 0, 0, 0); //Places temperature in temp 1, temp
-	convert_to_temp(local_temp_array, local_temp_array);
-
-	//Update global variables
-	taskENTER_CRITICAL();
-	for (int i = 0; i < NUM_CELLS; i++){	voltage_array[i] = local_voltage_array[i];	}
-	for (int i = 0; i < 3; i++){			temperature_array[i] = local_temp_array[i];	}
-	taskEXIT_CRITICAL();
-
 }
 
 void PWR_CHECK_Timer(TimerHandle_t xTimer){
@@ -686,203 +622,6 @@ void PWR_CHECK_Timer(TimerHandle_t xTimer){
 	 */
 }
 
-int LTC6810Init(int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
-	//This function initialize the LTC6810 ADC chip, shall be called at the start of the program
-	//To modify the initialization setting, please refer to the Datasheet and the chart below
-	/*
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | reg   | Bit7    | Bit6    | Bit5    | Bit4    | Bit3    | Bit2    | Bit1    | Bit0   |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | CFGR0 | RSVD    | GPIO4   | GPIO3   | GPIO2   | GPIO1   | REFON   | DTEN    | ADCOPT |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | CFGR1 | VUV[7]  | VUV[6]  | VUV[5]  | VUV[4]  | VUV[3]  | VUV[2]  | VUV[1]  | VUV[0] |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | CFGR2 | VOV[3]  | VOV[2]  | VOV[1]  | VOV[0]  | VUV[11] | VUV[10] | VUV[9]  | VUV[8] |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | CFGR3 | VOV[11] | VOV[10] | VOV[9]  | VOV[8]  | VOV[7]  | VOV[6]  | VOV[5]  | VOV[4] |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | CFGR4 | DCC0    | MCAL    | DCC6    | DCC5    | DCC4    | DCC3    | DCC2    | DCC1   |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+
-	 | CFGR5 | DCTO[3] | DCTO[2] | DCTO[1] | DCTO[0] | SCONV   | FDRF    | DIS_RED | DTMEN  |
-	 +-------+---------+---------+---------+---------+---------+---------+---------+--------+*/
-
-	//connection to MUX for thermal measurements:
-	//GPIO2 -> A0
-	//GPIO3 -> A1
-	//GPIO4 -> A2
-	//GPIO1 shall always be set to 1 to avoid internal pull-down, as its the voltage reading pin.
-	//A2 is MSB and A0 is MSB, if want channel 2 -> do A2=0, A1=1, A0=0
-	//above is the table of configuration register bits. How
-	int messageInBinary;
-	int i;
-	int data6Byte[48]; //[47] is MSB, CFGR0 Bit7
-	uint8_t dataToSend[12]; //stores the command and PEC bit of WRCFG
-	//2byte command, 2byte PEC, 6byte data, 2byte PEC
-
-	//write configure command
-	messageInBinary = 0b1;		//write config
-	LTC6810CommandGenerate(messageInBinary, dataToSend);
-	//set GPIO bits to 1 so they aren`t being pulled down internally by the chip.
-	//set REFON to enable the 3V that goes to the chip
-	//DTEN to 0 to disable discharge timer
-	//ADCOPT bit to 0, use 422Hz as its stable
-	//above are byte0, byte 1 full of 0s as VUV currently not used.
-	messageInBinary = 0b0000110000000000; //CFGR0&1
-	//now add the GPIO config
-	messageInBinary = messageInBinary + 4096 * GPIO2 + 8192 * GPIO3
-			+ 16384 * GPIO4;
-
-	int MSG0[8];
-	int MSG1[8];
-	commandToArray(messageInBinary, MSG0, MSG1);
-	for (i = 7; i >= 0; i--) {
-		data6Byte[40 + i] = MSG0[i];
-		data6Byte[32 + i] = MSG1[i];
-	}
-
-	//set the VOV and VUV as 0;
-	messageInBinary = 0b0000000000000000; //CFGR2&3
-	int MSG2[8];
-	int MSG3[8];
-	commandToArray(messageInBinary, MSG2, MSG3);
-	for (i = 7; i >= 0; i--) {
-		data6Byte[24 + i] = MSG2[i];
-		data6Byte[16 + i] = MSG3[i];
-	}
-
-	//DCC = 0: discharge off, 1: discharge = on
-	//MCAL = 1: enable multi-calibration. for this don`t use, turn to 0
-	//DCTO: discharge timer. for now 0
-	//SCONV: redundant measurement using S pin, disable for now (0)
-	//FDRF: not using it anyway, to 0
-	//DIS_RED: redundancy disable: set to 1 to disable
-	//DTMEN: Discharge timer monitor, 0 to disable
-	messageInBinary = 0b0000000000000010;
-	messageInBinary += 256*DCC1 + 512*DCC2 + 1024*DCC3 + 2048*DCC4 +4096*DCC5;
-
-	int MSG4[8];
-	int MSG5[8];
-	commandToArray(messageInBinary, MSG4, MSG5);
-	for (i = 7; i >= 0; i--) {
-		data6Byte[8 + i] = MSG4[i];
-		data6Byte[0 + i] = MSG5[i];
-	}
-
-	//now create PEC bits based on above data
-	int PEC0_6[8];
-	int PEC1_6[8];
-	generatePECbits6Byte(data6Byte, PEC0_6, PEC1_6);
-
-	//change array back to bytes
-	dataToSend[4] = arrayToByte(MSG0);
-	dataToSend[5] = arrayToByte(MSG1);
-	dataToSend[6] = arrayToByte(MSG2);
-	dataToSend[7] = arrayToByte(MSG3);
-	dataToSend[8] = arrayToByte(MSG4);
-	dataToSend[9] = arrayToByte(MSG5);
-	dataToSend[10] = arrayToByte(PEC0_6);
-	dataToSend[11] = arrayToByte(PEC1_6);
-
-	//now send the data
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(&hspi3, dataToSend, 12, 100);
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-
-	return 0; //temp
-}
-
-void readTemp(float*tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1){
-	//read Temp 0,1,2. Pass by reference to the input array.
-	//if discharging, make DCC global variables so this don't disturb Discharge
-
-	int cycle = 0;
-	while(cycle<3){
-
-		if(cycle ==0){
-		LTC6810Init(0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 1
-		else if(cycle == 1){
-		LTC6810Init(0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
-		else if(cycle == 2){
-		LTC6810Init(0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
-
-		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
-		LTC6810CommandGenerate(messageInBinary, dataToSend);
-
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);//slave low
-		osDelay(1);
-		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-
-		//now read from it
-		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
-		LTC6810CommandGenerate(messageInBinary, dataToSend);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-
-		HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-		osDelay(1); //ADD DELAY between Transmit & Receive
-		HAL_SPI_Receive(&hspi3, dataToReceive, 6, 100);
-
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-		//write value into array
-		int tempSum = 256*dataToReceive[3] + dataToReceive[2];
-		//float TempInC = 1/(1/298.15+(1/3950) * log((-10)/(tempSum/)))
-		tempArray[cycle] = (float)tempSum;//msb of data
-		cycle++;
-		}//end of while(cycle = sth)
-	return 0;
-}
-
-void readVolt(float* voltArray){
-	int VmessageInBinary;//for internal command
-
-	  //first read first half of data
-	  VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
-	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);//generate the "check voltage command"
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	  //now receive those data
-	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-
-	  VmessageInBinary = 0b100;  //read cell voltage reg group 1;
-	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-
-
-	  voltArray[0] = voltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
-	  voltArray[1] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
-	  voltArray[2] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
-
-	  VmessageInBinary = 0b110; //read cell voltage reg group 2;
-	  LTC6810CommandGenerate(VmessageInBinary, dataToSend);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET); //slave select low, transmit begin
-	  HAL_SPI_Transmit(&hspi3, dataToSend, 4/*byte*/, 100);
-	  HAL_SPI_Receive(&hspi3, dataToReceive, 8, 100);
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-
-	  voltArray[3] = voltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
-	  voltArray[4] = voltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
-	  voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
-}
-
-void convert_to_temp(float input_voltage[3], float output_temperature[3]){
-	/* Used to convert raw ADC code to temperature */
-	for (int i = 0; i < 3; i++){
-		float corrected_voltage = TEMP_CORRECTION_MULTIPLIER * (input_voltage[i] / 10000.0  - TEMP_CORRECTION_OFFSET);
-		float thermistor_resistance = 10.0 / ((2.8 / (float) corrected_voltage) - 1.0);
-		output_temperature[i] = 1.0 / (0.003356 + 0.0002532 * log(thermistor_resistance / 10.0));
-		output_temperature[i] = output_temperature[i] - 273.15;
-
-		if (thermistor_resistance < 0) {  //Preventing NaN (treated as 0xFFFFFFFF) from tripping the battery safety but lower-bounding them to -100C
-			output_temperature[i] = -100;
-		}
-		//This occurs when the measurement is closes to 3V, suggesting that the thermistor isn't connected.
-	}
-}
 
 /* USER CODE END 4 */
 
