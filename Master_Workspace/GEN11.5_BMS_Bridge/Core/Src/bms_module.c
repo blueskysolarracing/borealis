@@ -80,7 +80,7 @@ void bms_module_init(
 	this->compute_soc = compute_soc;
 
 	this->_bms_module_id = bms_module_id;
-	this->_data_lock = xSemaphoreCreateMutex();
+//	this->_data_lock = xSemaphoreCreateMutex();
 
 	this->_spi_handle = spi_handle;
 	this->_spi_cs_port = spi_cs_port;
