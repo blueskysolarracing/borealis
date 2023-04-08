@@ -20,6 +20,7 @@ static void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[])
 static uint8_t LTC6810ArrayToByte(int arrayIn[]); //8 bit array to a byte
 static void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]);
 static void LTC6810CommandGenerate(int command, uint8_t dataToSend[]); //dataToSend is array pass by reference
+static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[], uint8_t address); //dataToSend is array pass by reference
 static int LTC6810InitializeAndCheck();
 static int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte);
 static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
@@ -248,7 +249,7 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 
 	//write configure command
 	messageInBinary = 0b1;		//write config
-	LTC6810CommandGenerate(messageInBinary, dataToSend);
+	LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
 	//set GPIO bits to 1 so they aren`t being pulled down internally by the chip.
 	//set REFON to enable the 3V that goes to the chip
 	//DTEN to 0 to disable discharge timer
@@ -522,6 +523,12 @@ static void LTC6810CommandGenerate(int command, uint8_t dataToSend[]){ //dataToS
 
 } // ======== end of LTC6810CommandGenerate function ==========
 
+static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[], uint8_t address){ //dataToSend is array pass by reference
+	int addressCommand = (0b10000 | (address & 0b1111)) << 12;
+	command |= addressCommand;
+	LTC6810CommandGenerate(command, dataToSend);
+}
+
 /*
 static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	//voltafeArray[1] is voltage of cell 0; [5] is voltage of cell 6
@@ -657,7 +664,7 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 		LTC6810Init(this, 0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
 
 		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
-		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
 
 		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET);//slave low
 		vTaskDelay(pdMS_TO_TICKS(1));
@@ -666,7 +673,7 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 
 		//now read from it
 		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
-		LTC6810CommandGenerate(messageInBinary, dataToSend);
+		LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
 		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET);
 
 		HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
@@ -689,7 +696,7 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 
 	//first read first half of data
 	VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
-	LTC6810CommandGenerate(VmessageInBinary, dataToSend);//generate the "check voltage command"
+	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);//generate the "check voltage command"
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
 	//now receive those data
@@ -697,7 +704,7 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 
 	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
-	LTC6810CommandGenerate(VmessageInBinary, dataToSend);
+	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
@@ -709,7 +716,7 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	voltArray[2] = LTC6810VoltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
 
 	VmessageInBinary = 0b110; //read cell voltage reg group 2;
-	LTC6810CommandGenerate(VmessageInBinary, dataToSend);
+	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
