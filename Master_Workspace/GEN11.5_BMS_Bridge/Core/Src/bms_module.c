@@ -7,6 +7,7 @@
 #include "bms_module.h"
 #include <math.h>
 
+
 static void get_temperature(BmsModule* this, float* temperature, get_mode_t get_mode);
 static void get_voltage(BmsModule* this, float* voltage, get_mode_t get_mode);
 static void get_state_of_charge(BmsModule* this, float* soc);
@@ -30,6 +31,17 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 static void LTC6810Convert_to_temp(float input_voltage[3], float output_temperature[3]);
 static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
 static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
+
+void bms_module_while_loop_test(void* parameters) {
+	BmsModule* this = (BmsModule*)parameters;
+	while (1) {
+		uint8_t dataToSend[2] = {0};
+		LTC6810TransmitIsospiMode(this, dataToSend, 2);
+
+		//LTC6810ReadTemp
+	}
+}
+
 
 static void sfq_init(StaticFloatQueue* this)
 {

@@ -138,6 +138,26 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
 #endif
   /* add threads, ... */
+
+  /* =============== TEST ==================*/
+//	BmsModule bms_module;
+//	bms_module_init(&bms_module, 0, &hspi3, GPIOC, GPIO_PIN_9);
+//	TaskHandle_t bms_module_while_loop_test_task_handle;
+//	BaseType_t status = xTaskCreate(
+//			bms_module_while_loop_test,  //Function that implements the task.
+//			"bms_module_while_loop_test",  //Text name for the task.
+//			256, 		 //256 words *4(bytes/word) = 1024 bytes allocated for task's stack (note even this size is unnecessary as this thread barely creates any variables)
+//			&bms_module,  //Parameter passed into the task.
+//			4,  //Priority at which the task is created.
+//			&bms_module_while_loop_test_task_handle  //Used to pass out the created task's handle.
+//		);
+//	configASSERT(status == pdPASS);	// Error checking
+
+
+  /* =============== TEST ==================*/
+
+
+  /* ================= Actual code ================== */
   buart = B_uartStart(&huart1);
   btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
 
@@ -151,6 +171,8 @@ int main(void)
   // Initialize and run bms
   bms_init(&bms, &hspi3, spi_cs_ports, spi_cs_pins);
   bms.run(&bms);
+  /* ================= Actual code ================== */
+
 
   /* USER CODE END RTOS_THREADS */
 

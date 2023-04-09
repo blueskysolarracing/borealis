@@ -81,6 +81,8 @@ void bms_module_init(
 		uint16_t _spi_cs_pin
 		);
 
+void bms_module_while_loop_test(void* parameters);
+
 
 
 #endif /* INC_BMS_MODULE_H_ */
