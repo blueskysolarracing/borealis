@@ -532,18 +532,20 @@ static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[],
 
 static void LTC6810IsospiWakeup(BmsModule* this){
 	//No delay more than 3ms allowed (between this function call and the actual SPI comm)! else isoSPI might go back to sleep
-	//TODO: might need to send dummy byte.
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); // Set high to be able to create falling edge in the following functions
+	vTaskDelay(pdMS_TO_TICKS(1));
 	uint8_t dummyByte[1] = {'0'};
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Falling edge to trigger wake up
+	// Need to transmit dummy byte
 	HAL_SPI_Transmit(this->_spi_handle, dummyByte, 1, 100); // Note we assume CS is initially low, so no need to set it low before transmission
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
-	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
-	//IMMEDIATELY after this, Lower the CS
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // can set CS Low at the end of this function, since we assume it is low at the beginning
 }
 
 static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen){
 	// Assume CS is initially low
 	LTC6810IsospiWakeup(this);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
 	vTaskDelay(pdMS_TO_TICKS(1)); //require several us. No delay more than 3ms allowed
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
 	// Keep CS low
