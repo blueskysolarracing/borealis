@@ -21,6 +21,9 @@ static uint8_t LTC6810ArrayToByte(int arrayIn[]); //8 bit array to a byte
 static void LTC6810CommandToArray(int command, int CMD0ref[], int CMD1ref[]);
 static void LTC6810CommandGenerate(int command, uint8_t dataToSend[]); //dataToSend is array pass by reference
 static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[], uint8_t address); //dataToSend is array pass by reference
+static void LTC6810IsospiWakeup(BmsModule* this);
+static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen);
+static void LTC6810TransmitReceiveIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen, uint8_t dataToReceive[], uint8_t dataToReceiveLen);
 static int LTC6810InitializeAndCheck();
 static int LTC6810VoltageDataConversion(uint8_t lowByte, uint8_t highByte);
 static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
@@ -87,7 +90,7 @@ void bms_module_init(
 	this->_spi_cs_port = spi_cs_port;
 	this->_spi_cs_pin = spi_cs_pin;
 
-
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Keep CS low until ISOSPI wake up call
 
 	// Get voltages. Note we can't call this->get_voltage() because it requires freertos scheduler, but freertos scheduler is not initialized yet
 	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
@@ -312,9 +315,7 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 	dataToSend[11] = LTC6810ArrayToByte(PEC1_6);
 
 	//now send the data
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 12, 100);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+	LTC6810TransmitIsospiMode(this, dataToSend, 12);
 
 }
 
@@ -529,6 +530,34 @@ static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[],
 	LTC6810CommandGenerate(command, dataToSend);
 }
 
+static void LTC6810IsospiWakeup(BmsModule* this){
+	//No delay more than 3ms allowed (between this function call and the actual SPI comm)! else isoSPI might go back to sleep
+	//TODO: might need to send dummy byte.
+	uint8_t dummyByte[1] = {'0'};
+	HAL_SPI_Transmit(this->_spi_handle, dummyByte, 1, 100); // Note we assume CS is initially low, so no need to set it low before transmission
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	//IMMEDIATELY after this, Lower the CS
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // can set CS Low at the end of this function, since we assume it is low at the beginning
+}
+
+static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen){
+	// Assume CS is initially low
+	LTC6810IsospiWakeup(this);
+	vTaskDelay(pdMS_TO_TICKS(1)); //require several us. No delay more than 3ms allowed
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
+	// Keep CS low
+}
+
+static void LTC6810TransmitReceiveIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen, uint8_t dataToReceive[], uint8_t dataToReceiveLen){
+	// Assume CS is initially low
+	LTC6810TransmitIsospiMode(this, dataToSend, dataToSendLen);
+	vTaskDelay(pdMS_TO_TICKS(1)); //add delay between Transmit & Receive
+	HAL_SPI_Receive(this->_spi_handle, dataToReceive, dataToReceiveLen, 100);
+	vTaskDelay(pdMS_TO_TICKS(1)); // Might not be necessary
+	// keep CS low
+}
+
 /*
 static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	//voltafeArray[1] is voltage of cell 0; [5] is voltage of cell 6
@@ -665,22 +694,13 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 
 		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
 		LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
-
-		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET);//slave low
-		vTaskDelay(pdMS_TO_TICKS(1));
-		HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
-		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+		LTC6810TransmitIsospiMode(this, dataToSend, 4);
 
 		//now read from it
 		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
 		LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
-		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET);
+		LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 6);
 
-		HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
-		vTaskDelay(pdMS_TO_TICKS(1)); //ADD DELAY between Transmit & Receive
-		HAL_SPI_Receive(this->_spi_handle, dataToReceive, 6, 100);
-
-		HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 		//write value into array
 		int tempSum = 256*dataToReceive[3] + dataToReceive[2];
 		//float TempInC = 1/(1/298.15+(1/3950) * log((-10)/(tempSum/)))
@@ -697,32 +717,18 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	//first read first half of data
 	VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);//generate the "check voltage command"
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
-	//now receive those data
-	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
+	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 
 	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
-	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
-
-
+	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	voltArray[0] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	voltArray[1] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	voltArray[2] = LTC6810VoltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
 
 	VmessageInBinary = 0b110; //read cell voltage reg group 2;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
-	HAL_SPI_Transmit(this->_spi_handle, dataToSend, 4/*byte*/, 100);
-	HAL_SPI_Receive(this->_spi_handle, dataToReceive, 8, 100);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
-
+	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	voltArray[3] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	voltArray[4] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 
