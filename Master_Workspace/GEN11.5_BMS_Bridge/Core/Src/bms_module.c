@@ -102,7 +102,7 @@ void bms_module_init(
 	this->_spi_cs_port = spi_cs_port;
 	this->_spi_cs_pin = spi_cs_pin;
 
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Keep CS low until ISOSPI wake up call
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 
 	// Get voltages. Note we can't call this->get_voltage() because it requires freertos scheduler, but freertos scheduler is not initialized yet
 	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
@@ -544,32 +544,33 @@ static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[],
 
 static void LTC6810IsospiWakeup(BmsModule* this){
 	//No delay more than 3ms allowed (between this function call and the actual SPI comm)! else isoSPI might go back to sleep
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); // Set high to be able to create falling edge in the following functions
-	vTaskDelay(pdMS_TO_TICKS(1));
+	// Need to transmit dummy byte
 	uint8_t dummyByte[1] = {'0'};
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Falling edge to trigger wake up
-	// Need to transmit dummy byte
-	HAL_SPI_Transmit(this->_spi_handle, dummyByte, 1, 100); // Note we assume CS is initially low, so no need to set it low before transmission
+	HAL_SPI_Transmit(this->_spi_handle, dummyByte, 1, 100);
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
 static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen){
-	// Assume CS is initially low
 	LTC6810IsospiWakeup(this);
-	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
-	vTaskDelay(pdMS_TO_TICKS(1)); //require several us. No delay more than 3ms allowed
+	vTaskDelay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
-	// Keep CS low
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
 static void LTC6810TransmitReceiveIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen, uint8_t dataToReceive[], uint8_t dataToReceiveLen){
 	// Assume CS is initially low
-	LTC6810TransmitIsospiMode(this, dataToSend, dataToSendLen);
+	LTC6810IsospiWakeup(this);
+	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
+	vTaskDelay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
+	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
 	vTaskDelay(pdMS_TO_TICKS(1)); //add delay between Transmit & Receive
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive, dataToReceiveLen, 100);
 	vTaskDelay(pdMS_TO_TICKS(1)); // Might not be necessary
-	// keep CS low
+	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
 /*
