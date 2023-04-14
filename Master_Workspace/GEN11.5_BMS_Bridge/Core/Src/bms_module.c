@@ -561,7 +561,6 @@ static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uin
 }
 
 static void LTC6810TransmitReceiveIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen, uint8_t dataToReceive[], uint8_t dataToReceiveLen){
-	// Assume CS is initially low
 	LTC6810IsospiWakeup(this);
 	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
