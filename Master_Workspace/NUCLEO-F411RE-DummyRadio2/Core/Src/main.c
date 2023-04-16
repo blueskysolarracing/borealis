@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-///#include "cmsis_os.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "pack_data.h"
+#include "btcp.h"
 #include "protocol_ids.h"
 #include <stdbool.h>
 /* USER CODE END Includes */
@@ -101,8 +102,10 @@
  CRC_HandleTypeDef hcrc;
 
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_rx;
+DMA_HandleTypeDef hdma_usart2_tx;
 
-//osThreadId defaultTaskHandle;
+osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 uint8_t payload[1000];
 
@@ -148,14 +151,17 @@ uint8_t PPTMB_SeqNum = 0;
 uint8_t MCMB_SeqNum = 0;
 uint8_t DCMB_SeqNum = 0;
 
+B_uartHandle_t* buart;
+B_tcpHandle_t* btcp;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_CRC_Init(void);
-//void StartDefaultTask(void const * argument);
+void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -470,162 +476,171 @@ void Core_Temp_Generator(uint8_t* p){
     insertRandomValue(p, 1, 3, 20, 60);
 }
 //Data ID 0F
-void Heartbeat_Generator(uint8_t* p){
-    *p = BBMB_HEARTBEAT_ID;
+void Heartbeat_Generator(uint8_t* p, uint8_t heartbeat_id){
+    *p = heartbeat_id;
     *(p+1) = 0x00;
     *(p+2) = 0x00;
     *(p+3) = 0x00;
 }
 
-void dummySend(uint8_t payloadLength, uint8_t senderAddress, uint8_t* seqNum, uint8_t* payload){
-
-	uint8_t buf[HEADER_LENGTH + MAX_PACKET_SIZE + CRC_LENGTH];
-
-	buf[0] = BSSR_SERIAL_START;
-	buf[1] = payloadLength;
-	buf[2] = senderAddress;
-	buf[3] = *seqNum;
-	memcpy(buf+4, payload, payloadLength);
-	uint32_t crc_result = ~HAL_CRC_Calculate(&hcrc, (uint32_t*)buf, payloadLength+4);
-
-	uint16_t buf_pos = 0;
-
-	buf[buf_pos] = BSSR_SERIAL_START;
-	buf_pos++;
-
-	if(payloadLength == BSSR_SERIAL_START || payloadLength == BSSR_SERIAL_ESCAPE){
-		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-		buf_pos++;
-		buf[buf_pos] = payloadLength;
-		buf_pos++;
-	} else{
-		buf[buf_pos] = payloadLength;
-		buf_pos++;
-	}
-
-	buf[buf_pos] = senderAddress;
-	buf_pos++;
-
-	if(*seqNum == BSSR_SERIAL_START || *seqNum == BSSR_SERIAL_ESCAPE){
-		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-		buf_pos++;
-		buf[buf_pos] = *seqNum;
-		buf_pos++;
-	} else{
-		buf[buf_pos] = *seqNum;
-		buf_pos++;
-	}
-	(*seqNum)++;
-
-	for(int i=0; i<payloadLength; i++){
-		if(*(payload+i) == BSSR_SERIAL_ESCAPE || *(payload+i) == BSSR_SERIAL_START){
-			buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-			buf_pos++;
-			buf[buf_pos] = *(payload+i);
-			buf_pos++;
-		} else{
-			buf[buf_pos] = *(payload+i);
-			buf_pos++;
-		}
-	}
-
-	for(int i=0; i<4; i++){
-		uint8_t crc = (crc_result>>(8*(3-i))) & 255;
-		if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
-			buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-			buf_pos++;
-			buf[buf_pos] = crc;
-			buf_pos++;
-		} else{
-			buf[buf_pos] = crc;
-			buf_pos++;
-		}
-	}
-
-	if(buf_pos%4 != 0) {
-	        int paddingNum = 4 - buf_pos % 4;
-	        for (int i = paddingNum; i > 0; i--) {
-	            buf[buf_pos] = 0x00;
-	            buf_pos++;
-	        }
-	    }
-
-	HAL_UART_Transmit(&huart2, buf, buf_pos, HAL_MAX_DELAY);
-}
+//void dummySend(uint8_t payloadLength, uint8_t senderAddress, uint8_t* seqNum, uint8_t* payload){
+//
+//	uint8_t buf[HEADER_LENGTH + MAX_PACKET_SIZE + CRC_LENGTH];
+//
+//	buf[0] = BSSR_SERIAL_START;
+//	buf[1] = payloadLength;
+//	buf[2] = senderAddress;
+//	buf[3] = *seqNum;
+//	memcpy(buf+4, payload, payloadLength);
+//	uint32_t crc_result = ~HAL_CRC_Calculate(&hcrc, (uint32_t*)buf, payloadLength+4);
+//
+//	uint16_t buf_pos = 0;
+//
+//	buf[buf_pos] = BSSR_SERIAL_START;
+//	buf_pos++;
+//
+//	if(payloadLength == BSSR_SERIAL_START || payloadLength == BSSR_SERIAL_ESCAPE){
+//		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+//		buf_pos++;
+//		buf[buf_pos] = payloadLength;
+//		buf_pos++;
+//	} else{
+//		buf[buf_pos] = payloadLength;
+//		buf_pos++;
+//	}
+//
+//	buf[buf_pos] = senderAddress;
+//	buf_pos++;
+//
+//	if(*seqNum == BSSR_SERIAL_START || *seqNum == BSSR_SERIAL_ESCAPE){
+//		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+//		buf_pos++;
+//		buf[buf_pos] = *seqNum;
+//		buf_pos++;
+//	} else{
+//		buf[buf_pos] = *seqNum;
+//		buf_pos++;
+//	}
+//	(*seqNum)++;
+//
+//	for(int i=0; i<payloadLength; i++){
+//		if(*(payload+i) == BSSR_SERIAL_ESCAPE || *(payload+i) == BSSR_SERIAL_START){
+//			buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+//			buf_pos++;
+//			buf[buf_pos] = *(payload+i);
+//			buf_pos++;
+//		} else{
+//			buf[buf_pos] = *(payload+i);
+//			buf_pos++;
+//		}
+//	}
+//
+//	for(int i=0; i<4; i++){
+//		uint8_t crc = (crc_result>>(8*(3-i))) & 255;
+//		if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
+//			buf[buf_pos] = BSSR_SERIAL_ESCAPE;
+//			buf_pos++;
+//			buf[buf_pos] = crc;
+//			buf_pos++;
+//		} else{
+//			buf[buf_pos] = crc;
+//			buf_pos++;
+//		}
+//	}
+//
+//	if(buf_pos%4 != 0) {
+//	        int paddingNum = 4 - buf_pos % 4;
+//	        for (int i = paddingNum; i > 0; i--) {
+//	            buf[buf_pos] = 0x00;
+//	            buf_pos++;
+//	        }
+//	    }
+//
+//	HAL_UART_Transmit(&huart2, buf, buf_pos, HAL_MAX_DELAY);
+//}
 
 
 
 void BBMB(){
 
+	btcp->senderID = BBMB_ID;
+	btcp->tcpSeqNum = BBMB_SeqNum;
 
 	Bus_Metrics_Generator(BBMB_BUS_METRICS_ID, payload);
-	dummySend(BUS_METRICS_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, BUS_METRICS_LENGTH);
 
 	Relay_State_Generator(BBMB_RELAYS_STATE_ID, payload);
-	dummySend(RELAY_STATE_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, RELAY_STATE_LENGTH);
 
-	Heartbeat_Generator(payload);
-	dummySend(HEARTBEAT_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
+	Heartbeat_Generator(payload, BBMB_HEARTBEAT_ID);
+	B_tcpSend(btcp, payload, HEARTBEAT_LENGTH);
 
 	BMS_Cell_Temp_Generator(payload);
-	dummySend(BMS_CELL_TEMP_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, BMS_CELL_TEMP_LENGTH);
 
 	BMS_Cell_Volt_Generator(payload);
-	dummySend(BMS_CELL_VOLT_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, BMS_CELL_VOLT_LENGTH);
 
 	BMS_Cell_SOC_Generator(payload);
-	dummySend(BMS_CELL_SOC_LENGTH, BBMB_ID, &BBMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, BMS_CELL_SOC_LENGTH);
+
+	Heartbeat_Generator(payload, BMS_HEARTBEAT_ID);
+	B_tcpSend(btcp, payload, HEARTBEAT_LENGTH);
+
+	BBMB_SeqNum = btcp->tcpSeqNum;
 
 }
 
 void PPTMB(){
+	btcp->senderID = PPTMB_ID;
+	btcp->tcpSeqNum = PPTMB_SeqNum;
 
 	Bus_Metrics_Generator(PPTMB_BUS_METRICS_ID, payload);
-	dummySend(BUS_METRICS_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
-
-	PPT_Metrics_Generator(payload);
-	dummySend(PPT_METRICS_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, BUS_METRICS_LENGTH);
 
 	Relay_State_Generator(PPTMB_RELAYS_STATE_ID, payload);
-	dummySend(RELAY_STATE_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
+	B_tcpSend(btcp, payload, RELAY_STATE_LENGTH);
 
-	Heartbeat_Generator(payload);
-	dummySend(HEARTBEAT_LENGTH, PPTMB_ID, &PPTMB_SeqNum, payload);
+	Heartbeat_Generator(payload, PPTMB_HEARTBEAT_ID);
+	B_tcpSend(btcp, payload, HEARTBEAT_LENGTH);
 
+	PPTMB_SeqNum = btcp->tcpSeqNum;
 }
 
 void MCMB(){
+	btcp->senderID = MCMB_ID;
+	btcp->tcpSeqNum = MCMB_SeqNum;
 
-    Bus_Metrics_Generator(MCMB_BUS_METRICS_ID, Bus_Metrics_Payload);
-    dummySend(BUS_METRICS_LENGTH, MCMB_ID, &MCMB_SeqNum, Bus_Metrics_Payload);
+    Bus_Metrics_Generator(MCMB_BUS_METRICS_ID, payload);
+    B_tcpSend(btcp, payload, BUS_METRICS_LENGTH);
 
-    Speed_Pulse_Reading_Generator(Speed_Pulse_Reading_Payload);
-    dummySend(SPEED_PULSE_READING_LENGTH, MCMB_ID, &MCMB_SeqNum, Speed_Pulse_Reading_Payload);
+    Speed_Pulse_Reading_Generator(payload);
+    B_tcpSend(btcp, payload, SPEED_PULSE_READING_LENGTH);
 
-    Heartbeat_Generator(Heartbeat_Payload);
-    dummySend(HEARTBEAT_LENGTH, MCMB_ID, &MCMB_SeqNum, Heartbeat_Payload);
+    Heartbeat_Generator(payload, MCMB_HEARTBEAT_ID);
+    B_tcpSend(btcp, payload, HEARTBEAT_LENGTH);
 
+    MCMB_SeqNum = btcp->tcpSeqNum;
 }
 
 void DCMB(){
 
-//    BBox_Startup_Generator(BBox_Startup_Payload);
-//    dummySend(BBOX_STARTUP_LENGTH, DCMB_ID, &DCMB_SeqNum, BBox_Startup_Payload);
-//
-//    PPTBox_Startup_Generator(PPTBox_Startup_Payload);
-//    dummySend(PPTBOX_STARTUP_LENGTH, DCMB_ID, &DCMB_SeqNum, PPTBox_Startup_Payload);
+	btcp->senderID = MCMB_ID;
+	btcp->tcpSeqNum = MCMB_SeqNum;
 
-    Light_State_Generator(Light_State_Payload);//there
-    dummySend(LIGHT_STATE_LENGTH, DCMB_ID, &DCMB_SeqNum, Light_State_Payload);
+    Light_State_Generator(payload);//there
+    B_tcpSend(btcp, payload, LIGHT_STATE_LENGTH);
 
-    Motor_Control_State_Generator(Motor_Control_State_Payload);//there
-    dummySend(MOTOR_CONTROL_STATE_LENGTH, DCMB_ID, &DCMB_SeqNum, Motor_Control_State_Payload);
+    Motor_Control_State_Generator(payload);//there
+    B_tcpSend(btcp, payload, MOTOR_CONTROL_STATE_LENGTH);
 
-    Relay_State_Generator(DCMB_RELAYS_STATE_ID, Relay_State);//there
-    dummySend(RELAY_STATE_LENGTH, DCMB_ID, &DCMB_SeqNum, Relay_State);
+    Relay_State_Generator(DCMB_RELAYS_STATE_ID, payload);//there
+    B_tcpSend(btcp, payload, RELAY_STATE_LENGTH);
 
-    Heartbeat_Generator(Heartbeat_Payload);//there
-    dummySend(HEARTBEAT_LENGTH, DCMB_ID, &DCMB_SeqNum, Heartbeat_Payload);
+    Heartbeat_Generator(Heartbeat_Payload, DCMB_HEARTBEAT_ID);//there
+    B_tcpSend(btcp, payload, HEARTBEAT_LENGTH);
+
+    DCMB_SeqNum = btcp->tcpSeqNum;
 
 }
 /* USER CODE END 0 */
@@ -658,6 +673,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
@@ -683,16 +699,19 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  //osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  //defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+
+  buart = B_uartStart(&huart2);
+  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
   //char buffer[100] = {"\0"};
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
-  //osKernelStart();
+  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
@@ -700,15 +719,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  BBMB();
-	  PPTMB();
-	  MCMB();
-	  DCMB();
 
-	  //For Testing
-	  //sprintf(buffer, "hi");
-	  //HAL_UART_Transmit(&huart2, (uint8_t*) buffer, 100, 100);
-	  //HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -820,6 +831,25 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+  /* DMA1_Stream6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -863,17 +893,20 @@ static void MX_GPIO_Init(void)
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-
-//void StartDefaultTask(void const * argument)
-//{
+void StartDefaultTask(void const * argument)
+{
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  //for(;;)
-  //{
-    //osDelay(1);
-  //}
+  for(;;)
+  {
+	BBMB();
+	PPTMB();
+	MCMB();
+	DCMB();
+    osDelay(500);
+  }
   /* USER CODE END 5 */
-//}
+}
 
 /**
   * @brief  Period elapsed callback in non blocking mode
