@@ -33,9 +33,13 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
 
 void bms_module_while_loop_test(void* parameters) {
+	//BMS test code, run when disabling the actual code in main
+
 	BmsModule* this = (BmsModule*)parameters;
 	while (1) {
 		uint8_t dataToSend[2] = {0};
+
+		LTC6810CommandGenerateAddressMode(command, dataToSend, address)
 		LTC6810TransmitIsospiMode(this, dataToSend, 2);
 
 		//LTC6810ReadTemp
@@ -552,6 +556,7 @@ static void LTC6810IsospiWakeup(BmsModule* this){
 }
 
 static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen){
+	//directly trans
 	LTC6810IsospiWakeup(this);
 	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
