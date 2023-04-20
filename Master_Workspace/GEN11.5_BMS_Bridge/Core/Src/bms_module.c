@@ -33,14 +33,42 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
 
 void bms_module_while_loop_test(void* parameters) {
-	//BMS test code, run when disabling the actual code in main
+	//BMS test code, when run need to disabling the actual code in main
+
+	//to test:
+	//config,including setting gpio & set vref onoff
+	//along w/ gpio, test thermal
+
+	//read voltages all 6 channels
+
+	//try balancing? if have time.
+
+	//rest for 1 sec
+
+
 
 	BmsModule* this = (BmsModule*)parameters;
-	while (1) {
-		uint8_t dataToSend[2] = {0};
+	while(this->init_flag == 0){
+	}
 
-		LTC6810CommandGenerateAddressMode(command, dataToSend, address)
-		LTC6810TransmitIsospiMode(this, dataToSend, 2);
+	while (1) {
+
+//		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, RESET);
+//
+//		uint8_t dataToSend[16] = {0};//normal transmit use 2byte data 2byte PEC. Config use
+//		int commandInBinary = 0b01001100000;
+//		uint8_t address = 0;
+//
+//		LTC6810CommandGenerateAddressMode(commandInBinary, dataToSend, address);
+//		//LTC6810TransmitIsospiMode(this, dataToSend, 4);
+//
+//
+//		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
+		vTaskDelay(1000 );
+//
+//		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
+//		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
+
 
 		//LTC6810ReadTemp
 	}
@@ -91,6 +119,7 @@ void bms_module_init(
 		GPIO_TypeDef* spi_cs_port,
 		uint16_t spi_cs_pin
 ) {
+	this->init_flag = 0;
 	this->get_temperature = get_temperature;
 	this->get_voltage = get_voltage;
 	this->get_state_of_charge = get_state_of_charge;
@@ -131,6 +160,8 @@ void bms_module_init(
 		this->_tick_last_soc_compute[i] = xTaskGetTickCount();
 		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
 	}
+
+	this->init_flag = 1;
 
 }
 

@@ -71,6 +71,8 @@ typedef struct BmsModule {
 	GPIO_TypeDef* _spi_cs_port;
 	uint16_t _spi_cs_pin;
 
+	int init_flag;// raise after bms_init function finishes, so freertos no issue
+
 } BmsModule;
 
 void bms_module_init(
