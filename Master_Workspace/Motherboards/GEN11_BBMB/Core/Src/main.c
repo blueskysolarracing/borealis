@@ -1483,6 +1483,9 @@ void serialParse(B_tcpPacket_t *pkt){
 
 				//Update global for discharge test (cell #0 of BMS #0)
 				if (pkt->data[1] == 0) cellUnderTestSOC = arrayToFloat(&(pkt->data[4]));
+			} else if (pkt->data[0] == BMS_HEARTBEAT_ID) {
+				//RE-send on main bus
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 			}
 			break;
 

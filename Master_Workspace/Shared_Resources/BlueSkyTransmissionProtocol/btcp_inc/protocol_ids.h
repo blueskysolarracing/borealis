@@ -82,7 +82,7 @@ enum BMS_Data_ID {
 	BMS_CELL_VOLT_ID = 			0x08,
 	BMS_CELL_SOC_ID = 			0x09,
 
-	BMS_HEARTBEAT_ID = 			0x0F
+	BMS_HEARTBEAT_ID = 			0x0A
 };
 
 enum BMS_Error_Code {
