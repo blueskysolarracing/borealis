@@ -32,6 +32,19 @@ static void LTC6810Convert_to_temp(float input_voltage[3], float output_temperat
 static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC4, int DCC3, int DCC2, int DCC1);
 static void LTC6810ReadVolt(BmsModule* this, float* voltArray);
 
+//==== extern the following stuff cuz the test code runs in this .c file ====
+
+extern CRC_HandleTypeDef hcrc;
+
+extern SPI_HandleTypeDef hspi3;
+
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart3;
+extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart1_tx;
+// ==== end of extern ====
+
+
 void bms_module_while_loop_test(void* parameters) {
 	//BMS test code, when run need to disabling the actual code in main
 
@@ -45,32 +58,35 @@ void bms_module_while_loop_test(void* parameters) {
 
 	//rest for 1 sec
 
+	float voltarrayTest[5];
+	char MSG[50];
 
 
 	BmsModule* this = (BmsModule*)parameters;
 	while(this->init_flag == 0){
 	}
+	LTC6810IsospiWakeup(this);
+	LTC6810Init(this,0,0,0,0,0,0,0,0);
 
 	while (1) {
 
-//		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, RESET);
-//
-//		uint8_t dataToSend[16] = {0};//normal transmit use 2byte data 2byte PEC. Config use
-//		int commandInBinary = 0b01001100000;
-//		uint8_t address = 0;
-//
-//		LTC6810CommandGenerateAddressMode(commandInBinary, dataToSend, address);
-//		//LTC6810TransmitIsospiMode(this, dataToSend, 4);
-//
-//
-//		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
-		vTaskDelay(1000 );
-//
-//		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
-//		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, RESET);
+
+		uint8_t dataToSend[16] = {0};//normal transmit use 2byte data 2byte PEC. Config use 6 byte data and 2byte PEC
+		int commandInBinary = 0b01001100000;
+		uint8_t address = 0;
+
+		//LTC6810CommandGenerateAddressMode(commandInBinary, dataToSend, address);
+		//LTC6810TransmitIsospiMode(this, dataToSend, 4);
+		LTC6810ReadVolt(this, voltarrayTest);
+
+		 sprintf(MSG, "return0 = %.2f ,%.2f, %.2f,%.2f,%.2f  .\r\n ", voltarrayTest[0],voltarrayTest[1], voltarrayTest[2], voltarrayTest[3],voltarrayTest[4],voltarrayTest[5]);
+		  HAL_UART_Transmit(&huart3, MSG, sizeof(MSG), 100);
+
+		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
+		vTaskDelay(1000);
 
 
-		//LTC6810ReadTemp
 	}
 }
 
@@ -572,7 +588,7 @@ static void LTC6810CommandGenerate(int command, uint8_t dataToSend[]){ //dataToS
 } // ======== end of LTC6810CommandGenerate function ==========
 
 static void LTC6810CommandGenerateAddressMode(int command, uint8_t dataToSend[], uint8_t address){ //dataToSend is array pass by reference
-	int addressCommand = (0b10000 | (address & 0b1111)) << 12;
+	int addressCommand = (0b10000 | (address & 0b1111)) << 11;
 	command |= addressCommand;
 	LTC6810CommandGenerate(command, dataToSend);
 }
@@ -768,19 +784,23 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);//generate the "check voltage command"
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 
+	vTaskDelay(10);
 	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	voltArray[0] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	voltArray[1] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	voltArray[2] = LTC6810VoltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);//TODO: change this to proper value
 
 	VmessageInBinary = 0b110; //read cell voltage reg group 2;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	voltArray[3] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	voltArray[4] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 
 	// Not using the following since voltArray has size of 5 instead of 6
 	// voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
