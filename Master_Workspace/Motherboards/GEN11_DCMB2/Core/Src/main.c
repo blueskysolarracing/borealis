@@ -1585,25 +1585,25 @@ static void pedalTask(const void* p) {
 		}
 
 		// Check if brake is pressed
-		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
-			brakeState = BRAKE_PRESSED;
-		} else {
-			brakeState = BRAKE_RELEASED;
-		}
-		// send command to turn on/off brake lights if brakeState has changed
-		// Need to wait until BBMB is known to be alive and then send first command
-		if (BBMBFirstPacketReceived && (firstTime || brakeState != prevBrakeState)) {
-			firstTime = 0;
-			prevBrakeState = brakeState;
-			if (brakeState == BRAKE_PRESSED) {
-				// turn on brake lights
-				bufh2[1] = 0b01001000;
-			} else {
-				// turn off brake lights
-				bufh2[1] = 0b00001000;
-			}
-		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
-		}
+//		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
+//			brakeState = BRAKE_PRESSED;
+//		} else {
+//			brakeState = BRAKE_RELEASED;
+//		}
+//		// send command to turn on/off brake lights if brakeState has changed
+//		// Need to wait until BBMB is known to be alive and then send first command
+//		if (BBMBFirstPacketReceived && (firstTime || brakeState != prevBrakeState)) {
+//			firstTime = 0;
+//			prevBrakeState = brakeState;
+//			if (brakeState == BRAKE_PRESSED) {
+//				// turn on brake lights
+//				bufh2[1] = 0b01001000;
+//			} else {
+//				// turn off brake lights
+//				bufh2[1] = 0b00001000;
+//			}
+//		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
+//		}
 
 		//Compute value on 0-256 scale
 		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
@@ -1641,7 +1641,7 @@ static void pedalTask(const void* p) {
 				default_data.P2_motor_state = REGEN;
 			}
 #endif
-			else if (accelValue >= accel_reading_threshold /*&& brakeState == BRAKE_RELEASED*/) {
+			else if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
 				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
@@ -1969,7 +1969,7 @@ void steeringWheelTask(const void *pv){
 			// Do nothing
 		}
 		oldRightButton = (steeringData[2] & (1 << 3));
-		B_tcpSend(btcp, bufe, sizeof(bufh2));
+		B_tcpSend(btcp, bufe, sizeof(bufe));
 
 	}
 	xTaskResumeAll(); // exit critical section
