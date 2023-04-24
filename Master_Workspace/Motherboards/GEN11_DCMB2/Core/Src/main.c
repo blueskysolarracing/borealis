@@ -74,7 +74,7 @@ enum CRUISE_MODE {
 #define MAX_VFM 8 //Maximum VFM setting
 #define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
-#define REGEN_BATTERY_VOLTAGE_THRESHOLD 116 // voltage above which regen should be disabled
+#define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
