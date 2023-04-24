@@ -14,6 +14,7 @@
 #define WRITE_PROTECTION_ENABLE 1 //Set to 1 to disable write protection between reads/writes (saves time)
 #define PSM_SEND_INTERVAL 250 //250ms between measurements
 #define PSM_FIR_FILTER_SAMPLING_FREQ_MCMB 125 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
+#define PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT 250 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
 #define PSM_FIR_FILTER_SAMPLING_FREQ_BBMB 200 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
 #define PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB 50 //Number of samples contained in FIR filter FIFO buffer (and sampling frequency in Hz)
 
