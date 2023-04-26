@@ -25,7 +25,7 @@ _FICD( JTAGEN_OFF & ICS_PGD3 )
 
 #define VPANEL_CALIBRATION 32478
 #define VBATTERY_CALIBRATION 34862
-#define IPANEL_CALIBRATION 60357
+#define IPANEL_CALIBRATION 46211
 #define PPANEL_CALIBRATION ((uint16)((uint32)VBATTERY_CALIBRATION/2*IPANEL_CALIBRATION/128000))
 
 extern void set_up_clock();
@@ -93,11 +93,11 @@ uint8 send_sequence;
 #define DITHERING_TRACKING_MODE        5
 
 #define POWER_ON_DELAY ((uint8)200)
-#define MAX_VBATT (150 * 20)  // This value must be the same as in input_power_control.s ; set to 155V
-#define MIN_VBATT (50 * 20)  // This value must be the same as in input_power_control.s ; set to 90V
-#define MIN_VPANEL_TO_VBATT (1 * 20) // This value must be the same as in input_power_control.s ; set to 15V
-                                      //  Must: MIN_VPANEL_TO_VBATT <= MIN_VBATT
-#define MIN_VPANEL (5 * 20)  // This value must be the same as in input_power_control.s ; set to 10V
+#define MAX_VBATT (126 * 20)  // This value must be the same as in input_power_control.s ; set to 126V
+#define MIN_VBATT (70 * 20)  // This value must be the same as in input_power_control.s ; set to 70V
+#define MIN_VPANEL_TO_VBATT (10 * 20) // This value must be the same as in input_power_control.s ; set to 10V
+//  Must: MIN_VPANEL_TO_VBATT <= MIN_VBATT
+#define MIN_VPANEL (5 * 20)  // This value must be the same as in input_power_control.s ; set to 5V
 
 // DEBUG START
 //#undef MIN_VBATT
