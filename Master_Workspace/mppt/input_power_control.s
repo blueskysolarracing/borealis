@@ -16,25 +16,25 @@ Cantact: Tom Rodinger, tom@nanoleaf.me
 .include "p24HJ64GP502.inc"
 
 ; input power section parameters
-.equ INDUCTOR_CONSTANT, 850;1306/90uH,1082/70uH?,850/68uH
+.equ INDUCTOR_CONSTANT, 1000;1306/90uH,1082/70uH?,850/68uH
 .equ LH_DEADTIME, 25
 .equ HL_DEADTIME, 5
 .equ MAX_LS_OFF, 1400				
 .equ MIN_HS_OFF, 42 ;the moment ls turns off
 .equ MAX_HS_OFF, 1400
 .equ MIN_LS_ON_TIME, 1 ; must be 1 or more
-.equ IDEAL_CAPTURE_DELAY, 20 ;23 for coilcraft inductor, ideal time between HS off and trigger in clock cycles //85uH: 12/4.5us, 17 for 90uH, 25 for 100uH
+.equ IDEAL_CAPTURE_DELAY, 25 ;23 for coilcraft inductor, ideal time between HS off and trigger in clock cycles //85uH: 12/4.5us, 17 for 90uH, 25 for 100uH
 .equ MAX_LS_ADJUST_DELTA, 250
 .equ NOMINAL_LS_ADJUST, 32768  
 .equ MIN_LS_ADJUST, (NOMINAL_LS_ADJUST / 2)
 .equ MAX_LS_ADJUST, (40000)
 .equ MAX_UPDATE_TIME_2, 70
-.equ MAX_IAVG, 5500
+.equ MAX_IAVG, 5000
 				    
 
 .equ MAX_VBATT, (150 * 20)  ; This value must be the same as in controller1.c ; set to 140V
-.equ MIN_VBATT, (50 * 20)  ; This value must be the same as in controller1.c ; set to 90V
-.equ MIN_VPANEL_TO_VBATT, (1 * 20) ; This value must be the same as in controller1.c ; set to 15V
+.equ MIN_VBATT, (70 * 20)  ; This value must be the same as in controller1.c ; set to 90V
+.equ MIN_VPANEL_TO_VBATT, (10 * 20) ; This value must be the same as in controller1.c ; set to 15V
 ; Must: MIN_VPANEL_TO_VBATT <= MIN_VBATT
 .equ MIN_VPANEL, (5 * 20)  ; This value must be the same as in controller1.c ; set to 10V
 
