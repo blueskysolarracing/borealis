@@ -127,7 +127,7 @@ uint8_t lightInstruction;
 
 //--- PSM ---//
 struct PSM_P psmPeriph;
-float battery_current;
+float battery_current = 0;
 //double voltageCurrent_LV[2] = {0};
 //double voltageCurrent_HV[2] = {0};
 
@@ -1375,6 +1375,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
+	//char buf[] = "hello world\n";
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
@@ -1384,6 +1385,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case DCMB_ID: //Parse data from DCMB
+			//HAL_UART_Transmit(&huart2, (uint8_t*)buf, sizeof(buf), 100);
 			//Light control
 			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
 				lightInstruction = pkt->data[1];
