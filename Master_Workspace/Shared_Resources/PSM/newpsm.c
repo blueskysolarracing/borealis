@@ -110,11 +110,19 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 	float result;
 	switch(addr){
 		case VBUS:
-			result = (raw_data >> 4) * VBUS_CONVERSION / VOLTAGE_DIVIDER;
+			if (raw_data == 0xffffff) { // If PSM is not connected
+				result = 0;
+			} else {
+				result = (raw_data >> 4) * VBUS_CONVERSION / VOLTAGE_DIVIDER;
+			}
 			break;
 
 		case CURRENT:
-			result = (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4)) * (1-CURRENT_ERROR_MULTIPLIER) - CURRENT_ERROR_OFFSET;
+			if (raw_data == 0xffffff) { // If PSM is not connected
+				result = 0;
+			} else {
+				result = (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4)) * (1-CURRENT_ERROR_MULTIPLIER) - CURRENT_ERROR_OFFSET;
+			}
 			break;
 
 		case POWER:
