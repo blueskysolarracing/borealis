@@ -351,7 +351,7 @@ int main(void)
 
   //--- BATTERY ---//
   batteryState = HEALTHY;
-  HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET); //Turn off HV discharge
+  HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET); //Turn off HV discharge
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Turn off BPS fault LED on driver's panel and activate Vicor 12V
   HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_SET); //Power BMS from battery module instead of supplemental battery
 
@@ -1505,9 +1505,9 @@ void relayTask(void * argument){
 				open_relays(&relay);
 
 				if (relay.array_relay_state == OPEN){ //Both battery and array relays are opened, so discharge HV bus
-					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
-					osDelay(DISCHARGE_TIME);
 					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
+					osDelay(DISCHARGE_TIME);
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
 				}
 
 			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_BATTERY){
@@ -1523,6 +1523,12 @@ void relayTask(void * argument){
 				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
 										batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
 				B_tcpSend(btcp_main, buf, sizeof(buf));
+				if (relay.battery_relay_state == OPEN){ //Both battery and array relays are opened, so discharge HV bus
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
+					osDelay(DISCHARGE_TIME);
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
+				}
+
 
 			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_ARRAY) {
 				relay.array_relay_state = CLOSED;
@@ -1780,9 +1786,9 @@ void battery_faulted_routine(/*uint8_t fault_type, uint8_t fault_cell, uint8_t f
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 
 	//Open both battery and array relays, as per WSC regulation
-	relayCtrlMessage = RELAY_QUEUE_OPEN_BATTERY;
-	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
 	relayCtrlMessage = RELAY_QUEUE_OPEN_ARRAY;
+	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
+	relayCtrlMessage = RELAY_QUEUE_OPEN_BATTERY;
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
 
 

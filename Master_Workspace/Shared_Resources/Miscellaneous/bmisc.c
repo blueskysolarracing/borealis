@@ -25,6 +25,7 @@
  */
 
 void open_relays(struct relay_periph* relay){
+	// Note we cannot enable discharge in this function as only BBMB controls discharge
 
 	//Open the power relays around the battery to disconnect the battery from the HV system
 	HAL_GPIO_WritePin(relay->PRE_SIG_GPIO_Port, relay->PRE_SIG_Pin, GPIO_PIN_RESET); //Make sure the precharge relay is open (should be at this point)
