@@ -3,6 +3,7 @@ import DL3000 as DLwrapper
 import pyvisa as pv
 import time
 import datetime
+import os
 
 # from mainConstCharge import CRate
 
@@ -91,5 +92,8 @@ if __name__ == '__main__':
     if result:
         now = datetime.datetime.now()
         nowStr = now.strftime("%Y%m%d_%H%M%S")
+        outDir = "output"
+        if not os.path.exists(outDir):
+            os.makedirs(outDir)
         fileName = "Results_ConstDischarge_" + nowStr + ".csv"
-        batteryObj.dumpData(fileName)
+        batteryObj.dumpData(os.path.join(outDir, fileName))

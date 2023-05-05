@@ -1,10 +1,11 @@
 import pandas as pd
+import time, os
 
 
-def get_battery_parameters(file, CRate):
-    # Load data from file (.CSV) formatted as below
+def get_battery_parameters(in_file_path, out_dir, CRate):
+    # Load data from in_file_path (.CSV) formatted as below
     # ['TimeStamp', 'TimeDelta', 'InputCurrent', 'OutputVoltage']
-    data = pd.read_csv(file)
+    data = pd.read_csv(in_file_path)
 
     idx_Time = 0
     idx_DeltaT = 1
@@ -58,6 +59,12 @@ def get_battery_parameters(file, CRate):
 
             if compute_stage == 4 and deltaV != 0 and deltaV < 0.00009:
                 C_CT = (data.iloc[i, idx_Time] - T_RCT) / R_CT
-                return R_in, R_CT, C_CT
+                current_time = time.localtime()
+                out_file_name = 'battery_parameters' + str(current_time.tm_hour) + str(current_time.tm_min) + '.csv'
+                out_table = pd.DataFrame({'R_in': [R_in], 'R_CT': [R_CT], 'C_CT': [C_CT]})
+                if not os.path.exists(out_dir):
+                    os.makedirs(out_dir)
+                out_table.to_csv(os.path.join(out_dir, out_file_name))
+                return out_table
 
         prev_Volt = data.iloc[i, idx_VoltOut]

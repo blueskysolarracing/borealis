@@ -1,13 +1,14 @@
 import pandas as pd
 import time
 import matplotlib.pyplot as plt
+import os
 
-def generate_SOC_vs_VTerm(file_path, nominal_capacity, mode):
+def generate_SOC_vs_VTerm(in_file_path, out_dir, nominal_capacity, mode):
     # Data format inside file (.CSV)
     # {'TimeStamp','TimeDelta','InputCurrent','OutputVoltage'}
-    # nominal_capacity - nominal capacity in mAh
+    # nominal_capacity - nominal capacity in mAh (Q)
     # mode - (1) or (-1) for discharging or charging
-    data = pd.read_csv(file_path)
+    data = pd.read_csv(in_file_path)
     dt_idx = 1
     in_curr_idx = 2
     out_volt_idx = 3
@@ -42,6 +43,8 @@ def generate_SOC_vs_VTerm(file_path, nominal_capacity, mode):
     current_time = time.localtime()
     file_name = 'VTerm_v_SOC_' + str(current_time.tm_hour) + str(current_time.tm_min) + '.csv'
     out_table = pd.DataFrame({'VTerm': out_VTerm, 'SOC': out_SOC})
-    out_table.to_csv(file_name)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    out_table.to_csv(os.path.join(out_dir, file_name))
 
-    return True
+    return out_table
