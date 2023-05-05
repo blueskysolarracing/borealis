@@ -124,6 +124,6 @@ void turn_on_fault_indicator(struct lights_stepper_ctrl* lights, float pwm_duty_
 void turn_off_fault_indicator(struct lights_stepper_ctrl* lights){
 //	// default initialization is okay
 //	lights->FLT_TIM->Instance->CCR1 = 0;
-	HAL_TIM_PWM_Stop(lights->FLT_TIM, lights->FLT_CH);
+//	HAL_TIM_PWM_Stop(lights->FLT_TIM, lights->FLT_CH);
 }
 
