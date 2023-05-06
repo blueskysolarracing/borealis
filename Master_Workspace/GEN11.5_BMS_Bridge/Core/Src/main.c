@@ -51,6 +51,7 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
 osThreadId defaultTaskHandle;
+osThreadId heartbeatTaskHandle;
 /* USER CODE BEGIN PV */
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
@@ -71,7 +72,8 @@ static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
-void HeartbeatHandler(TimerHandle_t xTimer);
+// void HeartbeatHandler(TimerHandle_t xTimer);
+void StartHeartbeatTask(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -127,6 +129,8 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   //configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
+  osThreadDef(heartbeatTask, StartHeartbeatTask, osPriorityNormal, 0, 1000);
+  heartbeatTaskHandle = osThreadCreate(osThread(heartbeatTask), NULL);
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -513,11 +517,19 @@ void serialParse(B_tcpPacket_t *pkt){
 	}
 }
 
-void HeartbeatHandler(TimerHandle_t xTimer){
-	//Send periodic heartbeat so we know the board is still running
-	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
-	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
-	//Heartbeat only accessed here so no need for mutex
+// void HeartbeatHandler(TimerHandle_t xTimer){
+// 	//Send periodic heartbeat so we know the board is still running
+// 	B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+// 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
+// 	//Heartbeat only accessed here so no need for mutex
+// }
+void StartHeartbeatTask(void const * argument)
+{
+	for(;;) {
+		B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+		heartbeat[1] = ~heartbeat[1];
+		osDelay(1000);
+	}
 }
 /* USER CODE END 4 */
 
