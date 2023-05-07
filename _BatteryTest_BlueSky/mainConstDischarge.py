@@ -71,8 +71,17 @@ def executeDischarge(inBatteryObj, device):
 
 if __name__ == '__main__':
 
+    targetID_eLoad = ""
+
+    # initialize e-Load and DC Power Supply
+    resourceManager = pv.ResourceManager()
+    for resource in resourceManager.list_resources():
+        if "DL3A192600119" in resource:
+            targetID_eLoad = resource
+            # ex: targetID_eLoad = "USB0::6833::3601::DL3A192600119::0::INSTR"
+            break
+
     # initialize test sepcifications (ONLY CONSTANT CURRENT DISCHARGING FOR NOW)
-    targetID_eLoad = "USB0::6833::3601::DL3A192600119::0::INSTR"
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
     testSetting = -1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
@@ -82,7 +91,6 @@ if __name__ == '__main__':
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, 0.408)
 
     # initialize e-Load and DC Power Supply
-    resourceManager = pv.ResourceManager()
     eLoad = DLwrapper.DL3000(resourceManager.open_resource(targetID_eLoad))
     
     # run battery unit tests

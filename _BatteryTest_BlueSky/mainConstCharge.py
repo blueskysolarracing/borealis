@@ -91,8 +91,18 @@ def executeCharge(inBatteryObj, device):
 
 if __name__ == '__main__':
 
+    targetID_pSupply = ""
+
+    # initialize e-Load and DC Power Supply
+    resourceManager = pv.ResourceManager()
+    for resource in resourceManager.list_resources():
+        if "DP8A234200572" in resource:
+            targetID_pSupply = resource
+            # ex: targetID_pSupply = "USB0::6833::3601::DP8A234200572::0::INSTR"
+            break
+    
     # initialize test sepcifications (ONLY CONSTANT CURRENT DISCHARGING FOR NOW)
-    targetID_pSupply = "USB0::6833::3601::DP8A234200572::0::INSTR"
+    
     cellCapacity = 3500                                         # nominal capacity in mAh
     cellNum = 14                                                # number of cells in parallel
     testSetting = 1                                             # -1: constant discharge | 1: constant charge | 0: HCCP
@@ -101,11 +111,8 @@ if __name__ == '__main__':
 
     # initialize BatteryObject
     batteryObj = Battery.BatteryObj(cellCapacity, cellNum, testSetting, voltageBounds, CRate = CRateIn)
-
-    # initialize e-Load and DC Power Supply
-    resourceManager = pv.ResourceManager()
     pSupply = DPWrapper.DP800(resourceManager.open_resource(targetID_pSupply))
-    
+
     # run battery unit tests
     result = executeCharge(batteryObj, pSupply)
 
