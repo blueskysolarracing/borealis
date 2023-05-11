@@ -1748,8 +1748,11 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			//Update global list
 			for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){
-				float temp = arrayToFloat( &(pkt->data[4 * i]) );
-				battery_temp[pkt->data[1] * NUM_TEMP_SENSORS_PER_MODULE + (i-1)] = temp;
+				uint8_t j = pkt->data[1] * NUM_TEMP_SENSORS_PER_MODULE + (i-1);
+				if (j < NUM_BATT_TEMP_SENSORS){ //Check that we're not writing outside of array bounds (in case of bad packet)
+					float temp = arrayToFloat( &(pkt->data[4 * i]) );
+					battery_temp[j] = temp;
+				}
 			}
 
 			//Update display with new max. temp
