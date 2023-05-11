@@ -32,6 +32,7 @@
 #include "lights.h"
 #include <stdio.h>
 #include <math.h>
+#include "battery_config.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,11 +44,6 @@
 /* USER CODE BEGIN PD */
 #define BMS_CONNECTION_EXPIRY_THRESHOLD 2500
 
-#define HV_BATT_OC_DISCHARGE 	45.0 	//Should be set to 45.0A
-#define HV_BATT_OC_CHARGE 		30.0 	//Should be set to 30.0A
-#define HV_BATT_OV_THRESHOLD 	4.20	//Should be set to 4.20V
-#define HV_BATT_UV_THRESHOLD 	2.50 	//Should be set to 2.50V
-#define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
 #define BATT_OVERCURRENT_CNT_THRESHOLD 5
 #define BATT_OVERCURRENT_CNT_RESET_TIME 1000 // 1000 ms
 #define BATTERY_CELL_VOLTAGES_INITIAL_VALUE (-1.0)
@@ -55,11 +51,6 @@
 #define BATTERY_TEMPERATURES_INITIAL_VALUE (-1.0)
 
 
-#define NUM_CELLS_PER_MODULE 	5
-#define NUM_BMS_MODULES			6 		//Number of BMS modules to read from
-#define NUM_BATT_CELLS 			(NUM_BMS_MODULES*NUM_CELLS_PER_MODULE) 		//Number of series parallel groups in battery pack (module 4 and 5 only have 4 cells, but we place fake values for them)
-#define NUM_TEMP_SENSORS_PER_MODULE 3
-#define NUM_BATT_TEMP_SENSORS 	(NUM_TEMP_SENSORS_PER_MODULE*NUM_BMS_MODULES) 	//Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h)
 #define BMS_FLT_CHECK_INTERVAL 	10 		//Interval at which to read the BMS_FLT pin
 #define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
@@ -1460,7 +1451,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				vTaskSuspendAll(); BMS_data_received[1] = RECEIVED; xTaskResumeAll();
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
-				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i ++){ //5 cells
+				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i++){ //5 cells
 					uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
 					if (j < NUM_BATT_CELLS) {
 						float voltage = arrayToFloat( &(pkt->data[4 * i]) );

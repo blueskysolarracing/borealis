@@ -30,6 +30,7 @@
 #include "glcd.h"
 #include "bglcd.h"
 #include "math.h"
+#include "battery_config.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -78,7 +79,6 @@ enum CRUISE_MODE {
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
 
 //--- BATTERY ---//
-#define NUM_THERMISTOR_PER_BMS 3 //Number of thermistor for each BMS (assumes same for each BMS)
 
 /* USER CODE END PD */
 
@@ -136,6 +136,7 @@ float regenValue = 0.0;
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 uint8_t pToggle = 0; //Needed to choose which display to write data to
 uint8_t display_selection = 0; //Select which frame to display
+uint8_t battery_faulted_display_selection = 6; //Select which frame to display when battery is faulted
 struct disp_common common_data = {0}; //Three global structs where data is written to
 struct disp_default_frame default_data = {0};
 struct disp_detailed_frame detailed_data = {0};
@@ -200,12 +201,13 @@ uint8_t variableRegenValue = 0;
 
 //--- BATTERY ---//
 uint8_t batteryState = HEALTHY;
+uint8_t previousBatteryState = HEALTHY;
 uint8_t batteryRelayState = OPEN;
-float battery_cell_voltage[6 * 5]; //Array of the voltages of each 14P group
-float battery_soc[6 * 5]; //Array of the SoCs of each 14P group (5 cells per BMS)
-float battery_temp[6 * NUM_THERMISTOR_PER_BMS]; //Array of the temp of each thermistor (3 thermistors per BMS)
+float battery_cell_voltages[NUM_BATT_CELLS]; //Array of the voltages of each 14P group
+float battery_soc[NUM_BATT_CELLS]; //Array of the SoCs of each 14P group (5 cells per BMS)
+float battery_temp[NUM_BATT_TEMP_SENSORS]; //Array of the temp of each thermistor (3 thermistors per BMS)
 	/* Formats
-	 * battery_cell_voltage = 	[VOLT0/BMS0, VOLT1/BMS0, VOLT2/BMS0, VOLT0/BMS1, VOLT1/BMS1, VOLT2/BMS1, ... VOLT0/BMS5, VOLT1/BMS5, VOLT2/BMS5]
+	 * battery_cell_voltages = 	[VOLT0/BMS0, VOLT1/BMS0, VOLT2/BMS0, VOLT0/BMS1, VOLT1/BMS1, VOLT2/BMS1, ... VOLT0/BMS5, VOLT1/BMS5, VOLT2/BMS5]
 	 * battery_soc = 			[SoC0/BMS0,  SoC1/BMS0,  SoC2/BMS0,  SoC0/BMS1,  SoC1/BMS1,  SoC2/BMS1,  ... SoC0/BMS5,  SoC1/BMS5,  SoC2/BMS5]
 	 * battery_temp = 			[TEMP0/BMS0, TEMP1/BMS0, TEMP2/BMS0, TEMP0/BMS1, TEMP1/BMS1, TEMP2/BMS1, ... TEMP0/BMS5, TEMP1/BMS5, TEMP2/BMS5]
 	 */
@@ -1723,7 +1725,15 @@ void serialParse(B_tcpPacket_t *pkt){
 			 detailed_data.P2_LV_current = 		(short) round(10*arrayToFloat(&(pkt->data[8]))); //LV current
 
 		 } else if (pkt->data[0] == BBMB_RELAYS_STATE_ID){ //Relay state
-			 batteryState = pkt->data[1];
+		 	vTaskSuspendAll();
+			batteryState = pkt->data[1];
+			if (batteryState == HEALTHY && previousBatteryState == FAULTED) {
+				if (battery_faulted_display_selection != 6) {
+					battery_faulted_display_selection = 6;
+				}
+			}
+			previousBatteryState = batteryState;
+			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
@@ -1736,41 +1746,48 @@ void serialParse(B_tcpPacket_t *pkt){
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
-			 //Update global list
-			 for (int i = 1; i < NUM_THERMISTOR_PER_BMS + 1; i ++){
+			//Update global list
+			for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){
 				float temp = arrayToFloat( &(pkt->data[4 * i]) );
-			 	battery_temp[pkt->data[1] * NUM_THERMISTOR_PER_BMS + (i-1)] = temp;
-			 }
+				battery_temp[pkt->data[1] * NUM_TEMP_SENSORS_PER_MODULE + (i-1)] = temp;
+			}
 
-			 //Update display with new max. temp
-			 float max_temp = -100; //Low initial value to find max. temp
-			 for (int i = 0; i < 6 * NUM_THERMISTOR_PER_BMS; i++){
-				 if (battery_temp[i] > max_temp){	max_temp = battery_temp[i];	}
-			 }
-			 detailed_data.P2_max_batt_temp = (short) 10.0*max_temp;
+			//Update display with new max. temp
+			float max_temp = -100; //Low initial value to find max. temp
+			for (int i = 0; i < NUM_BATT_TEMP_SENSORS; i++){
+				if (battery_temp[i] > max_temp){	max_temp = battery_temp[i];	}
+			}
+			detailed_data.P2_max_batt_temp = (short) 10.0*max_temp;
 
 		 } else if (pkt->data[0] == BMS_CELL_VOLT_ID){ //Cell voltage
-			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
+			 if (pkt->data[1] == NUM_BMS_MODULES-1){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
-			 //Update global list
-			 for (int i = 1; i <= 5; i ++){
-				float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-			 	battery_cell_voltage[pkt->data[1] * 5 + (i-1)] = voltage;
-			 }
+			//Update global list
+			// TODO: get highest and lowest cell voltage and show on display
+			for (int i = 1; i < NUM_CELLS_PER_MODULE; i++){
+				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
+				if (j < NUM_BATT_CELLS) {
+					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
+					battery_cell_voltages[j] = voltage;
+				}
+			}
 
 		 } else if (pkt->data[0] == BMS_CELL_SOC_ID){ //Cell state of charge
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
-			 //Update global list
-			 for (int i = 1; i <= 5; i ++){
-				float soc = arrayToFloat( &(pkt->data[4 * i]) );
-			 	battery_soc[pkt->data[1] * 5 + (i-1)] = soc;
-			 }
+			//Update global list
+			for (int i = 1; i < NUM_CELLS_PER_MODULE; i++){
+				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
+				if (j < NUM_BATT_CELLS) {
+					float soc = arrayToFloat( &(pkt->data[4 * i]) );
+					battery_soc[j] = soc;
+				}
+			}
 
 			 //Update display with new min. soc
 			 float min_soc = 200; //High initial value to find min. soc
-			 for (int i = 0; i < 6 * 5; i++){
-				 if (battery_soc[i] < min_soc){	min_soc = battery_soc[i];	}
+			 for (int i = 0; i < NUM_BATT_CELLS; i++){
+				if (battery_soc[i] < min_soc){	min_soc = battery_soc[i];	}
 			 }
 			 common_data.battery_soc = (short) 100*min_soc;
 		 }
@@ -1913,7 +1930,17 @@ void steeringWheelTask(const void *pv){
 	//		if (display_selection == 0){ display_selection = 1;
 	//		} else if (display_selection){ display_selection = 0;};
 			// Toggle between default and and 2 details so 3 total
-			display_selection = (display_selection + 1)%3;
+			if (batteryState != FAULTED) {
+				display_selection = (display_selection + 1)%3;
+			} else {
+				vTaskSuspendAll();
+				if (battery_faulted_display_selection == 6) {
+					battery_faulted_display_selection = 5;
+				} else {
+					battery_faulted_display_selection = 6;
+				}
+				xTaskResumeAll();
+			}
 		} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
 		}
 		oldLeftButton = (steeringData[2] & (1 << 2));
@@ -2138,7 +2165,9 @@ void displayTask(const void *pv){
 
 			//Overwrite display state if battery fault
 			if (batteryState == FAULTED){
-				local_display_sel = 6; //Display battery faulted
+				// Allows pressing steering wheel button to toggle between
+				// ..."fault display" (6) and "car is sleeping display" (5)
+				local_display_sel = battery_faulted_display_selection; // either 6 or 5
 				default_data.P2_motor_state = OFF;
 			}
 
