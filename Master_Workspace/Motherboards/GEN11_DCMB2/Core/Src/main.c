@@ -1585,25 +1585,25 @@ static void pedalTask(const void* p) {
 		}
 
 		// Check if brake is pressed
-//		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
-//			brakeState = BRAKE_PRESSED;
-//		} else {
-//			brakeState = BRAKE_RELEASED;
-//		}
-//		// send command to turn on/off brake lights if brakeState has changed
-//		// Need to wait until BBMB is known to be alive and then send first command
-//		if (BBMBFirstPacketReceived && (firstTime || brakeState != prevBrakeState)) {
-//			firstTime = 0;
-//			prevBrakeState = brakeState;
-//			if (brakeState == BRAKE_PRESSED) {
-//				// turn on brake lights
-//				bufh2[1] = 0b01001000;
-//			} else {
-//				// turn off brake lights
-//				bufh2[1] = 0b00001000;
-//			}
-//		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
-//		}
+		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
+			brakeState = BRAKE_PRESSED;
+		} else {
+			brakeState = BRAKE_RELEASED;
+		}
+		// send command to turn on/off brake lights if brakeState has changed
+		// Need to wait until BBMB is known to be alive and then send first command
+		if (BBMBFirstPacketReceived && (firstTime || brakeState != prevBrakeState)) {
+			firstTime = 0;
+			prevBrakeState = brakeState;
+			if (brakeState == BRAKE_PRESSED) {
+				// turn on brake lights
+				bufh2[1] = 0b01001000;
+			} else {
+				// turn off brake lights
+				bufh2[1] = 0b00001000;
+			}
+		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
+		}
 
 		//Compute value on 0-256 scale
 		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
