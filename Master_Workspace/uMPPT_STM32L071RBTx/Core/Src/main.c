@@ -42,6 +42,8 @@
 /* Private variables ---------------------------------------------------------*/
  ADC_HandleTypeDef hadc;
 
+SPI_HandleTypeDef hspi1;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
@@ -55,7 +57,7 @@ DMA_HandleTypeDef hdma_usart2_rx;
 //----- VARIABLE INIT -----//
 //--- ADC VARIABLES ---//
 ADC_ChannelConfTypeDef sConfig_ADC;
-uint32_t ADC_CH_list[7] = {ADC_CHANNEL_4, ADC_CHANNEL_1, ADC_CHANNEL_5, ADC_CHANNEL_6, ADC_CHANNEL_7, ADC_CHANNEL_9, ADC_CHANNEL_8}; //ADC CH of all 5 uMPPT, output voltage and current
+uint32_t ADC_CH_list[3] = {ADC_CHANNEL_4, ADC_CHANNEL_9, ADC_CHANNEL_8}; //ADC CH of CH1, output voltage and current
 
 //--- PWM VARIABLES ---//
 uint32_t PWM_CHANNEL_list[5] = {TIM_CHANNEL_1, TIM_CHANNEL_1, TIM_CHANNEL_4, TIM_CHANNEL_3, TIM_CHANNEL_3};
@@ -86,8 +88,8 @@ char uMPPT_ID_char[1] = {0};
 char ADC_value[7] = {0};
 
 //--- EN PINS VARIABLES ---//
-uint32_t EN_Pins_list[5] = {EN1_Pin, EN2_Pin, EN3_Pin, EN4_Pin, EN5_Pin};
-GPIO_TypeDef *EN_Ports_list[5] = {GPIOA, GPIOA, GPIOB, GPIOB, GPIOB};
+uint32_t CS_Pins_list[4] = {ADC_CS_PV2_Pin, ADC_CS_PV3_Pin,  ADC_CS_PV4_Pin,ADC_CS_PV5_Pin};
+GPIO_TypeDef *CS_Ports_list[4] = {GPIOC, GPIOC, GPIOC, GPIOD};
 
 //--- OTHER VARIABLES ---//
 uint16_t MCU_OK_LED_PERIOD = 1000; //Blink period of the MCU_OK_LED (ms)
@@ -114,6 +116,7 @@ static void MX_TIM21_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -158,11 +161,13 @@ int main(void)
   MX_DMA_Init();
   MX_TIM6_Init();
   MX_USART2_UART_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   //Configure uMPPT
-  board.EN_Pins = EN_Pins_list;
-  board.EN_Ports = EN_Ports_list;
+
+  board.CS_Pins = CS_Pins_list;
+  board.CS_Ports = CS_Ports_list;
   board.MCU_OK_LED_TIM = &htim6;
   board.PWM_CHANNEL = PWM_CHANNEL_list;
   board.PWM_TIM = PWM_TIM_list;
@@ -173,6 +178,7 @@ int main(void)
   board.ADC_config = &sConfig_ADC;
   board.hadc_handle = &hadc;
   board.huart_handle = &huart2;
+  board.hspi_handle = &hspi1;
 
   config_uMPPT(&board);
 
@@ -183,7 +189,7 @@ int main(void)
 //	if (i < 2){	EN_reg_1 |= board.EN_Pins[i];	}
 //	else {	EN_reg_2 |= board.EN_Pins[i];	}
 //  }
-  GPIOA->BSRR |= EN1_Pin | EN2_Pin;
+//  GPIOA->BSRR |= EN1_Pin | EN2_Pin;
 //  GPIOB->BSRR = EN_reg_2;
 
   //UART (for dev program)
@@ -191,35 +197,40 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Infinite loop */
-  htim2.Instance->CCR1 = 1000;
-  htim21.Instance->CCR1 = 1000;
-  htim2.Instance->ARR = 2000;
-  htim21.Instance->ARR = 2000;
-
   /* USER CODE BEGIN WHILE */
 
-while (1){
-//	for (int i = 0; i < NUM_UMPPT; i++){
-//		update_MPP_HillClimb(&board, board.uMPPT_list[i]);
-//	}
-//	float raw_ADC;
-//	char print_str[50];
+	while (1){
+	//	for (int i = 0; i < NUM_UMPPT; i++){
+	//		update_MPP_HillClimb(&board, board.uMPPT_list[i]);
+	//	}
+	//	float raw_ADC;
+		//char print_str[50];
 
-//	for (int i = 0; i < NUM_AVG_CURRENT; i++){
-//		raw_ADC += uMPPT_read_ADC(ADC_CH_list[6], &board); //Measure output current
-//	}
+	//	for (int i = 0; i < NUM_AVG_CURRENT; i++){
+	//		raw_ADC += uMPPT_read_ADC(ADC_CH_list[6], &board); //Measure output current
+	//	}
 
-//	raw_ADC /= NUM_AVG_CURRENT;
-//	raw_ADC = (((raw_ADC / 4095.0) * VDDA) - I_MEAS_OFFSET) / I_SENSE_AMP_RATIO / I_SHUNT_VALUE;
-//	sprintf(print_str, "Output current: %fA\n", raw_ADC);
-//	HAL_UART_Transmit(board.huart_handle, (uint8_t *) print_str, strlen(print_str), 10);
 
-	HAL_Delay(DELAY_BT_MPPT/2);
+	//	raw_ADC /= NUM_AVG_CURRENT;
+	//	raw_ADC = (((raw_ADC / 4095.0) * VDDA) - I_MEAS_OFFSET) / I_SENSE_AMP_RATIO / I_SHUNT_VALUE;
+	//	sprintf(print_str, "Output current: %fA\n", raw_ADC);
+	//	HAL_UART_Transmit(board.huart_handle, (uint8_t *) print_str, strlen(print_str), 10);
+
+		//float adc_test = SPI_readADC(0, &board);
+		//HAL_Delay(100);
+		float adc_test2 = SPI_readADC(1, &board);
+		HAL_Delay(100);
+		//float adc_test3 = SPI_readADC(2, &board);
+		//HAL_Delay(100);
+		//sprintf(print_str, "Test Reading: %f\n", adc_test);
+		//HAL_UART_Transmit(board.huart_handle, (uint8_t *) print_str, sizeof(print_str), 10);
+
+		//HAL_Delay(DELAY_BT_MPPT/2);
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	  }
   /* USER CODE END 3 */
 }
 
@@ -317,40 +328,8 @@ static void MX_ADC_Init(void)
 
   /** Configure for the selected ADC regular channel to be converted.
   */
-  sConfig.Channel = ADC_CHANNEL_1;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
   sConfig.Channel = ADC_CHANNEL_4;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_5;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_6;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_7;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -374,6 +353,44 @@ static void MX_ADC_Init(void)
   /* USER CODE BEGIN ADC_Init 2 */
 
   /* USER CODE END ADC_Init 2 */
+
+}
+
+/**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_16BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 7;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
 
 }
 
@@ -664,74 +681,78 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_LED_Pin|EN3_Pin|EN5_Pin|EN4_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIO_LED_GPIO_Port, GPIO_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, EN1_Pin|EN2_Pin|MCU_OK_LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(MCU_OK_LED_GPIO_Port, MCU_OK_LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, ADC_CS_PV2_Pin|ADC_CS_PV3_Pin|ADC_CS_PV4_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(ADC_CS_PV5_GPIO_Port, ADC_CS_PV5_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0
                            PC1 PC2 PC3 PC4
-                           PC5 PC6 PC7 PC10
-                           PC11 PC12 */
+                           PC5 PC6 PC7 */
   GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0
                           |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12;
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GPIO_LED_Pin EN3_Pin EN5_Pin EN4_Pin */
-  GPIO_InitStruct.Pin = GPIO_LED_Pin|EN3_Pin|EN5_Pin|EN4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PB14 PB3 PB4 PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : EN1_Pin EN2_Pin MCU_OK_LED_Pin */
-  GPIO_InitStruct.Pin = EN1_Pin|EN2_Pin|MCU_OK_LED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PA10 PA15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_15;
+  /*Configure GPIO pins : PA1 PA8 PA9 PA10
+                           PA11 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : FLT5_Pin */
-  GPIO_InitStruct.Pin = FLT5_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  /*Configure GPIO pin : GPIO_LED_Pin */
+  GPIO_InitStruct.Pin = GPIO_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(FLT5_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIO_LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PD2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  /*Configure GPIO pins : PB11 PB12 PB14 PB15
+                           PB3 PB4 PB5 PB6
+                           PB7 PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_14|GPIO_PIN_15
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : FLT4_Pin FLT3_Pin FLT2_Pin FLT1_Pin */
-  GPIO_InitStruct.Pin = FLT4_Pin|FLT3_Pin|FLT2_Pin|FLT1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
+  /*Configure GPIO pin : MCU_OK_LED_Pin */
+  GPIO_InitStruct.Pin = MCU_OK_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(MCU_OK_LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : ADC_CS_PV2_Pin ADC_CS_PV3_Pin ADC_CS_PV4_Pin */
+  GPIO_InitStruct.Pin = ADC_CS_PV2_Pin|ADC_CS_PV3_Pin|ADC_CS_PV4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ADC_CS_PV5_Pin */
+  GPIO_InitStruct.Pin = ADC_CS_PV5_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(ADC_CS_PV5_GPIO_Port, &GPIO_InitStruct);
 
 }
 
 /* USER CODE BEGIN 4 */
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	/*! \brief Check which version of the timer triggered this callback and update LED
 	 *
@@ -744,18 +765,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	}
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Fault input interrupt function
-    if(GPIO_Pin == FLT1_Pin || GPIO_Pin == FLT2_Pin || GPIO_Pin == FLT3_Pin || GPIO_Pin == FLT4_Pin || GPIO_Pin == FLT5_Pin){ // If The INT Source Is one of the FLT lines from the LTC7060
-    	MCU_OK_LED_PERIOD = 200; //Increase MCU_OK_LED blink frequency to 5Hz to signal that there is a problem
-    	htim6.Instance->ARR = 200; //Increase MCU_OK_LED blink frequency to 5Hz to signal that there is a problem
-
-    	//Turn off PWM and disable LTC7060
-    	for (int i = 0; i < NUM_UMPPT; i++){
-    		HAL_GPIO_WritePin(EN_Ports_list[i], EN_Pins_list[i], GPIO_PIN_RESET);
-    		HAL_TIM_PWM_Stop(PWM_TIM_list[i], PWM_CHANNEL_list[i]);
-    	}
-    }
-}
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Fault input interrupt function
+//    if(GPIO_Pin == FLT1_Pin || GPIO_Pin == FLT2_Pin || GPIO_Pin == FLT3_Pin || GPIO_Pin == FLT4_Pin || GPIO_Pin == FLT5_Pin){ // If The INT Source Is one of the FLT lines from the LTC7060
+//    	MCU_OK_LED_PERIOD = 200; //Increase MCU_OK_LED blink frequency to 5Hz to signal that there is a problem
+//    	htim6.Instance->ARR = 200; //Increase MCU_OK_LED blink frequency to 5Hz to signal that there is a problem
+//
+//    	//Turn off PWM and disable LTC7060
+//    	for (int i = 0; i < NUM_UMPPT; i++){
+//    		HAL_GPIO_WritePin(EN_Ports_list[i], EN_Pins_list[i], GPIO_PIN_RESET);
+//    		HAL_TIM_PWM_Stop(PWM_TIM_list[i], PWM_CHANNEL_list[i]);
+//    	}
+//    }
+//}
 
 void slice_str(const char * str, uint8_t * buffer, size_t start, size_t end)
 {
@@ -900,6 +921,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 	return;
 }
+
 /* USER CODE END 4 */
 
 /**

@@ -26,7 +26,7 @@
 #include "btcp.h"
 #include "protocol_ids.h"
 #include "bmisc.h"
-#include "psm.h"
+#include "newpsm.h"
 #include "h7Boot.h"
 #include "TMC5160_driver.h"
 #include "lights.h"
@@ -117,10 +117,10 @@ QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
 
 //--- PSM ---//
-struct PSM_Peripheral psmPeriph;
-float battery_current;
-double voltageCurrent_LV[2] = {0};
-double voltageCurrent_HV[2] = {0};
+struct PSM_P psmPeriph;
+float battery_current = 0;
+//double voltageCurrent_LV[2] = {0};
+//double voltageCurrent_HV[2] = {0};
 
 struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
@@ -241,35 +241,27 @@ int main(void)
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
   //--- PSM ---//
-  psmPeriph.CSPin0 = PSM_CS_0_Pin;
-  psmPeriph.CSPin1 = PSM_CS_1_Pin;
-  psmPeriph.CSPin2 = PSM_CS_2_Pin;
-  psmPeriph.CSPin3 = PSM_CS_3_Pin;
 
-  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
-
+  psmPeriph.CSPin = PSM_CS_0_Pin;
+  psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
 
-  psmPeriph.DreadyPin = PSM_DReady_Pin;
-  psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+//  test_config(&psmPeriph, &hspi2, &huart2);
 
-  PSM_Init(&psmPeriph, 1); //2nd argument is PSM ID
-  PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
-  psmFilter.buf_current = PSM_FIR_HV_Current;
+  PSM_init(&psmPeriph, &hspi2, &huart2);
+  PSM_FIR_Init(&psmFilter);
+
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
+  psmFilter.buf_current = PSM_FIR_HV_Current;
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_BBMB;
+//  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
+//	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+//  }
 
-  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
-	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
-  }
-
-  double PSM_data[2];
-  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSM_data, 2);
-  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_data, 2);
+//  double PSM_data[2];
+//  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, PSM_data, 2);
+//  PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, PSM_data, 2);
 
   //--- RDB ---//
   relay.DISCHARGE_GPIO_Port = RELAY_DISCHARGE_GPIO_Port;
@@ -282,7 +274,6 @@ int main(void)
   relay.PRE_SIG_Pin = RELAY_PRECHARGE_Pin;
   relay.battery_relay_state = OPEN; //Open battery relays at startup
   relay.array_relay_state = OPEN; //Assume array relays are opened until confirmation is recevied from PPTMB
-
 
   //--- LIGHTS ---//
   lightsPeriph.CSPin0 = TMC5160_CS0_Pin;
@@ -319,13 +310,11 @@ int main(void)
   turn_off_fault_indicator(&lightsPeriph);
   turn_off_hazard_lights(&lightsPeriph);
 
-
   //--- COMMS ---//
   buart_main = B_uartStart(&huart4);
   btcp_main = B_tcpStart(BBMB_ID, &buart_main, buart_main, 1, &hcrc);
   buart_bms = B_uartStart(&huart8);
   btcp_bms = B_tcpStart(BBMB_ID, &buart_bms, buart_bms, 1, &hcrc);
-
 
   //--- FREERTOS ---//
   lightsCtrl = xQueueCreate(16, sizeof(uint8_t)); //Holds instruction for lights control
@@ -352,7 +341,7 @@ int main(void)
 
   //--- BATTERY ---//
   batteryState = HEALTHY;
-  HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET); //Turn off HV discharge
+  HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET); //Turn off HV discharge
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Turn off BPS fault LED on driver's panel and activate Vicor 12V
   HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_SET); //Power BMS from battery module instead of supplemental battery
 
@@ -542,9 +531,9 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -922,17 +911,17 @@ static void MX_TIM15_Init(void)
 
   /* USER CODE END TIM15_Init 1 */
   htim15.Instance = TIM15;
-  htim15.Init.Prescaler = 999;
+  htim15.Init.Prescaler = 0;
   htim15.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim15.Init.Period = 65535;
   htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim15.Init.RepetitionCounter = 0;
-  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim15) != HAL_OK)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC1REF;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim15, &sMasterConfig) != HAL_OK)
   {
@@ -1134,12 +1123,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
-  /* DMA1_Stream6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
-  /* DMA1_Stream7_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+  /* DMA1_Stream5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
 
 }
 
@@ -1376,6 +1365,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
+	//char buf[] = "hello world\n";
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
@@ -1385,6 +1375,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case DCMB_ID: //Parse data from DCMB
+			//HAL_UART_Transmit(&huart2, (uint8_t*)buf, sizeof(buf), 100);
 			//Light control
 			if (pkt->data[0] == DCMB_LIGHTCONTROL_ID){
 				lightInstruction = pkt->data[1];
@@ -1507,9 +1498,9 @@ void relayTask(void * argument){
 				open_relays(&relay);
 
 				if (relay.array_relay_state == OPEN){ //Both battery and array relays are opened, so discharge HV bus
-					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
-					osDelay(DISCHARGE_TIME);
 					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
+					osDelay(DISCHARGE_TIME);
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
 				}
 
 			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_BATTERY){
@@ -1525,6 +1516,12 @@ void relayTask(void * argument){
 				uint8_t buf[2 * 4] = {BBMB_RELAYS_STATE_ID, batteryState, relay.battery_relay_state, relay.array_relay_state,
 										batteryFaultType, batteryFaultCell, batteryFaultTherm, 0};
 				B_tcpSend(btcp_main, buf, sizeof(buf));
+				if (relay.battery_relay_state == OPEN){ //Both battery and array relays are opened, so discharge HV bus
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_RESET);
+					osDelay(DISCHARGE_TIME);
+					HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET);
+				}
+
 
 			} else if (buf_relay[0] == RELAY_QUEUE_CLOSE_ARRAY) {
 				relay.array_relay_state = CLOSED;
@@ -1629,16 +1626,20 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 }
 
 void PSMTaskHandler(void * parameters){
-	double HV_data[2];
+
+	double voltage, current;
+
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
 
 	while (1){
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data, 2);
+
+		voltage = readPSM(&psmPeriph, VBUS, 3);
+		current = readPSM(&psmPeriph, CURRENT, 3);
 
 		vTaskSuspendAll();
 
-		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
-		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
+		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
+		psmFilter.push(&psmFilter, (float) current, CURRENT_MEASUREMENT);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -1655,8 +1656,8 @@ void measurementSender(void* p){
 
 		//Get HV average
 		vTaskSuspendAll();
-		float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
-		float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+		float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
+		float HV_current = psmFilter.get_average(&psmFilter, CURRENT_MEASUREMENT);
 
 		//Update battery pack current global variable (used for BMS communication)
 		battery_current = HV_current;
@@ -1778,9 +1779,9 @@ void battery_faulted_routine(/*uint8_t fault_type, uint8_t fault_cell, uint8_t f
 	uint8_t strobe_light_EN_cmd = 0b01100000; //Start BPS strobe light
 
 	//Open both battery and array relays, as per WSC regulation
-	relayCtrlMessage = RELAY_QUEUE_OPEN_BATTERY;
-	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
 	relayCtrlMessage = RELAY_QUEUE_OPEN_ARRAY;
+	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
+	relayCtrlMessage = RELAY_QUEUE_OPEN_BATTERY;
 	xQueueSend(relayCtrl, &relayCtrlMessage, 10);
 
 

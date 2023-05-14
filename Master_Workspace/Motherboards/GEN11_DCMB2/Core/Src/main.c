@@ -63,6 +63,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
+//#define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -74,6 +75,7 @@ enum CRUISE_MODE {
 #define MAX_VFM 8 //Maximum VFM setting
 #define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
+#define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
@@ -130,7 +132,6 @@ osThreadId defaultTaskHandle;
 //--- PEDALS ---//
 float accelReading = -1;
 float accelValue = 0.0;
-float regenValue = 0.0;
 
 //--- DISPLAY ---//
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
@@ -178,6 +179,11 @@ uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
 uint8_t brakePressed = 0;
+
+#ifndef USE_ADC_REGEN
+uint8_t steering_wheel_regen_button_pressed = 0; // 1 is on, 0 is off
+#endif
+
 typedef enum {
 	BRAKE_PRESSED,
 	BRAKE_RELEASED,
@@ -197,9 +203,12 @@ uint8_t oldLeftButton;
 uint8_t oldRightButton;
 uint8_t oldUpButton;
 uint8_t oldDownButton;
-uint8_t variableRegenValue = 0;
+uint8_t oldMiddleButton;
+uint8_t steering_wheel_variable_regen_value = 0;
+
 
 //--- BATTERY ---//
+float batteryVoltage = 0;
 uint8_t batteryState = HEALTHY;
 uint8_t previousBatteryState = HEALTHY;
 uint8_t batteryRelayState = OPEN;
@@ -1619,12 +1628,22 @@ static void pedalTask(const void* p) {
 
 		//Pedal has not effect when the motor is in cruise mode
 		if (motorState != CRUISE){
-			if (variableRegenValue > 30) {
-				motorTargetPower = (uint16_t)variableRegenValue;
+#ifdef USE_ADC_REGEN
+			if (steering_wheel_variable_regen_value > 30) {
+				if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD) {
+					motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+					motorState = REGEN;
+					default_data.P2_motor_state = REGEN;
+				}
+			}
+#else
+			if (steering_wheel_regen_button_pressed) {
+				motorTargetPower = 130;  // can change to any value we want
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
-
-			} else if (accelValue >= accel_reading_threshold /*&& brakeState == BRAKE_RELEASED*/) {
+			}
+#endif
+			else if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
 				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
@@ -1718,6 +1737,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
 			detailed_data.P1_battery_current =  arrayToFloat(&(pkt->data[8])); //Battery current
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
+			batteryVoltage = arrayToFloat(&(pkt->data[4])); //Battery voltage
 
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
@@ -1823,7 +1843,7 @@ void serialParse(B_tcpPacket_t *pkt){
 }
 
 void steeringWheelTask(const void *pv){
-// {0xa5, 0x03, DATA_1, DATA_2, DATA_3, variableRegenValue, CRC}
+// {0xa5, 0x03, DATA_1, DATA_2, DATA_3, steering_wheel_variable_regen_value, CRC}
 
 // DATA_0: [ACC8, ACC7, ACC6, ACC5, ACC4, ACC3, ACC2, ACC1] <-- ROTARY ENCODER DATA
 // DATA_1: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
@@ -1847,8 +1867,10 @@ void steeringWheelTask(const void *pv){
 			if (steeringData[i] != rxBuf[2 + i]){
 				steeringData[i] = rxBuf[2 + i]; } //Only update if different (it should be different)
 		}
+#ifdef USE_ADC_REGEN
 		//Update variable regen value
-		variableRegenValue = rxBuf[5];
+		steering_wheel_variable_regen_value = rxBuf[5];
+#endif
 	}
 
 	//------- Send acknowledge -------//
@@ -1942,6 +1964,17 @@ void steeringWheelTask(const void *pv){
 		}
 		oldDownButton = (steeringData[2] & (1 << 1));
 
+#ifndef USE_ADC_REGEN
+	    //Middle button pressed - Holding it causes regen
+		if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
+			if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
+				steering_wheel_regen_button_pressed = 1;
+			}
+		} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
+			steering_wheel_regen_button_pressed = 0;
+		}
+		oldMiddleButton = (steeringData[2] & (1 << 4));
+#endif
 		//Left button pressed
 		if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
 			//Toggle between default and detailed display frames
@@ -1981,7 +2014,7 @@ void steeringWheelTask(const void *pv){
 			// Do nothing
 		}
 		oldRightButton = (steeringData[2] & (1 << 3));
-		B_tcpSend(btcp, bufe, sizeof(bufh2));
+		B_tcpSend(btcp, bufe, sizeof(bufe));
 
 	}
 	xTaskResumeAll(); // exit critical section
