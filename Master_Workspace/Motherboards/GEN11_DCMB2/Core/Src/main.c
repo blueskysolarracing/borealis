@@ -1685,7 +1685,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		 if (pkt->data[0] == PPTMB_BUS_METRICS_ID){ //HV bus
 			common_data.solar_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Solar power
 			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
-			detailed_data.P1_solar_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Solar current
+			detailed_data.P1_solar_current = 	arrayToFloat(&(pkt->data[8])); //Solar current
 
 		 } else if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
@@ -1699,7 +1699,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		if (pkt->data[0] == MCMB_BUS_METRICS_ID){ //HV bus
 			common_data.motor_power = 			(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Motor power
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
-			detailed_data.P1_motor_current = 	(short) round(arrayToFloat(&(pkt->data[8]))); //Motor current
+			detailed_data.P1_motor_current = 	arrayToFloat(&(pkt->data[8])); //Motor current
 
 		} else if (pkt->data[0] == MCMB_SUPP_BATT_VOLTAGE_ID){
 			default_data.P2_low_supp_volt = (uint8_t) round(10.0 * arrayToFloat(&(pkt->data[4])));
@@ -1716,7 +1716,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		 if (pkt->data[0] == BBMB_BUS_METRICS_ID){ //HV bus
 			common_data.battery_power = 		(short) round(arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //Battery power
 			detailed_data.P1_battery_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Battery voltage
-			detailed_data.P1_battery_current =  (short) round(arrayToFloat(&(pkt->data[8]))); //Battery current
+			detailed_data.P1_battery_current =  arrayToFloat(&(pkt->data[8])); //Battery current
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
@@ -1742,6 +1742,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
 			 detailed_data.faultTherm = pkt->data[6];
+			 detailed_data.overcurrent_status = detailed_data.faultType == 3;
 
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
@@ -1752,6 +1753,11 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_TEMP_SENSORS){ //Check that we're not writing outside of array bounds (in case of bad packet)
 					float temp = arrayToFloat( &(pkt->data[4 * i]) );
 					battery_temp[j] = temp;
+					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
+
+					if (temp > HV_BATT_OT_THRESHOLD) {
+						detailed_data.overtemperature_status |= 1 << j;
+					}
 				}
 			}
 
@@ -1772,6 +1778,15 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_CELLS) {
 					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
 					battery_cell_voltages[j] = voltage;
+
+					detailed_data.overvoltage_status -= detailed_data.overvoltage_status & (1 << j);
+					detailed_data.undervoltage_status -= detailed_data.undervoltage_status & (1 << j);
+
+					if (voltage > HV_BATT_OV_THRESHOLD) {
+						detailed_data.overvoltage_status |= 1 << j;
+					} else if (voltage < HV_BATT_UV_THRESHOLD) {
+						detailed_data.undervoltage_status |= 1 << j;
+					}
 				}
 			}
 
