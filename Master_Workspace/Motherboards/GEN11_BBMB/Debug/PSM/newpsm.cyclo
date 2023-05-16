@@ -1,0 +1,16 @@
+newpsm.c:3:6:PSM_init	1
+newpsm.c:12:6:config_PSM	4
+newpsm.c:57:6:resetPSM	2
+newpsm.c:77:7:readPSM	13
+newpsm.c:147:6:writeOnce_PSM	2
+newpsm.c:166:6:set_shunt_overvoltage_threshold	1
+newpsm.c:172:6:set_shunt_undervoltage_threshold	1
+newpsm.c:178:6:set_bus_overvoltage_threshold	1
+newpsm.c:184:6:set_bus_undervoltage_threshold	1
+newpsm.c:190:6:set_power_limit_threshold	1
+newpsm.c:196:6:set_device_ID	1
+newpsm.c:203:6:test_config	7
+newpsm.c:264:7:PSM_FIR_get_average	6
+newpsm.c:292:7:PSM_FIR_pop	7
+newpsm.c:317:6:PSM_FIR_push	7
+newpsm.c:342:6:PSM_FIR_Init	1

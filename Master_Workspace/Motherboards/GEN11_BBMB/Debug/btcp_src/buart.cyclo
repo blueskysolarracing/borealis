@@ -1,0 +1,14 @@
+buart.c:70:17:B_uartStart	5
+buart.c:106:5:B_uartSend	1
+buart.c:115:16:B_uartRead	1
+buart.c:131:6:B_uartDoneRead	1
+buart.c:137:12:mBuf_isEmpty	1
+buart.c:141:12:mBuf_isFull	1
+buart.c:145:13:mBuf_init	1
+buart.c:152:12:mBuf_getSize	1
+buart.c:159:5:B_uartReadFullMessage	14
+buart.c:225:13:txTask	1
+buart.c:242:13:rxTask	24
+buart.c:284:13:processCriticalFrame	1
+buart.c:298:6:HAL_UART_TxCpltCallback	3
+buart.c:311:6:HAL_UART_RxCpltCallback	3

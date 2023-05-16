@@ -1691,7 +1691,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 
-void serialParse(B_tcpPacket_t *pkt){
+void serial(B_tcpPacket_t *pkt){
 	vTaskSuspendAll();
 
 	switch(pkt->sender){
@@ -1857,7 +1857,7 @@ void steeringWheelTask(const void *pv){
 
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
-			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			uint8_t bufh1[4] = {DCMB_LIGHTCONTROL_ID, 0x00, 0x00, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 			if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Extend lights (ON)
 				bufh1[1] = 0b01000010;
 				default_data.P1_left_indicator_status = 0;
@@ -1866,9 +1866,10 @@ void steeringWheelTask(const void *pv){
 				default_data.P1_left_indicator_status = 1;
 			}
 			xTaskResumeAll();
+//			vTaskDelay(5);
 			B_tcpSend(btcp, bufh1, sizeof(bufh1));
 			vTaskSuspendAll();
-			uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			uint8_t bufh2[4] = {DCMB_LIGHTCONTROL_ID, 0x00, 0x00, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 			//Right indicator - SEND TO BBMB
 			if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Extend lights (ON)
 				bufh2[1] = 0b01000011;
@@ -1878,9 +1879,10 @@ void steeringWheelTask(const void *pv){
 				default_data.P2_right_indicator_status = 1;
 			}
 			xTaskResumeAll();
+//			vTaskDelay(5);
 			B_tcpSend(btcp, bufh2, sizeof(bufh2));
 			vTaskSuspendAll();
-			//Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
+			//Nothing to do for the horn as its state will be d by BBMB from buf_rs485
 
 			//Encoder - Set car motor global values
 			if (motorState == CRUISE && fwdRevState == 0 && CRUISE_MODE == CONSTANT_SPEED){ // check if in cruise state and forward state
@@ -1972,6 +1974,7 @@ void steeringWheelTask(const void *pv){
 			}
 			oldRightButton = (steeringData[2] & (1 << 3));
 			xTaskResumeAll();
+//			vTaskDelay(5);
 			B_tcpSend(btcp, bufe, sizeof(bufe));
 		}
 
@@ -2024,7 +2027,7 @@ void sidePanelTask(const void *pv){
 				}
 
 			//AUX0 (DRL in GEN11)
-				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+				uint8_t bufh[4] = {DCMB_LIGHTCONTROL_ID, 0x00, 0x00, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 
 				if (sidePanelData & (1 << 1)){
 					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on
@@ -2037,6 +2040,7 @@ void sidePanelTask(const void *pv){
 					default_data.light = 0;
 				}
 				xTaskResumeAll();
+//				vTaskDelay(5);
 				B_tcpSend(btcp, bufh, sizeof(bufh));
 				vTaskSuspendAll();
 
@@ -2102,6 +2106,7 @@ void sidePanelTask(const void *pv){
 					}
 				}
 				xTaskResumeAll();
+//				vTaskDelay(5);
 				B_tcpSend(btcp, bufh3, sizeof(bufh3));
 				firstTime = 0;
 			}
