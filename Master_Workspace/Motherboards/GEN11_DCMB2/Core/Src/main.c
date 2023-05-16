@@ -1820,159 +1820,160 @@ void steeringWheelTask(const void *pv){
   uint8_t expectedLen = 7; //must be same length as sent from SWB
   uint8_t rxBuf[expectedLen];
   for(;;){
-	  B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
+	  	B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
 
-	  vTaskSuspendAll();
-	//Save old data
-	for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
+	  	vTaskSuspendAll();
+		//Save old data
+		for (int i = 0; i < 3; i++){ oldSteeringData[i] = steeringData[i]; }
 
-	//Update global data, and check value after start byte for integrity
-	if (rxBuf[0] == BSSR_SERIAL_START && rxBuf[1] == 0x03){
-		for (int i = 0; i < 3; i++){
-			if (steeringData[i] != rxBuf[2 + i]){
-				steeringData[i] = rxBuf[2 + i]; } //Only update if different (it should be different)
-		}
+		//Update global data, and check value after start byte for integrity
+		if (rxBuf[0] == BSSR_SERIAL_START && rxBuf[1] == 0x03){
+			for (int i = 0; i < 3; i++){
+				if (steeringData[i] != rxBuf[2 + i]){
+					steeringData[i] = rxBuf[2 + i]; } //Only update if different (it should be different)
+			}
 #ifdef USE_ADC_REGEN
-		//Update variable regen value
-		steering_wheel_variable_regen_value = rxBuf[5];
+			//Update variable regen value
+			steering_wheel_variable_regen_value = rxBuf[5];
 #endif
-	}
-
-	//------- Send acknowledge -------//
-	//uint8_t buf_to_swb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
-	//HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
-
-	// Only send info when state of steeringData changes to avoid bus traffic
-	if (oldSteeringData[0] != steeringData[0] || oldSteeringData[1] != steeringData[1] || oldSteeringData[2] != steeringData[2]){
-
-		//------- Send to RS485 bus -------//
-		uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
-		B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
-
-		//---------- Process data ----------//
-		// Navigation <- Not implemented
-		// Cruise <- Not implemented
-
-		//INDICATOR LIGHTS - SEND TO BBMB
-		//Left indicator - SEND TO BBMB
-		uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
-		if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Extend lights (ON)
-			bufh1[1] = 0b01000010;
-			default_data.P1_left_indicator_status = 0;
-		} else { //OFF
-			bufh1[1] = 0b00000010;
-			default_data.P1_left_indicator_status = 1;
 		}
+		xTaskResumeAll(); // exit critical section
 
-		B_tcpSend(btcp, bufh1, sizeof(bufh1));
+		//------- Send acknowledge -------//
+		//uint8_t buf_to_swb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
+		//HAL_UART_Transmit(&huart8, buf_to_swb, sizeof(buf_to_swb), 100);
 
-		uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
-		//Right indicator - SEND TO BBMB
-		if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Extend lights (ON)
-			bufh2[1] = 0b01000011;
-			default_data.P2_right_indicator_status = 0;
-		} else { //OFF
-			bufh2[1] = 0b00000011;
-			default_data.P2_right_indicator_status = 1;
-		}
+		// Only send info when state of steeringData changes to avoid bus traffic
+		if (oldSteeringData[0] != steeringData[0] || oldSteeringData[1] != steeringData[1] || oldSteeringData[2] != steeringData[2]){
 
-		B_tcpSend(btcp, bufh2, sizeof(bufh2));
+			//------- Send to RS485 bus -------//
+			uint8_t buf_rs485[4] = {DCMB_STEERING_WHEEL_ID, steeringData[0], steeringData[1], steeringData[2]};
+			B_tcpSend(btcp, buf_rs485, sizeof(buf_rs485));
 
-		//Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
+			vTaskSuspendAll();
+			//---------- Process data ----------//
+			// Navigation <- Not implemented
+			// Cruise <- Not implemented
 
-		//Encoder - Set car motor global values
-		if (motorState == CRUISE && fwdRevState == 0 && CRUISE_MODE == CONSTANT_SPEED){ // check if in cruise state and forward state
-			uint8_t old_ang = encoderMap8[oldSteeringData[0]];
-			uint8_t new_ang = encoderMap8[steeringData[0]];
-			motorTargetSpeed = motorTargetSpeed + CRUISE_MULT * (new_ang - old_ang); // update global variable
-		}
+			//INDICATOR LIGHTS - SEND TO BBMB
+			//Left indicator - SEND TO BBMB
+			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Extend lights (ON)
+				bufh1[1] = 0b01000010;
+				default_data.P1_left_indicator_status = 0;
+			} else { //OFF
+				bufh1[1] = 0b00000010;
+				default_data.P1_left_indicator_status = 1;
+			}
+			xTaskResumeAll();
+			B_tcpSend(btcp, bufh1, sizeof(bufh1));
+			vTaskSuspendAll();
+			uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			//Right indicator - SEND TO BBMB
+			if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Extend lights (ON)
+				bufh2[1] = 0b01000011;
+				default_data.P2_right_indicator_status = 0;
+			} else { //OFF
+				bufh2[1] = 0b00000011;
+				default_data.P2_right_indicator_status = 1;
+			}
+			xTaskResumeAll();
+			B_tcpSend(btcp, bufh2, sizeof(bufh2));
+			vTaskSuspendAll();
+			//Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
 
-		//Cruise - (Try to change) Motor state and send to MCMB
-		if (steeringData[1] & (1 << 4)){
-			if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), try to put in cruise
-				if ((motorState != REGEN) && (motorState != OFF) && (motorState != STANDBY)){
-					motorState = CRUISE; // change global motorState
-					default_data.P2_motor_state = CRUISE;
+			//Encoder - Set car motor global values
+			if (motorState == CRUISE && fwdRevState == 0 && CRUISE_MODE == CONSTANT_SPEED){ // check if in cruise state and forward state
+				uint8_t old_ang = encoderMap8[oldSteeringData[0]];
+				uint8_t new_ang = encoderMap8[steeringData[0]];
+				motorTargetSpeed = motorTargetSpeed + CRUISE_MULT * (new_ang - old_ang); // update global variable
+			}
+
+			//Cruise - (Try to change) Motor state and send to MCMB
+			if (steeringData[1] & (1 << 4)){
+				if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), try to put in cruise
+					if ((motorState != REGEN) && (motorState != OFF) && (motorState != STANDBY)){
+						motorState = CRUISE; // change global motorState
+						default_data.P2_motor_state = CRUISE;
+					}
+				} else if (motorState == CRUISE){ //If already in cruise
+					motorState = STANDBY;
+					default_data.P2_motor_state = STANDBY;
 				}
-			} else if (motorState == CRUISE){ //If already in cruise
-				motorState = STANDBY;
-				default_data.P2_motor_state = STANDBY;
 			}
-		}
 
-		//Radio - Enable driver voice radio
-		if (steeringData[1] & (1 << 2)){
-			//No plan to implement it in GEN11
-		}
-
-		//Up button pressed
-		if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-			if (default_data.P2_VFM < MAX_VFM && (batteryRelayState == CLOSED)){ //Bound VFM setting
-				default_data.P2_VFM++;
+			//Radio - Enable driver voice radio
+			if (steeringData[1] & (1 << 2)){
+				//No plan to implement it in GEN11
 			}
-			vfmUpState = 1;
 
-		} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
-			vfmUpState = 0; //reset this in motorDataTimer
-		}
-		oldUpButton = (steeringData[2] & (1 << 0));
+			//Up button pressed
+			if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
+				if (default_data.P2_VFM < MAX_VFM && (batteryRelayState == CLOSED)){ //Bound VFM setting
+					default_data.P2_VFM++;
+				}
+				vfmUpState = 1;
 
-		//Down button pressed
-		if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
-			if (default_data.P2_VFM > 1){ //Bound VFM setting
-				default_data.P2_VFM--;
+			} else if (oldUpButton && ~(steeringData[2] & (1 << 0))){ // 1 --> 0 transition
+				vfmUpState = 0; //reset this in motorDataTimer
 			}
-			vfmDownState = 1;
+			oldUpButton = (steeringData[2] & (1 << 0));
 
-		} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
-			// nothing to do because vfmDownState = 0;  will be reset in motorDataTimer
-		}
-		oldDownButton = (steeringData[2] & (1 << 1));
+			//Down button pressed
+			if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
+				if (default_data.P2_VFM > 1){ //Bound VFM setting
+					default_data.P2_VFM--;
+				}
+				vfmDownState = 1;
+
+			} else if (oldDownButton && ~(steeringData[2] & (1 << 1))){ // 1 --> 0 transition
+				// nothing to do because vfmDownState = 0;  will be reset in motorDataTimer
+			}
+			oldDownButton = (steeringData[2] & (1 << 1));
 
 #ifndef USE_ADC_REGEN
-	    //Middle button pressed - Holding it causes regen
-		if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-			if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
-				steering_wheel_regen_button_pressed = 1;
+			//Middle button pressed - Holding it causes regen
+			if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
+				if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
+					steering_wheel_regen_button_pressed = 1;
+				}
+			} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
+				steering_wheel_regen_button_pressed = 0;
 			}
-		} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
-			steering_wheel_regen_button_pressed = 0;
-		}
-		oldMiddleButton = (steeringData[2] & (1 << 4));
+			oldMiddleButton = (steeringData[2] & (1 << 4));
 #endif
-		//Left button pressed
-		if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
-			//Toggle between default and detailed display frames
-	//		if (display_selection == 0){ display_selection = 1;
-	//		} else if (display_selection){ display_selection = 0;};
-			// Toggle between default and and 2 details so 3 total
-			display_selection = (display_selection + 1)%3;
-		} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
-		}
-		oldLeftButton = (steeringData[2] & (1 << 2));
-
-		//Right button pressed (use for emergency light)
-		uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
-		if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
-			if (!emergencyLight) {
-				bufe[1] = 0b01010000; // turn on hazard indicator
-				default_data.P1_left_indicator_status = 0;
-				default_data.P2_right_indicator_status = 0;
-				emergencyLight = 1;
-			} else {
-				bufe[1] = 0b00010000; // turn off hazard indicator
-				default_data.P1_left_indicator_status = 1;
-				default_data.P2_right_indicator_status = 1;
-				emergencyLight = 0;
+			//Left button pressed
+			if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
+				//Toggle between default and detailed display frames
+		//		if (display_selection == 0){ display_selection = 1;
+		//		} else if (display_selection){ display_selection = 0;};
+				// Toggle between default and and 2 details so 3 total
+				display_selection = (display_selection + 1)%3;
+			} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
 			}
-		} else if ((oldRightButton == 1) && ~(steeringData[2] & (1 << 3))){ // 1 --> 0 transition
-			// Do nothing
-		}
-		oldRightButton = (steeringData[2] & (1 << 3));
-		B_tcpSend(btcp, bufe, sizeof(bufe));
+			oldLeftButton = (steeringData[2] & (1 << 2));
 
-	}
-	xTaskResumeAll(); // exit critical section
+			//Right button pressed (use for emergency light)
+			uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
+				if (!emergencyLight) {
+					bufe[1] = 0b01010000; // turn on hazard indicator
+					default_data.P1_left_indicator_status = 0;
+					default_data.P2_right_indicator_status = 0;
+					emergencyLight = 1;
+				} else {
+					bufe[1] = 0b00010000; // turn off hazard indicator
+					default_data.P1_left_indicator_status = 1;
+					default_data.P2_right_indicator_status = 1;
+					emergencyLight = 0;
+				}
+			} else if ((oldRightButton == 1) && ~(steeringData[2] & (1 << 3))){ // 1 --> 0 transition
+				// Do nothing
+			}
+			oldRightButton = (steeringData[2] & (1 << 3));
+			xTaskResumeAll();
+			B_tcpSend(btcp, bufe, sizeof(bufe));
+		}
 
   }
 
@@ -1999,13 +2000,13 @@ void sidePanelTask(const void *pv){
 				sidePanelData = rxBuf[2];
 				//Only update if different (it should be different)
 
-				vTaskSuspendAll(); // data into global variable -> enter critical section
 
 			//------- Send acknowledge -------//
 				uint8_t buf_to_spb[2] = {BSSR_SERIAL_START, BSSR_SPB_SWB_ACK};
 				HAL_UART_Transmit(&huart3, buf_to_spb, sizeof(buf_to_spb), 100);
 
 			//---------- Process data ----------//
+			vTaskSuspendAll(); // data into global variable -> enter critical section
 			//REAR CAMERA AND SCREEN
 				if (sidePanelData & (1 << 6)){
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
@@ -2035,7 +2036,9 @@ void sidePanelTask(const void *pv){
 					default_data.P2_DRL_state = 0;
 					default_data.light = 0;
 				}
+				xTaskResumeAll();
 				B_tcpSend(btcp, bufh, sizeof(bufh));
+				vTaskSuspendAll();
 
 			//AUX1 (display backlight control in GEN11)
 				if (sidePanelData & (1 << 2)){
@@ -2098,9 +2101,9 @@ void sidePanelTask(const void *pv){
 						toggleIgnitionRequired = 0;
 					}
 				}
+				xTaskResumeAll();
 				B_tcpSend(btcp, bufh3, sizeof(bufh3));
 				firstTime = 0;
-				xTaskResumeAll();
 			}
 		}
 
