@@ -10,16 +10,17 @@
 #include "batteryEKF.h"
 #include "stdint.h"
 #include "cQueue.h"
+#include "battery_config.h"
 
 #ifndef INC_BMS_MODULE_H_
 #define INC_BMS_MODULE_H_
 
-#define BMS_MODULE_NUM_CELLS NUM_14P_UNITS		// which is 5 except for maybe one Battery Module
-#define BMS_MODULE_NUM_TEMPERATURE_SENSOR 3
+#define BMS_MODULE_NUM_TEMPERATURE_SENSOR NUM_TEMP_SENSORS_PER_MODULE
 
-#define BMS_MODULE_NUM_VOLTAGES BMS_MODULE_NUM_CELLS
+#define BMS_MODULE_NUM_VOLTAGES NUM_CELLS_PER_MODULE
 #define BMS_MODULE_NUM_TEMPERATURES BMS_MODULE_NUM_TEMPERATURE_SENSOR
-#define BMS_MODULE_NUM_STATE_OF_CHARGES BMS_MODULE_NUM_CELLS
+#define BMS_MODULE_NUM_STATE_OF_CHARGES NUM_CELLS_PER_MODULE
+
 #define STATIC_FLOAT_QUEUE_NUM_VALUES 5
 
 typedef enum {
@@ -76,12 +77,12 @@ typedef struct BmsModule {
 } BmsModule;
 
 void bms_module_init(
-		BmsModule* this,
-		int bms_module_id,
-		SPI_HandleTypeDef* _spi_handle,
-		GPIO_TypeDef* _spi_cs_port,
-		uint16_t _spi_cs_pin
-		);
+	BmsModule* this,
+	int bms_module_id,
+	SPI_HandleTypeDef* _spi_handle,
+	GPIO_TypeDef* _spi_cs_port,
+	uint16_t _spi_cs_pin
+);
 
 void bms_module_while_loop_test(void* parameters);
 

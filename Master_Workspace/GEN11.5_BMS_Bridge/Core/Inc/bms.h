@@ -12,7 +12,7 @@
 #include "stdbool.h"
 #include "main.h"
 
-#define BMS_NUM_BMS_MODULES 6
+#define BMS_NUM_BMS_MODULES NUM_BMS_MODULES
 
 typedef struct Bms {
 
@@ -31,15 +31,17 @@ typedef struct Bms {
 	BmsModule _bms_modules[BMS_NUM_BMS_MODULES];
 	TaskHandle_t _run_thread_handle;
 
+	int init_flag;
+
 
 }Bms;
 
 void bms_init(
-		Bms* this,
-		SPI_HandleTypeDef* spi_handle,
-		GPIO_TypeDef* spi_cs_ports[],
-		uint16_t spi_cs_pins[]
-		);
+	Bms* this,
+	SPI_HandleTypeDef* spi_handle,
+	GPIO_TypeDef* spi_cs_ports[],
+	uint16_t spi_cs_pins[]
+);
 // Note: spi related arguments will be passed into each BmsModule
 
 

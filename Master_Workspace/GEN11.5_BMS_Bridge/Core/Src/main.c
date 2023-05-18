@@ -51,7 +51,6 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
 osThreadId defaultTaskHandle;
-osThreadId heartbeatTaskHandle;
 /* USER CODE BEGIN PV */
 B_uartHandle_t* buart;
 B_tcpHandle_t* btcp;
@@ -73,7 +72,8 @@ void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 // void HeartbeatHandler(TimerHandle_t xTimer);
-void StartHeartbeatTask(void const * argument);
+void heartbeat_task(void* argument);
+void sender_task(void* argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -129,8 +129,6 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   //configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  osThreadDef(heartbeatTask, StartHeartbeatTask, osPriorityNormal, 0, 1000);
-  heartbeatTaskHandle = osThreadCreate(osThread(heartbeatTask), NULL);
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -167,8 +165,6 @@ int main(void)
 
 
   /* ================= Actual code ================== */
-  buart = B_uartStart(&huart1);
-  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
 
   /*
    * Array of chip selects used by each BMS Module object
@@ -179,7 +175,31 @@ int main(void)
 
   // Initialize and run bms
   bms_init(&bms, &hspi3, spi_cs_ports, spi_cs_pins);
-  bms.run(&bms);
+
+
+  buart = B_uartStart(&huart1);
+  btcp = B_tcpStart(BMS_ID, &buart, buart, 1, &hcrc);
+	TaskHandle_t heartbeat_task_handle;
+	BaseType_t status = xTaskCreate(
+			heartbeat_task,  //Function that implements the task.
+			"heartbeat",  //Text name for the task.
+			256, 		 //256 words *4(bytes/word) = 1024 bytes allocated for task's stack (note even this size is unnecessary as this thread barely creates any variables)
+			NULL,  //Parameter passed into the task.
+			4,  //Priority at which the task is created.
+			&heartbeat_task_handle  //Used to pass out the created task's handle.
+		);
+	configASSERT(status == pdPASS);	// Error checking
+
+	TaskHandle_t sender_task_handle;
+	status = xTaskCreate(
+			sender_task,  //Function that implements the task.
+			"sender",  //Text name for the task.
+			1024, 		 //1024 words *4(bytes/word) = 4096 bytes allocated for task's stack
+			NULL,  //Parameter passed into the task.
+			4,  //Priority at which the task is created.
+			&sender_task_handle  //Used to pass out the created task's handle.
+		);
+	configASSERT(status == pdPASS);	// Error checking
   /* ================= Actual code ================== */
 
 
@@ -460,59 +480,20 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
+	//char buf[] = "hello world1\n\n";
 	switch(pkt->senderID){
 	  case BBMB_ID: //Parse data from BBMB
 
-		  if (pkt->data[0] == BBMB_BMS_DATA_REQUEST_ID) {
+		  		//HAL_UART_Transmit(&huart3, (uint8_t*)buf, sizeof(buf), 100);
 
-			  // Update Current variable
-			  float current = arrayToFloat(pkt->data + 4);
-			  bms.set_current(&bms, current);
-
-			  int module_id = pkt->data[1];
-
-			  /* ================= SOC =================== */
-			  float state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
-			  if (bms.get_state_of_charge(&bms, state_of_charges, module_id)) {
-				  // Not sure which Module only has 4 cells, commented out for now, assuming they all have 5.
-				  // Module x has only 4 cells, so we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
-				  // TODO: add fake values for modules missing one cell
-				  //if (module_id == X) state_of_charges[4] = 1.5;
-
-				  // Pack state_of_charges into array of uint8_t to be sent to BBMB
-				  uint8_t buf_soc[4 + BMS_MODULE_NUM_STATE_OF_CHARGES*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
-				  buf_soc[0] = BMS_CELL_SOC_ID;
-				  buf_soc[1] = module_id;
-				  for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
-					  floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
-				  B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
-			  }
-
-
-			  /* =============== Temperature ================= */
-			  float temperatures[BMS_MODULE_NUM_TEMPERATURES];
-			  if (bms.get_temperature(&bms, temperatures, module_id, GET_PAST_AVERAGE)) {
-				  uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
-				  buf_temp[0] = BMS_CELL_TEMP_ID;
-				  buf_temp[1] = module_id;
-				  for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
-					  floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
-				  B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
-			  }
-
-
-			  /* =============== Voltage ====================== */
-			  float voltages[BMS_MODULE_NUM_VOLTAGES];
-			  if (bms.get_voltage(&bms, voltages, module_id, GET_PAST_AVERAGE)) {
-				  // TODO: add fake values for modules missing one cell
-				  uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
-				  buf_volt[0] = BMS_CELL_VOLT_ID;
-				  buf_volt[1] = module_id;
-				  for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
-					  floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
-				  B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
-			  }
-		  }
+		if (pkt->data[0] == BBMB_BUS_METRICS_ID) {
+			float current = arrayToFloat(&(pkt->data[8])); //Battery current
+			if (current > -100 && current < 100) {
+				if (bms.init_flag) {
+					bms.set_current(&bms, current);
+				}
+			}
+		}
 		break;
 	}
 }
@@ -523,12 +504,65 @@ void serialParse(B_tcpPacket_t *pkt){
 // 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 // 	//Heartbeat only accessed here so no need for mutex
 // }
-void StartHeartbeatTask(void const * argument)
+void heartbeat_task(void* argument)
 {
-	for(;;) {
+
+	while(1) {
 		B_tcpSend(btcp, heartbeat, sizeof(heartbeat));
+		char buf[] = "hello world1\n\n";
+		HAL_UART_Transmit(&huart3, (uint8_t*)buf, sizeof(buf), 100);
 		heartbeat[1] = ~heartbeat[1];
-		osDelay(1000);
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+}
+
+void sender_task(void* argument) {
+
+	while (!bms.init_flag) {}
+
+	while(1) {
+		// Send data to BBMB
+		for (int module_id = 0; module_id < BMS_NUM_BMS_MODULES; module_id++) {
+			/* ================= SOC =================== */
+			float state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
+			if (bms.get_state_of_charge(&bms, state_of_charges, module_id)) {
+				// If module x has only 4 cells,  we place a fake SoC of 1.5 (so stategy app can detect it and ignore it) so displays doesn't show the wrong SoC
+				//if (module_id == X) state_of_charges[4] = 1.5;
+
+				// Pack state_of_charges into array of uint8_t to be sent to BBMB
+				uint8_t buf_soc[4 + BMS_MODULE_NUM_STATE_OF_CHARGES*sizeof(float)];	//[DATA ID, MODULE ID, SoC group #0, SoC group #1, ... , SoC group #4]
+				buf_soc[0] = BMS_CELL_SOC_ID;
+				buf_soc[1] = module_id;
+				for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++)
+					floatToArray(state_of_charges[i], buf_soc + (i + 1) * sizeof(float));
+				B_tcpSend(btcp, buf_soc, sizeof(buf_soc));
+			}
+
+
+			/* =============== Temperature ================= */
+			float temperatures[BMS_MODULE_NUM_TEMPERATURES];
+			if (bms.get_temperature(&bms, temperatures, module_id, GET_PAST_AVERAGE)) {
+				uint8_t buf_temp[4 + BMS_MODULE_NUM_TEMPERATURES*sizeof(float)];
+				buf_temp[0] = BMS_CELL_TEMP_ID;
+				buf_temp[1] = module_id;
+				for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++)
+					floatToArray(temperatures[i], buf_temp + (i + 1) * sizeof(float));
+				B_tcpSend(btcp, buf_temp, sizeof(buf_temp));
+			}
+
+
+			/* =============== Voltage ====================== */
+			float voltages[BMS_MODULE_NUM_VOLTAGES];
+			if (bms.get_voltage(&bms, voltages, module_id, GET_PAST_AVERAGE)) {
+				uint8_t buf_volt[4 + BMS_MODULE_NUM_VOLTAGES*sizeof(float)];
+				buf_volt[0] = BMS_CELL_VOLT_ID;
+				buf_volt[1] = module_id;
+				for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++)
+					floatToArray(voltages[i], buf_volt + (i + 1) * sizeof(float));
+				B_tcpSend(btcp, buf_volt, sizeof(buf_volt));
+			}
+			vTaskDelay(pdMS_TO_TICKS(200));
+		}
 	}
 }
 /* USER CODE END 4 */

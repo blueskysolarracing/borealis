@@ -7,6 +7,8 @@
 #include "bms_module.h"
 #include <math.h>
 
+#define BMS_DISCONNECTED_VOLTAGE_THRESHOLD (6.0f) // any value over 6V indicates BMS Module is disconnected
+#define BMS_DISCONNECTED_TEMPERATURE_THRESHOLD (-100.0f) // any value below -100C indicates BMS Module is disconnected
 
 static void get_temperature(BmsModule* this, float* temperature, get_mode_t get_mode);
 static void get_voltage(BmsModule* this, float* voltage, get_mode_t get_mode);
@@ -15,6 +17,8 @@ static void set_current(BmsModule* this, float current);
 static void measure_temperature(BmsModule* this);
 static void measure_voltage(BmsModule* this);
 static void compute_soc(BmsModule* this);
+static inline bool check_voltage_is_valid(float voltage);
+static inline bool check_temperature_is_valid(float temperature);
 
 static void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]);
 static void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[]);
@@ -84,7 +88,7 @@ void bms_module_while_loop_test(void* parameters) {
 		  HAL_UART_Transmit(&huart3, MSG, sizeof(MSG), 100);
 
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
-		vTaskDelay(1000);
+		HAL_Delay(1000);
 
 
 	}
@@ -151,34 +155,32 @@ void bms_module_init(
 	this->_spi_cs_port = spi_cs_port;
 	this->_spi_cs_pin = spi_cs_pin;
 
+	this->_current = 0;
+
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 
-	// Get voltages. Note we can't call this->get_voltage() because it requires freertos scheduler, but freertos scheduler is not initialized yet
-	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
-	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
-
-	float local_temperature_array[BMS_MODULE_NUM_TEMPERATURES];
-	LTC6810ReadTemp(this, local_temperature_array, 0, 0, 0, 0, 0);
-
-	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
-		this->_voltages[i] = local_voltage_array[i];
+	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
 		sfq_init(&this->past_voltages[i]);
-		sfq_push(&this->past_voltages[i], local_voltage_array[i]);
-
-		this->_temperatures[i] = local_temperature_array[i];
+		this->_state_of_charges[i] = 0;
+	}
+	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++) {
 		sfq_init(&this->past_temperatures[i]);
-		sfq_push(&this->past_temperatures[i], local_temperature_array[i]);
 	}
 
+	for (int i = 0; i < STATIC_FLOAT_QUEUE_NUM_VALUES; i++) {
+		measure_voltage(this);
+		measure_temperature(this);
+	}
 
 	//--- SOC algorithm ---//
-	for (int i = 0; i < BMS_MODULE_NUM_CELLS; i++){
+	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
 		this->_tick_last_soc_compute[i] = xTaskGetTickCount();
 		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
 	}
 
-	this->init_flag = 1;
+	// compute_soc(this);
 
+	this->init_flag = 1;
 }
 
 static void get_temperature(BmsModule* this, float* temperatures, get_mode_t get_mode)
@@ -188,7 +190,11 @@ static void get_temperature(BmsModule* this, float* temperatures, get_mode_t get
 		if (get_mode == GET_MOST_RECENT) {
 			temperatures[i] = this->_temperatures[i];
 		} else if (get_mode == GET_PAST_AVERAGE) {
-			temperatures[i] = sfq_get_avg(&this->past_temperatures[i]);
+			if (check_temperature_is_valid(this->_temperatures[i])) {
+				temperatures[i] = sfq_get_avg(&this->past_temperatures[i]);
+			} else {
+				temperatures[i] = this->_temperatures[i];
+			}
 		} else if (get_mode == GET_FILTERED_RESULT) {
 			// Can consider running past temperatures through Moving Average Filter, not necessary for now
 		}
@@ -203,7 +209,11 @@ static void get_voltage(BmsModule* this, float* voltages, get_mode_t get_mode)
 		if (get_mode == GET_MOST_RECENT) {
 			voltages[i] = this->_voltages[i];
 		} else if (get_mode == GET_PAST_AVERAGE) {
-			voltages[i] = sfq_get_avg(&this->past_voltages[i]);
+			if (check_voltage_is_valid(this->_voltages[i])) {
+				voltages[i] = sfq_get_avg(&this->past_voltages[i]);
+			} else {
+				voltages[i] = this->_voltages[i];
+			}
 		} else if (get_mode == GET_FILTERED_RESULT) {
 			// Can consider running past voltages through Moving Average Filter, not necessary for now
 		}
@@ -236,9 +246,14 @@ static void measure_temperature(BmsModule* this)
 	LTC6810Convert_to_temp(local_temp_array, local_temp_array);
 
 	vTaskSuspendAll();
-	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++){
-		this->_temperatures[i] = local_temp_array[i];
-		sfq_push(&this->past_temperatures[i], local_temp_array[i]);
+	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++) {
+		if (check_temperature_is_valid(local_temp_array[i])) {
+			this->_temperatures[i] = local_temp_array[i];
+		} else {
+			// If temperature is invalid, assume bms module is not connected
+			this->_temperatures[i] = BATTERY_TEMPERATURES_INITIAL_VALUE;
+		}
+		sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
 	}
 	xTaskResumeAll();
 
@@ -250,9 +265,14 @@ static void measure_voltage(BmsModule* this)
 	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
 
 	vTaskSuspendAll();
-	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++){
-		this->_voltages[i] = local_voltage_array[i];
-		sfq_push(&this->past_voltages[i], local_voltage_array[i]);
+	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
+		if (check_voltage_is_valid(local_voltage_array[i])) {
+			this->_voltages[i] = local_voltage_array[i];
+		} else {
+			// If voltage is invalid, assume bms module is not connected
+			this->_voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
+		}
+		sfq_push(&this->past_voltages[i], this->_voltages[i]);
 	}
 	xTaskResumeAll();
 }
@@ -262,15 +282,20 @@ static void compute_soc(BmsModule* this)
 	float local_soc_array[BMS_MODULE_NUM_STATE_OF_CHARGES];
 
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++) {
-		uint32_t tick_now = xTaskGetTickCount();
-		this->_EKF_models[i].run_EKF(
-				&this->_EKF_models[i],
-				tick_now - this->_tick_last_soc_compute[i],
-				this->_current,
-				sfq_get_avg(&this->past_voltages[i])
-		);
-		local_soc_array[i] = this->_EKF_models[i].stateX[0];
-		this->_tick_last_soc_compute[i] = tick_now;
+		if (check_voltage_is_valid(this->_voltages[i])) {
+			uint32_t tick_now = xTaskGetTickCount();
+//			this->_EKF_models[i].run_EKF(
+//					&this->_EKF_models[i],
+//					tick_now - this->_tick_last_soc_compute[i],
+//					this->_current,
+//					sfq_get_avg(&this->past_voltages[i])
+//			);
+//			local_soc_array[i] = this->_EKF_models[i].stateX[0];
+			this->_tick_last_soc_compute[i] = tick_now;
+		} else {
+			// If voltage is invalid, assume bms module is not connected
+			local_soc_array[i] = BATTERY_SOC_INITIAL_VALUE;
+		}
 	}
 
 	vTaskSuspendAll();
@@ -279,6 +304,19 @@ static void compute_soc(BmsModule* this)
 	}
 	xTaskResumeAll();
 }
+
+static inline bool check_voltage_is_valid(float voltage)
+{
+	return voltage < BMS_DISCONNECTED_VOLTAGE_THRESHOLD
+			&& voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
+}
+
+static inline bool check_temperature_is_valid(float temperature)
+{
+	return temperature > BMS_DISCONNECTED_TEMPERATURE_THRESHOLD
+			&& temperature != BATTERY_TEMPERATURES_INITIAL_VALUE;
+}
+
 
 static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
 	//This function initialize the LTC6810 ADC chip, shall be called at the start of the program
@@ -605,22 +643,22 @@ static void LTC6810IsospiWakeup(BmsModule* this){
 static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen){
 	//directly trans
 	LTC6810IsospiWakeup(this);
-	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	HAL_Delay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
-	vTaskDelay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
+	HAL_Delay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
 static void LTC6810TransmitReceiveIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen, uint8_t dataToReceive[], uint8_t dataToReceiveLen){
 	LTC6810IsospiWakeup(this);
-	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	HAL_Delay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
-	vTaskDelay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
+	HAL_Delay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
-	vTaskDelay(pdMS_TO_TICKS(1)); //add delay between Transmit & Receive
+	HAL_Delay(pdMS_TO_TICKS(1)); //add delay between Transmit & Receive
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive, dataToReceiveLen, 100);
-	vTaskDelay(pdMS_TO_TICKS(1)); // Might not be necessary
+	HAL_Delay(pdMS_TO_TICKS(1)); // Might not be necessary
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
@@ -639,11 +677,11 @@ static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
-	vTaskDelay(10);//ADD 10ms DELAY between Transmit & Receive
+	HAL_Delay(10);//ADD 10ms DELAY between Transmit & Receive
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive,4,100);         //discard this Receive as it is problematic
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 
-	vTaskDelay(5);
+	HAL_Delay(5);
 
 	//after letting it read ADC, now collect those data
 
@@ -652,7 +690,7 @@ static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
-	vTaskDelay(2);
+	HAL_Delay(2);
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); //ss pin back high
 
@@ -666,7 +704,7 @@ static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
-	vTaskDelay(2);
+	HAL_Delay(2);
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); //ss pin back high
 
@@ -786,7 +824,7 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 
-	vTaskDelay(10);
+	HAL_Delay(10);
 	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
