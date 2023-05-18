@@ -32,6 +32,7 @@
 #include "lights.h"
 #include <stdio.h>
 #include <math.h>
+#include "battery_config.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,23 +44,10 @@
 /* USER CODE BEGIN PD */
 #define BMS_CONNECTION_EXPIRY_THRESHOLD 2500
 
-#define HV_BATT_OC_DISCHARGE 	45.0 	//Should be set to 45.0A
-#define HV_BATT_OC_CHARGE 		30.0 	//Should be set to 30.0A
-#define HV_BATT_OV_THRESHOLD 	4.20	//Should be set to 4.20V
-#define HV_BATT_UV_THRESHOLD 	2.50 	//Should be set to 2.50V
-#define HV_BATT_OT_THRESHOLD 	65.0 	//Should be set to 65.0C
 #define BATT_OVERCURRENT_CNT_THRESHOLD 5
 #define BATT_OVERCURRENT_CNT_RESET_TIME 1000 // 1000 ms
-#define BATTERY_CELL_VOLTAGES_INITIAL_VALUE (-1.0)
-#define BATTERY_CELL_VOLTAGES_FAKE_VALUE 0
-#define BATTERY_TEMPERATURES_INITIAL_VALUE (-1.0)
 
 
-#define NUM_CELLS_PER_MODULE 	5
-#define NUM_BMS_MODULES			6 		//Number of BMS modules to read from
-#define NUM_BATT_CELLS 			(NUM_BMS_MODULES*NUM_CELLS_PER_MODULE) 		//Number of series parallel groups in battery pack (module 4 and 5 only have 4 cells, but we place fake values for them)
-#define NUM_TEMP_SENSORS_PER_MODULE 3
-#define NUM_BATT_TEMP_SENSORS 	(NUM_TEMP_SENSORS_PER_MODULE*NUM_BMS_MODULES) 	//Number of temperature sensors in battery pack
 #define BMS_READ_INTERVAL 		200		//(Other intervals defined in psm.h and btcp.h)
 #define BMS_FLT_CHECK_INTERVAL 	10 		//Interval at which to read the BMS_FLT pin
 #define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
@@ -189,8 +177,6 @@ static void relayTask(void * argument);
 void PSMTaskHandler(void * parameters);
 void measurementSender(void* p);
 void HeartbeatHandler(TimerHandle_t xTimer);
-void BMSPeriodicReadHandler(TimerHandle_t xTimer);
-void sendNewBMSRequest();
 void battery_faulted_routine(/*uint8_t fault_type, uint8_t fault_cell, uint8_t fault_thermistor*/);
 void battery_unfaulted_routine();
 void RelayStateTimer(TimerHandle_t xTimer);
@@ -335,7 +321,6 @@ int main(void)
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
   // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
   // configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
-  configASSERT(xTimerStart(xTimerCreate("BMSPeriodicReadHandler",  pdMS_TO_TICKS(BMS_READ_INTERVAL), pdTRUE, (void *)0, BMSPeriodicReadHandler), 0)); //Read from BMS periodically
   configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
   configASSERT(xTimerStart(xTimerCreate("relayStateTimer",  pdMS_TO_TICKS(RELAY_STATE_TIMER_INTERVAL), pdTRUE, (void *)0, RelayStateTimer), 0));
 
@@ -1428,17 +1413,12 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Re-send on main bus
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
-				//Update data received tracker
-				vTaskSuspendAll(); BMS_data_received[0] = RECEIVED; xTaskResumeAll();
-
 				//Check for overtemperature for each cell and call routine when battery has faulted
 				for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){ //3 thermistors
 					uint8_t j = pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i - 1;
 					if (j < NUM_BATT_TEMP_SENSORS) {
 						float temperature = arrayToFloat( &(pkt->data[4 * i]) );
-						vTaskSuspendAll();
 						battery_temperatures[j] = temperature;
-						xTaskResumeAll();
 					}
 				}
 
@@ -1447,17 +1427,12 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Re-send on main bus
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
-				//Update data received tracker
-				vTaskSuspendAll(); BMS_data_received[1] = RECEIVED; xTaskResumeAll();
-
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
-				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i ++){ //5 cells
+				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i++){ //5 cells
 					uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
 					if (j < NUM_BATT_CELLS) {
 						float voltage = arrayToFloat( &(pkt->data[4 * i]) );
-						vTaskSuspendAll();
 						battery_cell_voltages[j] = voltage;
-						xTaskResumeAll();
 					}
 				}
 
@@ -1469,11 +1444,11 @@ void serialParse(B_tcpPacket_t *pkt){
 				//Re-send on main bus
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
-				//Update data received tracker
-				vTaskSuspendAll(); BMS_data_received[2] = RECEIVED; xTaskResumeAll(); //Need - 2 on index because BMS_CELL_SOC_ID == 0x04
-
 				//Update global for discharge test (cell #0 of BMS #0)
 				if (pkt->data[1] == 0) cellUnderTestSOC = arrayToFloat(&(pkt->data[4]));
+			} else if (pkt->data[0] == BMS_HEARTBEAT_ID) {
+				//RE-send on main bus
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 			}
 			break;
 
@@ -1674,6 +1649,7 @@ void measurementSender(void* p){
 		floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
 
 		B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
+		B_tcpSend(btcp_bms, busMetrics_HV, sizeof(busMetrics_HV));
 
 		if (battery_current >= HV_BATT_OC_DISCHARGE){
 			if (battery_overcurrent_cnt == 0) {
@@ -1714,48 +1690,12 @@ void measurementSender(void* p){
 	}
 }
 
-void BMSPeriodicReadHandler(TimerHandle_t xTimer){
-	/*Used to request BMS readings. The rest is handled by serialParse.
-	*/
-
-	//vTaskSuspendAll();
-	//If all data from a BMS has been received, we are ready to read the next
-	if ((BMS_data_received[0]) && (BMS_data_received[1]) && (BMS_data_received[2])){
-		sendNewBMSRequest();
-		if (BMS_requesting_from >= NUM_BMS_MODULES - 1){	BMS_requesting_from = -1;	};//We've received from all BMS, start requesting from the first one again (BMS_ID == 0)
-	}
-
-	//If we haven't received a BMS message for a while, resend request to same BMS
-	if ((xTaskGetTickCount() - BMS_tick_count_last_packet) > BMS_CONNECTION_EXPIRY_THRESHOLD){
-		BMS_requesting_from -= 1;
-		sendNewBMSRequest();
-	}
-
-	//xTaskResumeAll();
-}
 
 void dischargeTest(TimerHandle_t xTimer){
 	//Used to output CSV-formatted strings on UART2 to test discharge characteristics
 	char buf[100];
 
 	sprintf(buf, "%f, %f, %f\n", battery_current, cellUnderTestVoltage, cellUnderTestSOC);
-}
-
-void sendNewBMSRequest(){
-	//Prep request to next BMS in the queue
-	uint8_t BMS_Request[2 * 4] = {0};
-	BMS_Request[0] = BBMB_BMS_DATA_REQUEST_ID;
-
-	//Update globals
-	BMS_data_received[0] = NOT_RECEIVED;
-	BMS_data_received[1] = NOT_RECEIVED;
-	BMS_data_received[2] = NOT_RECEIVED;
-	BMS_requesting_from += 1;
-	BMS_Request[1] = BMS_requesting_from;
-	floatToArray((float) battery_current, BMS_Request + 4);
-
-	//B_tcpSendToBMS(btcp_bms, BMS_Request, sizeof(BMS_Request));
-	B_tcpSend(btcp_bms, BMS_Request, sizeof(BMS_Request));
 }
 
 

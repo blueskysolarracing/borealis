@@ -5,8 +5,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "battery_config.h"
 
-#define NUM_14P_UNITS (5) // one bms is exception which has 4 units
+#define NUM_14P_UNITS (NUM_CELLS_PER_MODULE) // one bms is exception which has 4 units
 #define LUT_SIZE (201)
 #define DELTA_T (1.0f)  // in second
 
