@@ -92,13 +92,15 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     memcpy(buf+4, msg, length);
     uint16_t buf_pos = length + 4;
 
+	uint8_t new_length = length;
 #ifdef PAD // To pad the data to a multiple of 4 since CRC algorithm computes an array of bytes
     if(buf_pos % 4 != 0) {
     	int paddingNum = 4 - buf_pos % 4;
     	for (int i = paddingNum; i > 0; i--) {
     	   buf[buf_pos++] = 0x00;
     	}
-        buf[1] = length + paddingNum;
+		new_length = length + paddingNum;
+        buf[1] = new_length;
    }
 #endif
     uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, buf_pos/4);
@@ -110,13 +112,13 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     buf_pos++;
 	
     //check if length needs to be escaped
-	if(length == BSSR_SERIAL_START || length == BSSR_SERIAL_ESCAPE){
+	if(new_length == BSSR_SERIAL_START || new_length == BSSR_SERIAL_ESCAPE){
     	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
     	buf_pos++;
-    	buf[buf_pos] = length;
+    	buf[buf_pos] = new_length;
     	buf_pos++;
     } else{
-    	buf[buf_pos] = length;
+    	buf[buf_pos] = new_length;
     	buf_pos++;
     }
 	
@@ -146,6 +148,10 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     		buf[buf_pos] = msg[i];
     		buf_pos++;
     	}
+    }
+
+	for (int i = new_length - length; i > 0; i--) {
+        buf[buf_pos++] = 0;
     }
 
 	//checks if each crc value needs to be escaped
@@ -170,103 +176,6 @@ void B_tcpSend(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 }
 
 
-void B_tcpSendToBMS(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
-
-  //uint8_t *buf = pvPortMalloc(sizeof(uint8_t)*(MAX_PACKET_SIZE+8));
-	vTaskSuspendAll();
-	uint8_t* buf = btcp->txBuf;
-  //buf without escape character to generate crc
-	buf[0] = BSSR_SERIAL_START;
-    buf[1] = length;
-    buf[2] = btcp->senderID;
-    buf[3] = btcp->tcpSeqNum;
-
-    memcpy(buf+4, msg, length);
-    uint16_t buf_pos = length + 4;
-
-#ifdef PAD // To pad the data to a multiple of 4 since CRC algorithm computes an array of bytes
-    if(buf_pos % 4 != 0) {
-    	int paddingNum = 4 - buf_pos % 4;
-    	for (int i = paddingNum; i > 0; i--) {
-    	   buf[buf_pos++] = 0x00;
-    	}
-        buf[1] = length + paddingNum;
-   }
-#endif
-    uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, buf_pos/4);
-
-    // Reset pos and refill buffer to escape characters if necessary
-    buf_pos = 0;
-
-  buf[buf_pos] = BSSR_SERIAL_START;
-  buf_pos++;
-
-  //check if length needs to be escaped
-	if(length == BSSR_SERIAL_START || length == BSSR_SERIAL_ESCAPE){
-  	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-  	buf_pos++;
-  	buf[buf_pos] = length;
-  	buf_pos++;
-  } else{
-  	buf[buf_pos] = length;
-  	buf_pos++;
-  }
-
-  buf[buf_pos] = btcp->senderID;;
-  buf_pos++;
-
-  //check if sequence number needs to be escaped
-  if(btcp->tcpSeqNum == BSSR_SERIAL_START || btcp->tcpSeqNum == BSSR_SERIAL_ESCAPE){
-  	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-  	buf_pos++;
-  	buf[buf_pos] = btcp->tcpSeqNum;
-  	buf_pos++;
-  } else{
-  	buf[buf_pos] = btcp->tcpSeqNum;
-  	buf_pos++;
-  }
-  btcp->tcpSeqNum++;
-
-  //check if each data needs to be escaped
-  for(int i=0; i<length; i++){
-  	if(msg[i] == BSSR_SERIAL_ESCAPE || msg[i] == BSSR_SERIAL_START){
-  		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-  		buf_pos++;
-  		buf[buf_pos] = msg[i];
-  		buf_pos++;
-  	} else{
-  		buf[buf_pos] = msg[i];
-  		buf_pos++;
-  	}
-  }
-
-	//checks if each crc value needs to be escaped
-  for(int i=0; i<4; i++){
-  	uint8_t crc = (crc_result>>(8*(3-i))) & 255;
-  	if(crc == BSSR_SERIAL_ESCAPE || crc == BSSR_SERIAL_START){
-  		buf[buf_pos] = BSSR_SERIAL_ESCAPE;
-  		buf_pos++;
-  		buf[buf_pos] = crc;
-  		buf_pos++;
-  	} else{
-  		buf[buf_pos] = crc;
-  		buf_pos++;
-  	}
-  }
-
-// To pad the data to constant length, for BMS to receive in IT mode
-  while (buf_pos < 32) {
-  	buf[buf_pos] = 0x00;
-  	buf_pos++;
-  }
-	// Send the message to the Queue corresponding to each of the UART ports in the transmitBuarts array
-  for(int i = 0; i < btcp->numTransmitBuarts; i++){
-      B_uartSend(btcp->transmitBuarts[i], buf, buf_pos);
-  }
-  xTaskResumeAll();
-
-}
-
 // will cause caller thread to wait or sleep until the message has been sent
 void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
 
@@ -282,34 +191,36 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     memcpy(buf+4, msg, length);
     uint16_t buf_pos = length + 4;
 
+	uint8_t new_length = length;
 #ifdef PAD // To pad the data to a multiple of 4 since CRC algorithm computes an array of bytes
     if(buf_pos % 4 != 0) {
     	int paddingNum = 4 - buf_pos % 4;
     	for (int i = paddingNum; i > 0; i--) {
     	   buf[buf_pos++] = 0x00;
     	}
-        buf[1] = length + paddingNum;
+		new_length = length + paddingNum;
+        buf[1] = new_length;
    }
 #endif
     uint32_t crc_result = ~HAL_CRC_Calculate(btcp->crc, (uint32_t*)buf, buf_pos/4);
 
     // Reset pos and refill buffer to escape characters if necessary
     buf_pos = 0;
-
+	
     buf[buf_pos] = BSSR_SERIAL_START;
     buf_pos++;
-
+	
     //check if length needs to be escaped
-	if(length == BSSR_SERIAL_START || length == BSSR_SERIAL_ESCAPE){
+	if(new_length == BSSR_SERIAL_START || new_length == BSSR_SERIAL_ESCAPE){
     	buf[buf_pos] = BSSR_SERIAL_ESCAPE;
     	buf_pos++;
-    	buf[buf_pos] = length;
+    	buf[buf_pos] = new_length;
     	buf_pos++;
     } else{
-    	buf[buf_pos] = length;
+    	buf[buf_pos] = new_length;
     	buf_pos++;
     }
-
+	
     buf[buf_pos] = btcp->senderID;;
     buf_pos++;
 
@@ -338,6 +249,10 @@ void B_tcpSendBlocking(B_tcpHandle_t *btcp, uint8_t *msg, uint8_t length){
     	}
     }
 
+	for (int i = new_length - length; i > 0; i--) {
+        buf[buf_pos++] = 0;
+    }
+	
 	//checks if each crc value needs to be escaped
     for(int i=0; i<4; i++){
     	uint8_t crc = (crc_result>>(8*(3-i))) & 255;
