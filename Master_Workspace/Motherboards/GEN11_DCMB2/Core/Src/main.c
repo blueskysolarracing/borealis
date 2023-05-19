@@ -1775,8 +1775,10 @@ void serialParse(B_tcpPacket_t *pkt){
 					battery_temp[j] = temp;
 					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
 
-					if (temp > HV_BATT_OT_THRESHOLD) {
-						detailed_data.overtemperature_status |= 1 << j;
+					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
+						if (temp > HV_BATT_OT_THRESHOLD) {
+							detailed_data.overtemperature_status |= 1 << j;
+						}
 					}
 				}
 			}
@@ -1802,11 +1804,13 @@ void serialParse(B_tcpPacket_t *pkt){
 					detailed_data.overvoltage_status -= detailed_data.overvoltage_status & (1 << j);
 					detailed_data.undervoltage_status -= detailed_data.undervoltage_status & (1 << j);
 
-					if (voltage > HV_BATT_OV_THRESHOLD) {
-						detailed_data.overvoltage_status |= 1 << j;
-					} else if (voltage < HV_BATT_UV_THRESHOLD) {
-						detailed_data.undervoltage_status |= 1 << j;
-					}
+          if (voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE && voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE) {
+						if (voltage > HV_BATT_OV_THRESHOLD) {
+							detailed_data.overvoltage_status |= 1 << j;
+            } else if (voltage < HV_BATT_UV_THRESHOLD) {
+              detailed_data.undervoltage_status |= 1 << j;
+            }
+          }
 				}
 			}
 
