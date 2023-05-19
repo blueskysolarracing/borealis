@@ -72,7 +72,7 @@ typedef struct BmsModule {
 	GPIO_TypeDef* _spi_cs_port;
 	uint16_t _spi_cs_pin;
 
-	int init_flag;// raise after bms_init function finishes, so freertos no issue
+	int init_flag;// raise after init function finishes, so freertos no issue
 
 } BmsModule;
 
@@ -84,6 +84,7 @@ void bms_module_init(
 	uint16_t _spi_cs_pin
 );
 
+// Testing function
 void bms_module_while_loop_test(void* parameters);
 
 

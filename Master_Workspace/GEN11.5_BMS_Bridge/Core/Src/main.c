@@ -174,7 +174,7 @@ int main(void)
   uint16_t spi_cs_pins[] = {[0 ... (BMS_NUM_BMS_MODULES-1)] = GPIO_PIN_9};
 
   // Initialize and run bms
-  bms_init(&bms, &hspi3, spi_cs_ports, spi_cs_pins);
+  bms_start(&bms, &hspi3, spi_cs_ports, spi_cs_pins);
 
 
   buart = B_uartStart(&huart1);

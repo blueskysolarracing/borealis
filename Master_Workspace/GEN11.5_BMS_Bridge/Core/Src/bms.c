@@ -17,7 +17,7 @@ static void measure_with_all_bms_modules(Bms* this);
 static void stop(Bms* this);
 
 
-void bms_init(
+void bms_start(
 		Bms* this,
 		SPI_HandleTypeDef* spi_handle,
 		GPIO_TypeDef* spi_cs_ports[],

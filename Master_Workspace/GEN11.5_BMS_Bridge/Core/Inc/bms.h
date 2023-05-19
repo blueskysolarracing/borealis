@@ -27,16 +27,16 @@ typedef struct Bms {
 	void (*run)(struct Bms* this); // creates and starts thread which updates bms_modules in the background
 	void (*stop)(struct Bms* this); // deletes the run thread. Call this before the bms object is deleted
 
+	int init_flag;
+
 	/* private */
 	BmsModule _bms_modules[BMS_NUM_BMS_MODULES];
 	TaskHandle_t _run_thread_handle;
 
-	int init_flag;
-
 
 }Bms;
 
-void bms_init(
+void bms_start(
 	Bms* this,
 	SPI_HandleTypeDef* spi_handle,
 	GPIO_TypeDef* spi_cs_ports[],
