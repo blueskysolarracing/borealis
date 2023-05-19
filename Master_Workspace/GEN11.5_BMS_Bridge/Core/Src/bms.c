@@ -39,7 +39,7 @@ void bms_init(
 		BaseType_t status = xTaskCreate(
 				run_thread,  //Function that implements the task.
 				"BMS run thread",  //Text name for the task.
-				256, 		 //256 words *4(bytes/word) = 1024 bytes allocated for task's stack (note even this size is unnecessary as this thread barely creates any variables)
+				5000, 		 //5000 words *4(bytes/word) bytes allocated for task's stack (note even this size is unnecessary as this thread barely creates any variables)
 				this,  //Parameter passed into the task.
 				4,  //Priority at which the task is created.
 				&this->_run_thread_handle  //Used to pass out the created task's handle.

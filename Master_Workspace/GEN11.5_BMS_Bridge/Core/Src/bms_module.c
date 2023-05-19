@@ -88,7 +88,7 @@ void bms_module_while_loop_test(void* parameters) {
 		  HAL_UART_Transmit(&huart3, MSG, sizeof(MSG), 100);
 
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_2);
-		HAL_Delay(1000);
+		vTaskDelay(1000);
 
 
 	}
@@ -178,7 +178,7 @@ void bms_module_init(
 		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
 	}
 
-	// compute_soc(this);
+	compute_soc(this);
 
 	this->init_flag = 1;
 }
@@ -284,13 +284,13 @@ static void compute_soc(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++) {
 		if (check_voltage_is_valid(this->_voltages[i])) {
 			uint32_t tick_now = xTaskGetTickCount();
-//			this->_EKF_models[i].run_EKF(
-//					&this->_EKF_models[i],
-//					tick_now - this->_tick_last_soc_compute[i],
-//					this->_current,
-//					sfq_get_avg(&this->past_voltages[i])
-//			);
-//			local_soc_array[i] = this->_EKF_models[i].stateX[0];
+			this->_EKF_models[i].run_EKF(
+					&this->_EKF_models[i],
+					tick_now - this->_tick_last_soc_compute[i],
+					this->_current,
+					sfq_get_avg(&this->past_voltages[i])
+			);
+			local_soc_array[i] = this->_EKF_models[i].stateX[0];
 			this->_tick_last_soc_compute[i] = tick_now;
 		} else {
 			// If voltage is invalid, assume bms module is not connected
@@ -400,12 +400,12 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 		data6Byte[0 + i] = MSG5[i];
 	}
 
-	//now create PEC bits based on above data
+	// //now create PEC bits based on above data
 	int PEC0_6[8];
 	int PEC1_6[8];
-	LTC6810GeneratePECbits6Byte(data6Byte, PEC0_6, PEC1_6);
+	//LTC6810GeneratePECbits6Byte(data6Byte, PEC0_6, PEC1_6);
 
-	//change array back to bytes
+	// //change array back to bytes
 	dataToSend[4] = LTC6810ArrayToByte(MSG0);
 	dataToSend[5] = LTC6810ArrayToByte(MSG1);
 	dataToSend[6] = LTC6810ArrayToByte(MSG2);
@@ -643,22 +643,22 @@ static void LTC6810IsospiWakeup(BmsModule* this){
 static void LTC6810TransmitIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen){
 	//directly trans
 	LTC6810IsospiWakeup(this);
-	HAL_Delay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
-	HAL_Delay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
+	vTaskDelay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
 static void LTC6810TransmitReceiveIsospiMode(BmsModule* this, uint8_t dataToSend[], uint8_t dataToSendLen, uint8_t dataToReceive[], uint8_t dataToReceiveLen){
 	LTC6810IsospiWakeup(this);
-	HAL_Delay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
+	vTaskDelay(pdMS_TO_TICKS(1));//this 1ms delay is crucial
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); // Create falling edge
-	HAL_Delay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
+	vTaskDelay(pdMS_TO_TICKS(1)); //require a few us. We delay by 1 ms, since this is the smallest interval we can set
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend, dataToSendLen, 100);
-	HAL_Delay(pdMS_TO_TICKS(1)); //add delay between Transmit & Receive
+	vTaskDelay(pdMS_TO_TICKS(1)); //add delay between Transmit & Receive
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive, dataToReceiveLen, 100);
-	HAL_Delay(pdMS_TO_TICKS(1)); // Might not be necessary
+	vTaskDelay(pdMS_TO_TICKS(1)); // Might not be necessary
 	HAL_GPIO_WritePin(this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 }
 
@@ -677,11 +677,11 @@ static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
-	HAL_Delay(10);//ADD 10ms DELAY between Transmit & Receive
+	vTaskDelay(10);//ADD 10ms DELAY between Transmit & Receive
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive,4,100);         //discard this Receive as it is problematic
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET);
 
-	HAL_Delay(5);
+	vTaskDelay(5);
 
 	//after letting it read ADC, now collect those data
 
@@ -690,7 +690,7 @@ static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
-	HAL_Delay(2);
+	vTaskDelay(2);
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); //ss pin back high
 
@@ -704,7 +704,7 @@ static void LTC6810checkAllVoltage(int voltageArray[]){//Array of 6 voltages
 	LTC6810CommandGenerate(LTC6810Command, dataToSend );
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_RESET); //slave select low, transmit begin
 	HAL_SPI_Transmit(this->_spi_handle, dataToSend,4,100);
-	HAL_Delay(2);
+	vTaskDelay(2);
 	HAL_SPI_Receive(this->_spi_handle, dataToReceive,6,100);         //read 6 bytes, cell0,1,2
 	HAL_GPIO_WritePin (this->_spi_cs_port, this->_spi_cs_pin, GPIO_PIN_SET); //ss pin back high
 
@@ -789,12 +789,15 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 	uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
 	while(cycle<3){
 
-		if(cycle ==0){
-		LTC6810Init(this, 0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 1
-		else if(cycle == 1){
-		LTC6810Init(this, 0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 2
-		else if(cycle == 2){
-		LTC6810Init(this, 0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);}//channel 3
+		if(cycle ==0){ //channel 1
+			LTC6810Init(this, 0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);
+		}
+		else if(cycle == 1){ //channel 2
+			LTC6810Init(this, 0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);
+		}
+		else if(cycle == 2){ //channel 3
+			LTC6810Init(this, 0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);
+		}
 
 		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW
 		LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
@@ -803,7 +806,7 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 		//now read from it
 		messageInBinary = 0b1100; //read auxiliary group 1, command RDAUXA
 		LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
-		LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 6);
+		LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 
 		//write value into array
 		int tempSum = 256*dataToReceive[3] + dataToReceive[2];
@@ -824,7 +827,7 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 
-	HAL_Delay(10);
+	vTaskDelay(10);
 	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
