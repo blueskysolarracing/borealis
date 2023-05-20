@@ -1853,12 +1853,12 @@ void steeringWheelTask(const void *pv){
 // DATA_1: [x, x, x, CRUISE, HORN, RADIO, RIGHT_INDICATOR, LEFT_INDICATOR]
 // DATA_2  : [x, x, x, SELECT, RIGHT, LEFT, DOWN, UP]
 
-  uint8_t oldSteeringData[3] = {0, 0, 0};
-  uint8_t emergencyLight = 0;
+	uint8_t oldSteeringData[3] = {0, 0, 0};
+	uint8_t emergencyLight = 0;
 
-  uint8_t expectedLen = 7; //must be same length as sent from SWB
-  uint8_t rxBuf[expectedLen];
-  for(;;){
+	uint8_t expectedLen = 7; //must be same length as sent from SWB
+	uint8_t rxBuf[expectedLen];
+	for(;;){
 	  	B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
 
 	  	vTaskSuspendAll();
@@ -1981,48 +1981,47 @@ void steeringWheelTask(const void *pv){
 			}
 			oldMiddleButton = (steeringData[2] & (1 << 4));
 #endif
-		//Left button pressed
-		if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
-			//Toggle between default and detailed display frames
-	//		if (display_selection == 0){ display_selection = 1;
-	//		} else if (display_selection){ display_selection = 0;};
-			// Toggle between default and and 2 details so 3 total
-			if (batteryState != FAULTED) {
-				display_selection = (display_selection + 1)%3;
-			} else {
-				vTaskSuspendAll();
-				if (battery_faulted_display_selection == 6) {
-					battery_faulted_display_selection = 5;
+			//Left button pressed
+			if (~oldLeftButton && (steeringData[2] & (1 << 2))){ // 0 --> 1 transition
+				//Toggle between default and detailed display frames
+		//		if (display_selection == 0){ display_selection = 1;
+		//		} else if (display_selection){ display_selection = 0;};
+				// Toggle between default and and 2 details so 3 total
+				if (batteryState != FAULTED) {
+					display_selection = (display_selection + 1)%3;
 				} else {
-					battery_faulted_display_selection = 6;
+					vTaskSuspendAll();
+					if (battery_faulted_display_selection == 6) {
+						battery_faulted_display_selection = 5;
+					} else {
+						battery_faulted_display_selection = 6;
+					}
+					xTaskResumeAll();
 				}
+			} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
+			}
+			oldLeftButton = (steeringData[2] & (1 << 2));
+
+			//Right button pressed (use for emergency light)
+			uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
+				if (!emergencyLight) {
+					bufe[1] = 0b01010000; // turn on hazard indicator
+					default_data.P1_left_indicator_status = 0;
+					default_data.P2_right_indicator_status = 0;
+					emergencyLight = 1;
+				} else {
+					bufe[1] = 0b00010000; // turn off hazard indicator
+					default_data.P1_left_indicator_status = 1;
+					default_data.P2_right_indicator_status = 1;
+					emergencyLight = 0;
+				}
+				oldRightButton = (steeringData[2] & (1 << 3));
 				xTaskResumeAll();
+				B_tcpSend(btcp, bufe, sizeof(bufe));
 			}
-		} else if (oldLeftButton && ~(steeringData[2] & (1 << 2))){ // 1 --> 0 transition
 		}
-		oldLeftButton = (steeringData[2] & (1 << 2));
-
-		//Right button pressed (use for emergency light)
-		uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
-		if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
-			if (!emergencyLight) {
-				bufe[1] = 0b01010000; // turn on hazard indicator
-				default_data.P1_left_indicator_status = 0;
-				default_data.P2_right_indicator_status = 0;
-				emergencyLight = 1;
-			} else {
-				bufe[1] = 0b00010000; // turn off hazard indicator
-				default_data.P1_left_indicator_status = 1;
-				default_data.P2_right_indicator_status = 1;
-				emergencyLight = 0;
-			}
-			oldRightButton = (steeringData[2] & (1 << 3));
-			xTaskResumeAll();
-			B_tcpSend(btcp, bufe, sizeof(bufe));
-		}
-
-  }
-
+	}
 }
 
 void sidePanelTask(const void *pv){
