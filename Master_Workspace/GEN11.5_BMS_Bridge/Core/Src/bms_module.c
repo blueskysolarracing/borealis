@@ -844,7 +844,6 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	VmessageInBinary = 0b01101110000; //adcv discharge enable,7Hz
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);//generate the "check voltage command"
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 
 	vTaskDelay(10);
 	VmessageInBinary = 0b100;  //read cell voltage reg group 1;
@@ -853,14 +852,12 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	voltArray[0] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	voltArray[1] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
 	voltArray[2] = LTC6810VoltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);//TODO: change this to proper value
 
 	VmessageInBinary = 0b110; //read cell voltage reg group 2;
 	LTC6810CommandGenerateAddressMode(VmessageInBinary, dataToSend, this->_bms_module_id);
 	LTC6810TransmitReceiveIsospiMode(this, dataToSend, 4, dataToReceive, 8);
 	voltArray[3] = LTC6810VoltageDataConversion(dataToReceive[0], dataToReceive[1]) /10000.0;
 	voltArray[4] = LTC6810VoltageDataConversion(dataToReceive[2], dataToReceive[3]) /10000.0;
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
 
 	// Not using the following since voltArray has size of 5 instead of 6
 	// voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
