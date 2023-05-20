@@ -1,4 +1,6 @@
 #include "batteryEKF.h"
+extern float BSSR_OCV[BSSR_OCV_DATA_SIZE];
+extern float BSSR_SOC[BSSR_OCV_DATA_SIZE];
 
 float SOC(float ocv){
     float dsoc = 0.0f;

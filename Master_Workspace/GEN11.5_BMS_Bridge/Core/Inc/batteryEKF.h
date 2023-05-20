@@ -6,9 +6,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "battery_config.h"
+#include "blueskyOCVData.h"
 
 #define NUM_14P_UNITS (NUM_CELLS_PER_MODULE) // one bms is exception which has 4 units
-#define LUT_SIZE (201)
+#define LUT_SIZE (BSSR_OCV_DATA_SIZE)
 #define DELTA_T (1.0f)  // in second
 
 //shared
@@ -120,9 +121,5 @@ uint8_t inverse_EKF(float* inMatrix, float* outMatrix, uint8_t* dim);
 
 float OCV(float soc);
 void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measuredV);
-
-// ------------------ EXTERNAL DEFN OF SoC v V_Out ------------------
-extern float BSSR_OCV[LUT_SIZE];
-extern float BSSR_SOC[LUT_SIZE];
 
 #endif // BATTERY_EKF_H
