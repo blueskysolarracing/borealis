@@ -8,7 +8,7 @@
 #include <math.h>
 
 #define BMS_DISCONNECTED_VOLTAGE_THRESHOLD (6.0f) // any value over 6V indicates BMS Module is disconnected
-#define BMS_DISCONNECTED_TEMPERATURE_THRESHOLD (-100.0f) // any value below -100C indicates BMS Module is disconnected
+#define BMS_DISCONNECTED_TEMPERATURE_THRESHOLD (-100.0f) // any value at or below -100C indicates BMS Module is disconnected
 
 static void get_temperature(BmsModule* this, float* temperature, get_mode_t get_mode);
 static void get_voltage(BmsModule* this, float* voltage, get_mode_t get_mode);
@@ -19,6 +19,12 @@ static void measure_voltage(BmsModule* this);
 static void compute_soc(BmsModule* this);
 static inline bool check_voltage_is_valid(float voltage);
 static inline bool check_temperature_is_valid(float temperature);
+
+static void sfq_init(StaticFloatQueue* this);
+static bool sfq_push(StaticFloatQueue* this, float val);
+static bool sfq_peek_idx(StaticFloatQueue* this, float* ret_val, int idx);
+static bool sfq_is_empty(StaticFloatQueue* this);
+static float sfq_get_avg(StaticFloatQueue* this);
 
 static void LTC6810GeneratePECbits(int CMD0[],int CMD1[], int PCE0[], int PCE1[]);
 static void LTC6810GeneratePECbits6Byte(int data6Byte[], int PCE0[], int PCE1[]);
@@ -94,44 +100,6 @@ void bms_module_while_loop_test(void* parameters) {
 	}
 }
 
-
-static void sfq_init(StaticFloatQueue* this)
-{
-	q_init_static(
-			&this->q,
-			sizeof(float),
-			STATIC_FLOAT_QUEUE_NUM_VALUES,
-			FIFO,
-			true, // Overwrite old values (so we only need to call push() and no need to pop())
-			this->vals,
-			sizeof(this->vals)
-		);
-}
-
-static bool sfq_push(StaticFloatQueue* this, float val)
-{
-	return q_push(&this->q, &val);
-}
-
-static bool sfq_peek_idx(StaticFloatQueue* this, float* ret_val, int idx)
-{
-	return q_peekIdx(&this->q, ret_val, idx);
-}
-
-static float sfq_get_avg(StaticFloatQueue* this)
-{
-	float total_past_vals = 0;
-	int num_past_vals = 0;
-	for (int idx = 0; idx < STATIC_FLOAT_QUEUE_NUM_VALUES; idx++){
-		float past_val;
-		if (sfq_peek_idx(this, &past_val, idx)) { // evaluates to true if val is available
-			num_past_vals++;
-			total_past_vals += past_val;
-		}
-	}
-	return total_past_vals / (float)num_past_vals;
-}
-
 void bms_module_init(
 		BmsModule* this,
 		int bms_module_id,
@@ -149,7 +117,6 @@ void bms_module_init(
 	this->compute_soc = compute_soc;
 
 	this->_bms_module_id = bms_module_id;
-//	this->_data_lock = xSemaphoreCreateMutex();
 
 	this->_spi_handle = spi_handle;
 	this->_spi_cs_port = spi_cs_port;
@@ -161,16 +128,14 @@ void bms_module_init(
 
 	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
 		sfq_init(&this->past_voltages[i]);
-		this->_state_of_charges[i] = 0;
+		this->_state_of_charges[i] = BATTERY_SOC_INITIAL_VALUE;
 	}
 	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++) {
 		sfq_init(&this->past_temperatures[i]);
 	}
 
-	for (int i = 0; i < STATIC_FLOAT_QUEUE_NUM_VALUES; i++) {
-		measure_voltage(this);
-		measure_temperature(this);
-	}
+	measure_voltage(this);
+	measure_temperature(this);
 
 	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
@@ -193,7 +158,7 @@ static void get_temperature(BmsModule* this, float* temperatures, get_mode_t get
 			if (check_temperature_is_valid(this->_temperatures[i])) {
 				temperatures[i] = sfq_get_avg(&this->past_temperatures[i]);
 			} else {
-				temperatures[i] = this->_temperatures[i];
+				temperatures[i] = BATTERY_TEMPERATURES_INITIAL_VALUE;
 			}
 		} else if (get_mode == GET_FILTERED_RESULT) {
 			// Can consider running past temperatures through Moving Average Filter, not necessary for now
@@ -212,7 +177,7 @@ static void get_voltage(BmsModule* this, float* voltages, get_mode_t get_mode)
 			if (check_voltage_is_valid(this->_voltages[i])) {
 				voltages[i] = sfq_get_avg(&this->past_voltages[i]);
 			} else {
-				voltages[i] = this->_voltages[i];
+				voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
 			}
 		} else if (get_mode == GET_FILTERED_RESULT) {
 			// Can consider running past voltages through Moving Average Filter, not necessary for now
@@ -249,11 +214,17 @@ static void measure_temperature(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++) {
 		if (check_temperature_is_valid(local_temp_array[i])) {
 			this->_temperatures[i] = local_temp_array[i];
+			if (sfq_is_empty(&this->past_temperatures[i])) {
+				for (int j = 0; j < STATIC_FLOAT_QUEUE_NUM_VALUES; j++) {
+					sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
+				}
+			} else {
+				sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
+			}
 		} else {
-			// If temperature is invalid, assume bms module is not connected
+			// If temperature is invalid, assume bms module is not connected, and don't push to queue
 			this->_temperatures[i] = BATTERY_TEMPERATURES_INITIAL_VALUE;
 		}
-		sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
 	}
 	xTaskResumeAll();
 
@@ -268,11 +239,17 @@ static void measure_voltage(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
 		if (check_voltage_is_valid(local_voltage_array[i])) {
 			this->_voltages[i] = local_voltage_array[i];
+			if (sfq_is_empty(&this->past_voltages[i])) {
+				for (int j = 0; j < STATIC_FLOAT_QUEUE_NUM_VALUES; j++) {
+					sfq_push(&this->past_voltages[i], this->_voltages[i]);
+				}
+			} else {
+				sfq_push(&this->past_voltages[i], this->_voltages[i]);
+			}
 		} else {
-			// If voltage is invalid, assume bms module is not connected
+			// If voltage is invalid, assume bms module is not connected, and don't push to queue
 			this->_voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
 		}
-		sfq_push(&this->past_voltages[i], this->_voltages[i]);
 	}
 	xTaskResumeAll();
 }
@@ -317,6 +294,48 @@ static inline bool check_temperature_is_valid(float temperature)
 			&& temperature != BATTERY_TEMPERATURES_INITIAL_VALUE;
 }
 
+
+static void sfq_init(StaticFloatQueue* this)
+{
+	q_init_static(
+		&this->q,
+		sizeof(float),
+		STATIC_FLOAT_QUEUE_NUM_VALUES,
+		FIFO,
+		true, // Overwrite old values (so we only need to call push() and no need to pop())
+		this->vals,
+		sizeof(this->vals)
+	);
+}
+
+static bool sfq_push(StaticFloatQueue* this, float val)
+{
+	return q_push(&this->q, &val);
+}
+
+static bool sfq_peek_idx(StaticFloatQueue* this, float* ret_val, int idx)
+{
+	return q_peekIdx(&this->q, ret_val, idx);
+}
+
+static bool sfq_is_empty(StaticFloatQueue* this)
+{
+	return q_isEmpty(&this->q);
+}
+
+static float sfq_get_avg(StaticFloatQueue* this)
+{
+	float total_past_vals = 0;
+	int num_past_vals = 0;
+	for (int idx = 0; idx < STATIC_FLOAT_QUEUE_NUM_VALUES; idx++){
+		float past_val;
+		if (sfq_peek_idx(this, &past_val, idx)) { // evaluates to true if val is available
+			num_past_vals++;
+			total_past_vals += past_val;
+		}
+	}
+	return total_past_vals / (float)num_past_vals;
+}
 
 static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DCC5, int DCC4, int DCC3, int DCC2, int DCC1) {
 	//This function initialize the LTC6810 ADC chip, shall be called at the start of the program
