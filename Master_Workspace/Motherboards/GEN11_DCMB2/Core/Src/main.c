@@ -1768,10 +1768,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
 			//Update global list
-			for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){
-				uint8_t j = pkt->data[1] * NUM_TEMP_SENSORS_PER_MODULE + (i-1);
+			for (int i = 0; i < NUM_TEMP_SENSORS_PER_MODULE; i++){
+				uint8_t j = pkt->data[1] * NUM_TEMP_SENSORS_PER_MODULE + i;
 				if (j < NUM_BATT_TEMP_SENSORS){ //Check that we're not writing outside of array bounds (in case of bad packet)
-					float temp = arrayToFloat( &(pkt->data[4 * i]) );
+					float temp = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_temp[j] = temp;
 					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
 
@@ -1795,10 +1795,10 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			//Update global list
 			// TODO: get highest and lowest cell voltage and show on display
-			for (int i = 1; i < NUM_CELLS_PER_MODULE; i++){
-				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
+			for (int i = 0; i < NUM_CELLS_PER_MODULE; i++){
+				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i;
 				if (j < NUM_BATT_CELLS) {
-					float voltage = arrayToFloat( &(pkt->data[4 * i]) );
+					float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_cell_voltages[j] = voltage;
 
 					detailed_data.overvoltage_status -= detailed_data.overvoltage_status & (1 << j);
@@ -1818,10 +1818,10 @@ void serialParse(B_tcpPacket_t *pkt){
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
 			//Update global list
-			for (int i = 1; i < NUM_CELLS_PER_MODULE; i++){
-				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
+			for (int i = 0; i < NUM_CELLS_PER_MODULE; i++){
+				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i;
 				if (j < NUM_BATT_CELLS) {
-					float soc = arrayToFloat( &(pkt->data[4 * i]) );
+					float soc = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_soc[j] = soc;
 				}
 			}
@@ -2016,10 +2016,10 @@ void steeringWheelTask(const void *pv){
 					default_data.P2_right_indicator_status = 1;
 					emergencyLight = 0;
 				}
-				oldRightButton = (steeringData[2] & (1 << 3));
-				xTaskResumeAll();
-				B_tcpSend(btcp, bufe, sizeof(bufe));
 			}
+			oldRightButton = (steeringData[2] & (1 << 3));
+			xTaskResumeAll();
+			B_tcpSend(btcp, bufe, sizeof(bufe));
 		}
 	}
 }
