@@ -1774,10 +1774,13 @@ void serialParse(B_tcpPacket_t *pkt){
 					float temp = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_temp[j] = temp;
 					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
+					detailed_data.undertemperature_status -= detailed_data.undertemperature_status & (1 << j);
 
 					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 						if (temp > HV_BATT_OT_THRESHOLD) {
 							detailed_data.overtemperature_status |= 1 << j;
+						} else if (temp < HV_BATT_UT_THRESHOLD) {
+							detailed_data.undertemperature_status |= 1 << j;
 						}
 					}
 				}
@@ -2224,6 +2227,11 @@ void displayTask(const void *pv){
 				local_display_sel = battery_faulted_display_selection; // either 6 or 5
 				default_data.P2_motor_state = OFF;
 			}
+
+			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status
+			// 		|| detailed_data.overtemperature_status || detailed_data.undertemperature_status
+			// 		|| detailed_data.overcurrent_status)
+                        //        local_display_sel = battery_faulted_display_selection;
 
 			xTaskResumeAll();
 			drawP1(local_display_sel);

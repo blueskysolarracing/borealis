@@ -68,6 +68,7 @@ struct disp_detailed_frame{
 	uint32_t overvoltage_status;
 	uint32_t undervoltage_status;
 	uint32_t overtemperature_status;
+	uint32_t undertemperature_status;
 	uint8_t overcurrent_status;
 };
 

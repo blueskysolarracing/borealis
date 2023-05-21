@@ -957,6 +957,7 @@ void drawP2BMSFault(/*int value[4]*/){
 		"BMS OV: ",
 		"BMS UV: ",
 		"BMS OT: ",
+		"BMS UT: ",
 		"BMS OC: "
 	};
 	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
@@ -1022,10 +1023,28 @@ void drawP2BMSFault(/*int value[4]*/){
 	for (int i = 0; i < 8; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
+	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
+		if (detailed_data.undertemperature_status & (1 << i)) {
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+			x += xStep;
+		}
+	}
+
+	x = 2;
+	y += yStep;
+	label = labels[4];
+
+	for (int i = 0; i < 8; ++i, x += xStep)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
+
 	if (detailed_data.overcurrent_status)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), '1');
 	else
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '1');
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0');
 
 	glcd_write();
 }
