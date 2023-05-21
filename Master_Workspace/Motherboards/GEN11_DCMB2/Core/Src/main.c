@@ -1899,7 +1899,7 @@ void steeringWheelTask(const void *pv){
 
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
-			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 			if (steeringData[1] & (1 << 0)){ //If LEFT_INDICATOR == 1 --> Extend lights (ON)
 				bufh1[1] = 0b01000010;
 				default_data.P1_left_indicator_status = 0;
@@ -1910,7 +1910,7 @@ void steeringWheelTask(const void *pv){
 			xTaskResumeAll();
 			B_tcpSend(btcp, bufh1, sizeof(bufh1));
 			vTaskSuspendAll();
-			uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 			//Right indicator - SEND TO BBMB
 			if (steeringData[1] & (1 << 1)){ //If RIGHT_INDICATOR == 1 --> Extend lights (ON)
 				bufh2[1] = 0b01000011;
@@ -2006,7 +2006,7 @@ void steeringWheelTask(const void *pv){
 			oldLeftButton = (steeringData[2] & (1 << 2));
 
 			//Right button pressed (use for emergency light)
-			uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+			uint8_t bufe[] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 			if ((oldRightButton == 0) && (steeringData[2] & (1 << 3))){ // 0 --> 1 transition
 				if (!emergencyLight) {
 					bufe[1] = 0b01010000; // turn on hazard indicator
@@ -2072,7 +2072,7 @@ void sidePanelTask(const void *pv){
 				}
 
 			//AUX0 (DRL in GEN11)
-				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
+				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 
 				if (sidePanelData & (1 << 1)){
 					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on

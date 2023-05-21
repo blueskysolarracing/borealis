@@ -17,20 +17,6 @@
 #define INPUT_NUM (2)
 #define OUTPUT_NUM (1)
 
-#define Q_CAP (176400.0f)   // in Ampere Second  49 Ampere hour = 49*3600 = 176400 Ampere Second 
-#define R_INT (0.0074f)    // in Ohm
-#define R_CT  (0.005f)     // in Ohm
-#define C_CT  (4772.21f)   // in Farad 
-#define R_D   (0.005f)     // in Ohm
-#define C_D   (4772.21f)   // in Farad
-
-#define VAR_Z    (2e-4f)
-#define VAR_I_D  (1e-6f)
-#define VAR_I_CT (1e-6f)
-#define VAR_SENS (2e-1f)    // Sensor uncertainty, terminal voltage measurement
-#define VAR_INPT (2e-1f)    // Input uncertainty, input current measurement (sensor)
-
-#define COULOMB_ETA (0.9929f)
 
 typedef struct {
    // -------------- CONSTANTS AND EKF ALGO VARIABLES --------------
