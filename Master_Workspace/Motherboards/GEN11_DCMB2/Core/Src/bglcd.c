@@ -963,7 +963,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
 	glcd_clear_buffer();
 
-	uint8_t x = 2, xStep = 6, y = 5, yStep = 15;
+	uint8_t x = 2, xStep = 6, y = 5, yStep = 10;
 	char *label = labels[0];
 
 	for (int i = 0; i < 8; ++i, x += xStep)
