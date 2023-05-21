@@ -686,14 +686,14 @@ void drawP2Detailed_1(/*int value[9]*/){
 	glcd_clear_buffer();
 
 	// populate label
-	if(value[0] >= 0) sprintf(labelsP1[0], "Solar:+%4dW(%3dV,%2.1fA)\0", value[0], abs(value[3]), fabs(currents[0]));
-	else sprintf(labelsP1[0], "Solar:+%4dW(%3dV,%2.1fA)\0", abs(value[0]), abs(value[3]), fabs(currents[0]));
+	if(value[0] >= 0) sprintf(labelsP1[0], "Solar:+%4dW(%3dV,%.1fA)\0", value[0], abs(value[3]), fabs(currents[0]));
+	else sprintf(labelsP1[0], "Solar:+%4dW(%3dV,%.1fA)\0", abs(value[0]), abs(value[3]), fabs(currents[0]));
 
-	if(value[1] >= 0) sprintf(labelsP1[1], "Motor:+%4dW(%3dV,%2.1fA)\0", value[1], abs(value[4]), fabs(currents[1]));
-	else sprintf(labelsP1[1], "Motor:+%4dW(%3dV,%2.1fA)\0", abs(value[1]), abs(value[4]), fabs(currents[1]));
+	if(value[1] >= 0) sprintf(labelsP1[1], "Motor:+%4dW(%3dV,%.1fA)\0", value[1], abs(value[4]), fabs(currents[1]));
+	else sprintf(labelsP1[1], "Motor:+%4dW(%3dV,%.1fA)\0", abs(value[1]), abs(value[4]), fabs(currents[1]));
 
-	if(value[2] >= 0) sprintf(labelsP1[2], "Batt: +%4dW(%3dV,%2.1fA)\0", value[2], abs(value[5]), fabs(currents[2]));
-	else sprintf(labelsP1[2], "Batt: +%4dW(%3dV,%2.1fA)\0", abs(value[2]), abs(value[5]), fabs(currents[2]));
+	if(value[2] >= 0) sprintf(labelsP1[2], "Batt: +%4dW(%3dV,%.1fA)\0", value[2], abs(value[5]), fabs(currents[2]));
+	else sprintf(labelsP1[2], "Batt: +%4dW(%3dV,%.1fA)\0", abs(value[2]), abs(value[5]), fabs(currents[2]));
 
 	// start drawing at y = 5
 	uint8_t y = 5;
