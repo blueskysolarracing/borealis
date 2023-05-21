@@ -57,10 +57,11 @@
 
 enum BATTER_FAULT_TYPE {
 	BATTERY_FAULT_OVERTEMPERATURE,
+	BATTERY_FAULT_UNDERTEMPERATURE,
 	BATTERY_FAULT_OVERVOLTAGE,
 	BATTERY_FAULT_UNDERVOLTAGE,
 	BATTERY_FAULT_OVERCURRENT,
-	BATTERY_FAULT_NONE
+	BATTERY_FAULT_NONE,
 };
 /* USER CODE END PD */
 
@@ -1359,7 +1360,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-	//char buf[] = "hello world\n";
+	char buf[] = "received from bms-bridge\n";
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
@@ -1406,6 +1407,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
+			HAL_UART_Transmit(&huart2, (uint8_t*)buf, sizeof(buf), 100);
 			BMS_tick_count_last_packet = xTaskGetTickCount();
 
 			//BMS temperature
@@ -1414,10 +1416,10 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Check for overtemperature for each cell and call routine when battery has faulted
-				for (int i = 1; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){ //3 thermistors
-					uint8_t j = pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i - 1;
+				for (int i = 0; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){ //3 thermistors
+					uint8_t j = pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i;
 					if (j < NUM_BATT_TEMP_SENSORS) {
-						float temperature = arrayToFloat( &(pkt->data[4 * i]) );
+						float temperature = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 						battery_temperatures[j] = temperature;
 					}
 				}
@@ -1428,10 +1430,10 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
-				for (int i = 1; i < NUM_CELLS_PER_MODULE + 1; i++){ //5 cells
-					uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i - 1;
+				for (int i = 0; i < NUM_CELLS_PER_MODULE + 1; i++){ //5 cells
+					uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i;
 					if (j < NUM_BATT_CELLS) {
-						float voltage = arrayToFloat( &(pkt->data[4 * i]) );
+						float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 						battery_cell_voltages[j] = voltage;
 					}
 				}
@@ -1777,10 +1779,12 @@ void battery_state_setter(void* parameters) {
 			if (voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE && voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE) {
 				if ((voltage > HV_BATT_OV_THRESHOLD)){
 					local_battery_overvoltage = 1;
+					batteryState = FAULTED;
 					batteryFaultType = BATTERY_FAULT_OVERVOLTAGE;
 					batteryFaultCell = i;
 				} else if (voltage < HV_BATT_UV_THRESHOLD){
 					local_battery_undervoltage = 1;
+					batteryState = FAULTED;
 					batteryFaultType = BATTERY_FAULT_UNDERVOLTAGE;
 					batteryFaultCell = i;
 				}
@@ -1791,7 +1795,13 @@ void battery_state_setter(void* parameters) {
 			if (temperature != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 				if (temperature > HV_BATT_OT_THRESHOLD) {
 					local_battery_overtemperature = 1;
+					batteryState = FAULTED;
 					batteryFaultType = BATTERY_FAULT_OVERTEMPERATURE;
+					batteryFaultTherm = i;
+				} else if (temperature < HV_BATT_UT_THRESHOLD) {
+					local_battery_overtemperature = 1;
+					batteryState = FAULTED;
+					batteryFaultType = BATTERY_FAULT_UNDERTEMPERATURE;
 					batteryFaultTherm = i;
 				}
 			}
