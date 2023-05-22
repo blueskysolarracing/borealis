@@ -1416,7 +1416,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Check for overtemperature for each cell and call routine when battery has faulted
-				for (int i = 0; i < NUM_TEMP_SENSORS_PER_MODULE + 1; i++){ //3 thermistors
+				for (int i = 0; i < NUM_TEMP_SENSORS_PER_MODULE; i++){ //3 thermistors
 					uint8_t j = pkt->data[1]*NUM_TEMP_SENSORS_PER_MODULE + i;
 					if (j < NUM_BATT_TEMP_SENSORS) {
 						float temperature = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
@@ -1430,7 +1430,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				B_tcpSend(btcp_main, pkt->data, pkt->length);
 
 				//Check for over/undervoltage for each cell and call routine when battery has faulted
-				for (int i = 0; i < NUM_CELLS_PER_MODULE + 1; i++){ //5 cells
+				for (int i = 0; i < NUM_CELLS_PER_MODULE; i++){ //5 cells
 					uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i;
 					if (j < NUM_BATT_CELLS) {
 						float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
