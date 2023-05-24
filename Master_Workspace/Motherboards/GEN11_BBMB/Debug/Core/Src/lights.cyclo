@@ -1,0 +1,10 @@
+lights.c:12:6:turn_on_indicators	4
+lights.c:45:6:turn_off_indicators	4
+lights.c:63:6:turn_on_DRL	1
+lights.c:78:6:turn_off_DRL	1
+lights.c:88:6:turn_on_brake_lights	1
+lights.c:94:6:turn_off_brake_lights	1
+lights.c:98:6:turn_on_hazard_lights	1
+lights.c:106:6:turn_off_hazard_lights	1
+lights.c:112:6:turn_on_fault_indicator	1
+lights.c:124:6:turn_off_fault_indicator	1

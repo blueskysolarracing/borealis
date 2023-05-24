@@ -1693,7 +1693,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 
-void serialParse(B_tcpPacket_t *pkt){
+void serial(B_tcpPacket_t *pkt){
 	vTaskSuspendAll();
 
 	switch(pkt->sender){
@@ -1908,6 +1908,7 @@ void steeringWheelTask(const void *pv){
 				default_data.P1_left_indicator_status = 1;
 			}
 			xTaskResumeAll();
+//			vTaskDelay(5);
 			B_tcpSend(btcp, bufh1, sizeof(bufh1));
 			vTaskSuspendAll();
 			uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1920,9 +1921,10 @@ void steeringWheelTask(const void *pv){
 				default_data.P2_right_indicator_status = 1;
 			}
 			xTaskResumeAll();
+//			vTaskDelay(5);
 			B_tcpSend(btcp, bufh2, sizeof(bufh2));
 			vTaskSuspendAll();
-			//Nothing to do for the horn as its state will be parsed by BBMB from buf_rs485
+			//Nothing to do for the horn as its state will be d by BBMB from buf_rs485
 
 			//Encoder - Set car motor global values
 			if (motorState == CRUISE && fwdRevState == 0 && CRUISE_MODE == CONSTANT_SPEED){ // check if in cruise state and forward state
@@ -2022,6 +2024,7 @@ void steeringWheelTask(const void *pv){
 			}
 			oldRightButton = (steeringData[2] & (1 << 3));
 			xTaskResumeAll();
+//			vTaskDelay(5);
 			B_tcpSend(btcp, bufe, sizeof(bufe));
 		}
 	}
@@ -2085,6 +2088,7 @@ void sidePanelTask(const void *pv){
 					default_data.light = 0;
 				}
 				xTaskResumeAll();
+//				vTaskDelay(5);
 				B_tcpSend(btcp, bufh, sizeof(bufh));
 				vTaskSuspendAll();
 
@@ -2150,6 +2154,7 @@ void sidePanelTask(const void *pv){
 					}
 				}
 				xTaskResumeAll();
+//				vTaskDelay(5);
 				B_tcpSend(btcp, bufh3, sizeof(bufh3));
 				firstTime = 0;
 			}
