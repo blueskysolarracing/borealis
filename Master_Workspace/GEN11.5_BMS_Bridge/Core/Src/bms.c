@@ -106,8 +106,10 @@ static void run_thread(void* parameters)
 static void measure_with_all_bms_modules(Bms* this)
 {
 	for (int i = 0; i < BMS_NUM_BMS_MODULES; i++) {
-		this->_bms_modules[i].measure_temperature(&this->_bms_modules[i]);
+		// Note: measure_voltage() should go before measure_temperature() for for optimal circuit behavior
+		// ...because the temperature reading circuit requires the LTC chip to triggers a 3V output. This requires the LTC Chip to not be sleeping. The measure_voltage() routine can help wake up the chip.
 		this->_bms_modules[i].measure_voltage(&this->_bms_modules[i]);
+		this->_bms_modules[i].measure_temperature(&this->_bms_modules[i]);
 		this->_bms_modules[i].compute_soc(&this->_bms_modules[i]);
 	}
 }

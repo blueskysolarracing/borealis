@@ -382,7 +382,6 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 	//DTEN to 1 to enable discharge timer
 	//ADCOPT bit to 0, use 422Hz as its stable
 	//above are byte0, byte 1 full of 0s as VUV currently not used.
-	//messageInBinary = 0b0000111000000000; //CFGR0&1
 	messageInBinary = 0b0000110000000000; //CFGR0&1
 	//now add the GPIO config
 	messageInBinary = messageInBinary + 4096 * GPIO2 + 8192 * GPIO3
@@ -427,7 +426,7 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 	// //now create PEC bits based on above data
 	int PEC0_6[8];
 	int PEC1_6[8];
-	//LTC6810GeneratePECbits6Byte(data6Byte, PEC0_6, PEC1_6);
+	LTC6810GeneratePECbits6Byte(data6Byte, PEC0_6, PEC1_6);
 
 	// //change array back to bytes
 	dataToSend[4] = LTC6810ArrayToByte(MSG0);
@@ -813,14 +812,14 @@ static void LTC6810ReadTemp(BmsModule* this, float* tempArray, int DCC5, int DCC
 	uint8_t dataToReceive[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };//voltage data from LTC6810 via SPI
 	while(cycle<3){
 
-		if(cycle ==0){ //channel 1
-			LTC6810Init(this, 0,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);
+		if(cycle ==0){ //channel 3
+			LTC6810Init(this, 0,1,1,DCC5, DCC4, DCC3, DCC2, DCC1);
 		}
-		else if(cycle == 1){ //channel 2
-			LTC6810Init(this, 0,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);
+		else if(cycle == 1){ //channel 4
+			LTC6810Init(this, 1,0,0,DCC5, DCC4, DCC3, DCC2, DCC1);
 		}
-		else if(cycle == 2){ //channel 3
-			LTC6810Init(this, 0,1,0,DCC5, DCC4, DCC3, DCC2, DCC1);
+		else if(cycle == 2){ //channel 5
+			LTC6810Init(this, 1,0,1,DCC5, DCC4, DCC3, DCC2, DCC1);
 		}
 
 		messageInBinary = 0b10100010010;  //conversion GPIO1, command AXOW

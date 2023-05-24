@@ -13,6 +13,7 @@
 #include "main.h"
 
 #define BMS_NUM_BMS_MODULES NUM_BMS_MODULES
+// #define BMS_NUM_BMS_MODULES 1
 
 typedef struct Bms {
 
