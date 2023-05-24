@@ -106,7 +106,7 @@ static void run_thread(void* parameters)
 static void measure_with_all_bms_modules(Bms* this)
 {
 	for (int i = 0; i < BMS_NUM_BMS_MODULES; i++) {
-		//this->_bms_modules[i].measure_temperature(&this->_bms_modules[i]);
+		this->_bms_modules[i].measure_temperature(&this->_bms_modules[i]);
 		this->_bms_modules[i].measure_voltage(&this->_bms_modules[i]);
 		this->_bms_modules[i].compute_soc(&this->_bms_modules[i]);
 	}

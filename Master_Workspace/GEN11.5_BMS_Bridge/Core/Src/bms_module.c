@@ -137,7 +137,7 @@ void bms_module_init(
 	}
 
 	measure_voltage(this);
-	//measure_temperature(this);
+	measure_temperature(this);
 
 	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
