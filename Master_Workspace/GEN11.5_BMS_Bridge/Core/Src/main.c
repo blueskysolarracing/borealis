@@ -480,11 +480,11 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-	char buf[] = "received from BBMB\n\n";
+	//char buf[] = "received from BBMB\n\n";
 	switch(pkt->senderID){
 	  case BBMB_ID: //Parse data from BBMB
 
-		  		HAL_UART_Transmit(&huart3, (uint8_t*)buf, sizeof(buf), 100);
+		  		//HAL_UART_Transmit(&huart3, (uint8_t*)buf, sizeof(buf), 100);
 
 		if (pkt->data[0] == BBMB_BUS_METRICS_ID) {
 			float current = arrayToFloat(&(pkt->data[8])); //Battery current

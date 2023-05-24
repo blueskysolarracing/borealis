@@ -129,13 +129,15 @@ void bms_module_init(
 	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
 		sfq_init(&this->past_voltages[i]);
 		this->_state_of_charges[i] = BATTERY_SOC_INITIAL_VALUE;
+		this->_voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
 	}
 	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++) {
 		sfq_init(&this->past_temperatures[i]);
+		this->_temperatures[i] = BATTERY_TEMPERATURES_INITIAL_VALUE;
 	}
 
 	measure_voltage(this);
-	measure_temperature(this);
+	//measure_temperature(this);
 
 	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
@@ -261,14 +263,15 @@ static void compute_soc(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++) {
 		if (check_voltage_is_valid(this->_voltages[i])) {
 			uint32_t tick_now = xTaskGetTickCount();
-			this->_EKF_models[i].run_EKF(
-					&this->_EKF_models[i],
-					tick_now - this->_tick_last_soc_compute[i],
-					this->_current,
-					sfq_get_avg(&this->past_voltages[i])
-			);
-			local_soc_array[i] = this->_EKF_models[i].stateX[0];
+//			this->_EKF_models[i].run_EKF(
+//					&this->_EKF_models[i],
+//					tick_now - this->_tick_last_soc_compute[i],
+//					this->_current,
+//					sfq_get_avg(&this->past_voltages[i])
+//			);
+//			local_soc_array[i] = this->_EKF_models[i].stateX[0];
 			this->_tick_last_soc_compute[i] = tick_now;
+			local_soc_array[i] = SOC(sfq_get_avg(&this->past_voltages[i]));
 		} else {
 			// If voltage is invalid, assume bms module is not connected
 			local_soc_array[i] = BATTERY_SOC_INITIAL_VALUE;
@@ -372,12 +375,14 @@ static void LTC6810Init(BmsModule* this, int GPIO4, int GPIO3, int GPIO2 ,int DC
 
 	//write configure command
 	messageInBinary = 0b1;		//write config
+	//LTC6810CommandGenerate(messageInBinary, dataToSend);
 	LTC6810CommandGenerateAddressMode(messageInBinary, dataToSend, this->_bms_module_id);
 	//set GPIO bits to 1 so they aren`t being pulled down internally by the chip.
 	//set REFON to enable the 3V that goes to the chip
-	//DTEN to 0 to disable discharge timer
+	//DTEN to 1 to enable discharge timer
 	//ADCOPT bit to 0, use 422Hz as its stable
 	//above are byte0, byte 1 full of 0s as VUV currently not used.
+	//messageInBinary = 0b0000111000000000; //CFGR0&1
 	messageInBinary = 0b0000110000000000; //CFGR0&1
 	//now add the GPIO config
 	messageInBinary = messageInBinary + 4096 * GPIO2 + 8192 * GPIO3

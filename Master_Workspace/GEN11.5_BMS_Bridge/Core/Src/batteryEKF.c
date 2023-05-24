@@ -523,6 +523,8 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measured
 		    if (I_Input != 0){
 		        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
 		    }
+		    inputBatt->matrix.U[0] = I_Input;
+		    inputBatt->matrix.U[1] = I_InSign;
 
 		    inputBatt->matrix.V_Measured[0] = measuredV; // voltage reading
 		    inputBatt->matrix.V_OCV[0] = OCV(inputBatt->stateX[0]);
