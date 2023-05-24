@@ -106,6 +106,7 @@ void createIdentity_EKF(float* inBuffer, uint8_t size);
 uint8_t inverse_EKF(float* inMatrix, float* outMatrix, uint8_t* dim);
 
 float OCV(float soc);
+float SOC(float ocv);
 void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measuredV);
 
 #endif // BATTERY_EKF_H
