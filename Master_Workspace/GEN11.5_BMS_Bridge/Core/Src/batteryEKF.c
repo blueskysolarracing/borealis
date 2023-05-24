@@ -1,4 +1,24 @@
 #include "batteryEKF.h"
+#include "blueskyOCVData.h"
+
+#define Q_CAP (176400.0f)   // in Ampere Second  49 Ampere hour = 49*3600 = 176400 Ampere Second 
+#define R_INT (0.0074f)    // in Ohm
+#define R_CT  (0.005f)     // in Ohm
+#define C_CT  (4772.21f)   // in Farad 
+#define R_D   (0.005f)     // in Ohm
+#define C_D   (4772.21f)   // in Farad
+
+#define VAR_Z    (2e-4f)
+#define VAR_I_D  (1e-6f)
+#define VAR_I_CT (1e-6f)
+#define VAR_SENS (2e-1f)    // Sensor uncertainty, terminal voltage measurement
+#define VAR_INPT (2e-1f)    // Input uncertainty, input current measurement (sensor)
+
+#define COULOMB_ETA (0.9929f)
+
+
+extern float BSSR_OCV[BSSR_OCV_DATA_SIZE];
+extern float BSSR_SOC[BSSR_OCV_DATA_SIZE];
 
 float SOC(float ocv){
     float dsoc = 0.0f;
@@ -503,6 +523,8 @@ void run_EKF(EKF_Model_14p* inputBatt, float dt, float currentIn, float measured
 		    if (I_Input != 0){
 		        I_InSign = (I_Input > 0.0f) ? 1.0f : -1.0f;
 		    }
+		    inputBatt->matrix.U[0] = I_Input;
+		    inputBatt->matrix.U[1] = I_InSign;
 
 		    inputBatt->matrix.V_Measured[0] = measuredV; // voltage reading
 		    inputBatt->matrix.V_OCV[0] = OCV(inputBatt->stateX[0]);

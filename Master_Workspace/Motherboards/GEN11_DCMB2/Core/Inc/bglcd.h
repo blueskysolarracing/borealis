@@ -39,11 +39,11 @@ struct disp_default_frame{
 
 struct disp_detailed_frame{
 	short 	P1_solar_voltage;
-	short 	P1_solar_current;
+	float 	P1_solar_current;
 	short 	P1_motor_voltage;
-	short 	P1_motor_current;
+	float 	P1_motor_current;
 	short 	P1_battery_voltage;
-	short 	P1_battery_current;
+	float 	P1_battery_current;
 
 	short	P2_HV_voltage;
 	short	P2_LV_current;
@@ -64,6 +64,12 @@ struct disp_detailed_frame{
 	uint8_t faultType;
 	uint8_t faultCell;
 	uint8_t faultTherm;
+
+	uint32_t overvoltage_status;
+	uint32_t undervoltage_status;
+	uint32_t overtemperature_status;
+	uint32_t undertemperature_status;
+	uint8_t overcurrent_status;
 };
 
 extern struct disp_common common_data;

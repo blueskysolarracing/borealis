@@ -14,6 +14,7 @@
 #include "main.h"
 #include "display_BSSR.h"
 #include "driver_disp_icon.h"
+#include "battery_config.h"
 
 /** Fonts */
 #include "fonts/font5x7.h"
@@ -669,25 +670,30 @@ void drawP2DefaultLow(/*int value[4]*/){
 void drawP2Detailed_1(/*int value[9]*/){
 	char labelsP1[3][25] = {0};
 	int labelsP1L = 3;
-	short value[9] = {	common_data.solar_power,
+	short value[6] = {	common_data.solar_power,
 						common_data.motor_power,
 						common_data.battery_power,
-						detailed_data.P1_solar_voltage, detailed_data.P1_solar_current,
-						detailed_data.P1_motor_voltage, detailed_data.P1_motor_current,
-						detailed_data.P1_battery_voltage, detailed_data.P1_battery_current};
+						detailed_data.P1_solar_voltage,
+						detailed_data.P1_motor_voltage,
+						detailed_data.P1_battery_voltage};
+	float currents[3] = {
+		detailed_data.P1_solar_current,
+		detailed_data.P1_motor_current,
+		detailed_data.P1_battery_current
+	};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
 	// populate label
-	if(value[0] >= 0) sprintf(labelsP1[0], "Solar:+%4dW(%3dV,%2dA)\0", value[0], abs(value[3]), abs(value[4]));
-	else sprintf(labelsP1[0], "Solar:+%4dW(%3dV,%2dA)\0", abs(value[0]), abs(value[3]), abs(value[4]));
+	if(value[0] >= 0) sprintf(labelsP1[0], "Sol:+%4dW,%3dV,%2d.%1dA\0", value[0], abs(value[3]), abs(currents[0]), abs(currents[0] * 10) % 10);
+	else sprintf(labelsP1[0], "Sol:+%4dW,%3dV,%2d.%1dA\0", abs(value[0]), abs(value[3]), abs(currents[0]), abs(currents[0] * 10) % 10);
 
-	if(value[1] >= 0) sprintf(labelsP1[1], "Motor:+%4dW(%3dV,%2dA)\0", value[1], abs(value[5]), abs(value[6]));
-	else sprintf(labelsP1[1], "Motor:+%4dW(%3dV,%2dA)\0", abs(value[1]), abs(value[5]), abs(value[6]));
+	if(value[1] >= 0) sprintf(labelsP1[1], "Mot:+%4dW,%3dV,%2d.%1dA\0", value[1], abs(value[4]), abs(currents[1]), abs(currents[1] * 10) % 10);
+	else sprintf(labelsP1[1], "Mot:+%4dW,%3dV,%2d.%1dA\0", abs(value[1]), abs(value[4]), abs(currents[1]), abs(currents[1] * 10) % 10);
 
-	if(value[2] >= 0) sprintf(labelsP1[2], "Batt: +%4dW(%3dV,%2dA)\0", value[2], abs(value[7]), abs(value[8]));
-	else sprintf(labelsP1[2], "Batt: +%4dW(%3dV,%2dA)\0", abs(value[2]), abs(value[7]), abs(value[8]));
+	if(value[2] >= 0) sprintf(labelsP1[2], "Bat:+%4dW,%3dV,%2d.%1dA\0", value[2], abs(value[5]), abs(currents[2]), abs(currents[2] * 10) % 10);
+	else sprintf(labelsP1[2], "Bat:+%4dW,%3dV,%2d.%1dA\0", abs(value[2]), abs(value[5]), abs(currents[2]), abs(currents[2] * 10) % 10);
 
 	// start drawing at y = 5
 	uint8_t y = 5;
@@ -947,95 +953,98 @@ void drawP2IgnitionOff(/*int value[4]*/){
 }
 
 void drawP2BMSFault(/*int value[4]*/){
-	short value[4] = {	detailed_data.P2_HV_voltage,
-						common_data.LV_voltage,
-						common_data.LV_power,
-						(short)(common_data.battery_soc)};
-	char* labelsP2[] = {"HV:", "LV:", "Battery:"};
-	int labelsP2L = 3;
-
-	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	char *labels[] = {
+		"BMS OV: ",
+		"BMS UV: ",
+		"BMS OT: ",
+		"BMS UT: ",
+		"BMS OC: "
+	};
+	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
 	glcd_clear_buffer();
 
-	uint8_t y = 5;
-	for(int i = 0; i < labelsP2L; i++){
-		char* label = labelsP2[i];
-		int j = 0;
-		while(label[j] != 0){
-			glcd_tiny_draw_char_xy(j*6, correct_Y(y), label[j]);
-			j++;
+	uint8_t x = 2, xStep = 6, y = 5, yStep = 10;
+	char *label = labels[0];
+
+	for (int i = 0; i < 8; ++i, x += xStep)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
+
+	for (int i = 0; i < NUM_BATT_CELLS; ++i) {
+		if (detailed_data.overvoltage_status & (1 << i)) {
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+			x += xStep;
 		}
-		y+=23;
 	}
 
-	// draw the numbers
-	char valueS[4][4];
+	x = 2;
+	y += yStep;
+	label = labels[1];
 
-	// get it in strings
-	for(int i = 0; i < 4; i++){
-		// sign
-		short v = value[i];
-		if(v<0){
-			valueS[i][0] = '-';
-			v *= -1;
+	for (int i = 0; i < 8; ++i, x += xStep)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
+
+	for (int i = 0; i < NUM_BATT_CELLS; ++i) {
+		if (detailed_data.undervoltage_status & (1 << i)) {
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+			x += xStep;
 		}
-		else{
-			valueS[i][0] = '+';
-		}
-		// hundred
-		if(v/100 != 0){
-			valueS[i][1] = '0' + v/100;
-		}
-		else{
-			valueS[i][1] = ' ';
-		}
-		// tenth
-		if((v/10)%10 != 0 || valueS[i][1] != ' '){
-			valueS[i][2] = '0' + (v/10)%10;
-		}
-		else{
-			valueS[i][2] = ' ';
-		}
-		// ones
-		valueS[i][3] = '0' + v%10;
 	}
 
-	// write the 4 small values
-	y = 5;
-	for(int i = 0; i < 3; i++){
-		uint8_t x = 48;
-		switch(i){
-			case 0:
-				glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[0][0]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][1]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][2]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[0][3]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
-				break;
-			case 1:
-				glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[1][0]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][1]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][2]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '.');
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[1][3]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'V');
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '(');
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][2]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[2][3]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'W');
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), ')');
-				break;
-			case 2:
-				glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[3][1]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[3][2]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), valueS[3][3]);
-				glcd_tiny_draw_char_xy(x+=6, correct_Y(y), '%');
-				break;
-			default:
-				break;
+	x = 2;
+	y += yStep;
+	label = labels[2];
+
+	for (int i = 0; i < 8; ++i, x += xStep)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
+
+	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
+		if (detailed_data.overtemperature_status & (1 << i)) {
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+			x += xStep;
 		}
-		y+=23;
 	}
+
+	x = 2;
+	y += yStep;
+	label = labels[3];
+
+	for (int i = 0; i < 8; ++i, x += xStep)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
+
+	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
+		if (detailed_data.undertemperature_status & (1 << i)) {
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+			x += xStep;
+		}
+	}
+
+	x = 2;
+	y += yStep;
+	label = labels[4];
+
+	for (int i = 0; i < 8; ++i, x += xStep)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
+
+	if (detailed_data.overcurrent_status)
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '1');
+	else
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0');
 
 	glcd_write();
 }
