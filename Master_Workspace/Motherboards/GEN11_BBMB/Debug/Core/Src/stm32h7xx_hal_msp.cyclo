@@ -1,0 +1,12 @@
+stm32h7xx_hal_msp.c:76:6:HAL_MspInit	1
+stm32h7xx_hal_msp.c:99:6:HAL_CRC_MspInit	2
+stm32h7xx_hal_msp.c:121:6:HAL_CRC_MspDeInit	2
+stm32h7xx_hal_msp.c:143:6:HAL_SPI_MspInit	7
+stm32h7xx_hal_msp.c:276:6:HAL_SPI_MspDeInit	3
+stm32h7xx_hal_msp.c:335:6:HAL_TIM_PWM_MspInit	4
+stm32h7xx_hal_msp.c:379:6:HAL_TIM_Base_MspInit	4
+stm32h7xx_hal_msp.c:420:6:HAL_TIM_MspPostInit	6
+stm32h7xx_hal_msp.c:537:6:HAL_TIM_PWM_MspDeInit	4
+stm32h7xx_hal_msp.c:581:6:HAL_TIM_Base_MspDeInit	4
+stm32h7xx_hal_msp.c:628:6:HAL_UART_MspInit	11
+stm32h7xx_hal_msp.c:822:6:HAL_UART_MspDeInit	4
