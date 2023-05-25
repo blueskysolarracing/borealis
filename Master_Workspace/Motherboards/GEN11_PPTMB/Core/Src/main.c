@@ -102,10 +102,13 @@ void HeartbeatHandler(TimerHandle_t xTimer);
 static void arrayRelayTask(void * argument);
 
 //Turn off 12V supply to PPT
-void shutDownPPTs() {HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);}
+// void shutDownPPTs() {HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);}
+void shutDownPPTs() {HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_RESET);} // For Purchased MPPT
 
 //Turn on 12V supply to PPT
-void turnOnPPTs() { HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);}
+// void turnOnPPTs() { HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);}
+void turnOnPPTs() { HAL_GPIO_WritePin(GPIOG, GPIO_PIN_2, GPIO_PIN_SET);} // For Purchased MPPT
+
 
 /* USER CODE END PFP */
 
