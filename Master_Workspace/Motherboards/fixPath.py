@@ -1,42 +1,44 @@
 import os
-def fixLine(lineToChange)->str:
+def fix_lines(line_to_change)->str:
 
-    thisFilePath = os.path.abspath(__file__)
-    thisFilePath = thisFilePath.replace("\\", "/")
+    this_file_path = os.path.abspath(__file__)
+    this_file_path = this_file_path.replace("\\", "/")
 
-    index = thisFilePath.rfind("/gen11_blueskyelec") + len("/gen11_blueskyelec")
+    index = this_file_path.rfind("/Master_Workspace")
     if index == -1:
-        print("Error: Please make sure your top repository is gen11_blueskyelec")
+        print("Error: Please make sure your project is under Master_Workspace")
         quit()
-
-    topRepoPath = thisFilePath[0:index].replace("c:/", "C:/")
+    index = index + len("/Master_workspace")
+    workspace_path = this_file_path[0:index].replace("c:/", "C:/")
     
-    beginIdx = lineToChange.find("<location>") + len("<location>")
-    if beginIdx == -1:
+    begin_idx = line_to_change.find("<location>")
+    if begin_idx == -1:
         print("Error: <location> not found in file")
         quit()
-    beginStr = lineToChange[0:beginIdx]
+    begin_idx = begin_idx + len("<location>")
+    beginStr = line_to_change[0:begin_idx]
 
-    replaceToIdx = lineToChange.find("/Master_Workspace")
-    if replaceToIdx == -1:
-        print("Error: /Master_Workspace not found in file")
+    replace_to_idx = line_to_change.find("/Shared_Resources")
+    if replace_to_idx == -1:
+        print("Error: Shared_Resources not found in line")
         quit()
-    endStr = lineToChange[replaceToIdx:]
+    end_str = line_to_change[replace_to_idx:]
 
-    newLine = beginStr + topRepoPath + endStr
+    new_line = beginStr + workspace_path + end_str
     print("Your updated path:")
-    print(newLine)
-    return newLine
+    print(new_line)
+    return new_line
 
 def main():
     parent = os.path.dirname(os.path.abspath((__file__)))
-    with open(os.path.join(parent, '.project'), 'r') as projectFile:
-        fileLines = projectFile.readlines()
-    with open(os.path.join(parent, '.project'), 'w') as projectFile:
-        for line in fileLines:
+    with open(os.path.join(parent, '.project'), 'r') as project_file:
+        file_lines = project_file.readlines()
+    with open(os.path.join(parent, '.project'), 'w') as project_file:
+        for line in file_lines:
             if "/Shared_Resources" in line:
-                projectFile.write(fixLine(line))
+                project_file.write(fix_lines(line))
             else: 
-                projectFile.write(line)
+                project_file.write(line)
+
 if __name__ == "__main__":
     main()
