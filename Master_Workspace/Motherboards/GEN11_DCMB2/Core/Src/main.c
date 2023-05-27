@@ -2171,7 +2171,7 @@ void displayTask(const void *pv){
 
 	default_data.P1_left_indicator_status = 1;
 	default_data.P2_right_indicator_status = 1;
-	default_data.batt_warning = 1;
+	default_data.batt_warning = 0;
 	default_data.hazard = 1;
 
 	/* Display selection (sel):
@@ -2231,6 +2231,7 @@ void displayTask(const void *pv){
 				// ..."fault display" (6) and "car is sleeping display" (5)
 				local_display_sel = battery_faulted_display_selection; // either 6 or 5
 				default_data.P2_motor_state = OFF;
+        default_data.batt_warning = 1;
 			}
 
 			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status
