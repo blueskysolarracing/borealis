@@ -1,7 +1,7 @@
 #include "batteryEKF.h"
 #include "blueskyOCVData.h"
 
-#define Q_CAP (176400.0f)   // in Ampere Second  49 Ampere hour = 49*3600 = 176400 Ampere Second 
+#define Q_CAP (173880.0f)   // in Ampere Second  49 Ampere hour = 49*3600 = 176400 Ampere Second 
 #define R_INT (0.0074f)    // in Ohm
 #define R_CT  (0.005f)     // in Ohm
 #define C_CT  (4772.21f)   // in Farad 
@@ -14,7 +14,7 @@
 #define VAR_SENS (2e-1f)    // Sensor uncertainty, terminal voltage measurement
 #define VAR_INPT (2e-1f)    // Input uncertainty, input current measurement (sensor)
 
-#define COULOMB_ETA (0.9929f)
+#define COULOMB_ETA (1.0f)
 
 
 extern float BSSR_OCV[BSSR_OCV_DATA_SIZE];
