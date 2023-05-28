@@ -682,18 +682,18 @@ void drawP2Detailed_1(/*int value[9]*/){
 		detailed_data.P1_battery_current
 	};
 
-	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_tiny_set_font(Font5x7,4,6,32,127);
 	glcd_clear_buffer();
 
 	// populate label
-	if(value[0] >= 0) sprintf(labelsP1[0], "Sol:+%4dW,%3dV,%+2d.%1dA\0", value[0], abs(value[3]), round(currents[0]), abs(currents[0] * 10) % 10);
-	else sprintf(labelsP1[0], "Sol:+%4dW,%3dV,%+2d.%1dA\0", abs(value[0]), abs(value[3]), round(currents[0]), abs(currents[0] * 10) % 10);
+	if(value[0] >= 0) sprintf(labelsP1[0], "Sol:+%4dW,%3dV,+%2d.%1dA\0", abs(value[0]), abs(value[3]), abs(currents[0]), abs(currents[0] * 10) % 10);
+	else              sprintf(labelsP1[0], "Sol:-%4dW,%3dV,-%2d.%1dA\0", abs(value[0]), abs(value[3]), abs(currents[0]), abs(currents[0] * 10) % 10);
 
-	if(value[1] >= 0) sprintf(labelsP1[1], "Mot:+%4dW,%3dV,%+2d.%1dA\0", value[1], abs(value[4]), round(currents[1]), abs(currents[1] * 10) % 10);
-	else sprintf(labelsP1[1], "Mot:+%4dW,%3dV,%+2d.%1dA\0", abs(value[1]), abs(value[4]), round(currents[1]), abs(currents[1] * 10) % 10);
+	if(value[1] >= 0) sprintf(labelsP1[1], "Mot:+%4dW,%3dV,+%2d.%1dA\0", abs(value[1]), abs(value[4]), abs(currents[1]), abs(currents[1] * 10) % 10);
+	else              sprintf(labelsP1[1], "Mot:-%4dW,%3dV,-%2d.%1dA\0", abs(value[1]), abs(value[4]), abs(currents[1]), abs(currents[1] * 10) % 10);
 
-	if(value[2] >= 0) sprintf(labelsP1[2], "Bat:+%4dW,%3dV,%+2d.%1dA\0", value[2], abs(value[5]), round(currents[2]), abs(currents[2] * 10) % 10);
-	else sprintf(labelsP1[2], "Bat:+%4dW,%3dV,%+2d.%1dA\0", abs(value[2]), abs(value[5]), round(currents[2]), abs(currents[2] * 10) % 10);
+	if(value[2] >= 0) sprintf(labelsP1[2], "Bat:+%4dW,%3dV,+%2d.%1dA\0", abs(value[2]), abs(value[5]), abs(currents[2]), abs(currents[2] * 10) % 10);
+	else              sprintf(labelsP1[2], "Bat:-%4dW,%3dV,-%2d.%1dA\0", abs(value[2]), abs(value[5]), abs(currents[2]), abs(currents[2] * 10) % 10);
 
 	// start drawing at y = 5
 	uint8_t y = 5;
