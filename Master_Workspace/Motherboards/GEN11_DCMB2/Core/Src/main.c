@@ -1831,10 +1831,16 @@ void serialParse(B_tcpPacket_t *pkt){
 
 			 //Update display with new min. soc
 			 float min_soc = 200; //High initial value to find min. soc
+			 float total_soc = 0;
 			 for (int i = 0; i < NUM_BATT_CELLS; i++){
-				if (battery_soc[i] < min_soc){	min_soc = battery_soc[i];	}
+
+				//if (battery_soc[i] < min_soc){	min_soc = battery_soc[i];	}
+				 if (battery_soc[i] != BATTERY_SOC_INITIAL_VALUE) {
+					 total_soc += battery_soc[i];
+				 }
 			 }
-			 common_data.battery_soc = (short) 100*min_soc;
+			 //common_data.battery_soc = (short) 100*min_soc;
+			 common_data.battery_soc = total_soc / (short)NUM_BATT_CELLS * 100;
 		 }
 		 break;
 
