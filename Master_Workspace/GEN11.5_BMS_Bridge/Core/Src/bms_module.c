@@ -265,7 +265,7 @@ static void compute_soc(BmsModule* this)
 			uint32_t tick_now = xTaskGetTickCount();
 			this->_EKF_models[i].run_EKF(
 					&this->_EKF_models[i],
-					tick_now - this->_tick_last_soc_compute[i],
+					(tick_now - this->_tick_last_soc_compute[i]) / pdMS_TO_TICKS(1) / 1000.0, // change unit to Second
 					this->_current,
 					sfq_get_avg(&this->past_voltages[i])
 			);
