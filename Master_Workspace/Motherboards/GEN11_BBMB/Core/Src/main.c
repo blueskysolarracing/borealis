@@ -55,14 +55,6 @@
 #define RELAY_STATE_TIMER_INTERVAL 	500 // Interval at which BBMB broadcasts the battery relay state in ms
 
 
-enum BATTER_FAULT_TYPE {
-	BATTERY_FAULT_OVERTEMPERATURE,
-	BATTERY_FAULT_UNDERTEMPERATURE,
-	BATTERY_FAULT_OVERVOLTAGE,
-	BATTERY_FAULT_UNDERVOLTAGE,
-	BATTERY_FAULT_OVERCURRENT,
-	BATTERY_FAULT_NONE,
-};
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -143,6 +135,7 @@ uint8_t batteryFaultTherm = 0;
 uint8_t battery_overvoltage = 0;
 uint8_t battery_undervoltage = 0;
 uint8_t battery_overtemperature = 0;
+uint8_t battery_undertemperature = 0;
 uint8_t battery_overcurrent = 0;
 
 float battery_cell_voltages[NUM_BATT_CELLS] = {[0 ... (NUM_BATT_CELLS-1)] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE};
@@ -157,9 +150,9 @@ float cellUnderTestSOC = -1;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM5_Init(void);
-static void MX_TIM1_Init(void);
 static void MX_DMA_Init(void);
+static void MX_TIM1_Init(void);
+static void MX_TIM5_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_SPI5_Init(void);
@@ -218,9 +211,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM5_Init();
-  MX_TIM1_Init();
   MX_DMA_Init();
+  MX_TIM1_Init();
+  MX_TIM5_Init();
   MX_TIM2_Init();
   MX_SPI2_Init();
   MX_SPI5_Init();
@@ -1213,8 +1206,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : RELAY_LS_Pin RELAY_DISCHARGE_Pin PSM_CS_0_Pin */
-  GPIO_InitStruct.Pin = RELAY_LS_Pin|RELAY_DISCHARGE_Pin|PSM_CS_0_Pin;
+  /*Configure GPIO pins : RELAY_LS_Pin PSM_CS_0_Pin */
+  GPIO_InitStruct.Pin = RELAY_LS_Pin|PSM_CS_0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1244,6 +1237,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(ESD_DETECT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : RELAY_DISCHARGE_Pin */
+  GPIO_InitStruct.Pin = RELAY_DISCHARGE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(RELAY_DISCHARGE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PH2 PH3 PH4 PH5
                            PH7 PH8 PH12 PH13
@@ -1334,10 +1334,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TMC5160_CS0_Pin PSM_DReady_Pin HORN_EN_Pin TMC5160_CS1_Pin
-                           Light_ctrl_PWR_EN_Pin */
-  GPIO_InitStruct.Pin = TMC5160_CS0_Pin|PSM_DReady_Pin|HORN_EN_Pin|TMC5160_CS1_Pin
-                          |Light_ctrl_PWR_EN_Pin;
+  /*Configure GPIO pins : TMC5160_CS0_Pin PSM_DReady_Pin TMC5160_CS1_Pin Light_ctrl_PWR_EN_Pin */
+  GPIO_InitStruct.Pin = TMC5160_CS0_Pin|PSM_DReady_Pin|TMC5160_CS1_Pin|Light_ctrl_PWR_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1349,6 +1347,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : HORN_EN_Pin */
+  GPIO_InitStruct.Pin = HORN_EN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(HORN_EN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PK6 PK7 */
   GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
@@ -1753,6 +1758,7 @@ void battery_unfaulted_routine() {
 	battery_overvoltage = 0;
 	battery_undervoltage = 0;
 	battery_overtemperature = 0;
+	battery_undertemperature = 0;
 	xTaskResumeAll();
 
 
@@ -1772,6 +1778,7 @@ void battery_state_setter(void* parameters) {
 		uint8_t local_battery_overvoltage = 0;
 		uint8_t local_battery_undervoltage = 0;
 		uint8_t local_battery_overtemperature = 0;
+		uint8_t local_battery_undertemperature = 0;
 
 		vTaskSuspendAll();
 		for (int i = 0; i < NUM_BATT_CELLS; i++) {
@@ -1779,12 +1786,10 @@ void battery_state_setter(void* parameters) {
 			if (voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE && voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE) {
 				if ((voltage > HV_BATT_OV_THRESHOLD)){
 					local_battery_overvoltage = 1;
-					batteryState = FAULTED;
 					batteryFaultType = BATTERY_FAULT_OVERVOLTAGE;
 					batteryFaultCell = i;
 				} else if (voltage < HV_BATT_UV_THRESHOLD){
 					local_battery_undervoltage = 1;
-					batteryState = FAULTED;
 					batteryFaultType = BATTERY_FAULT_UNDERVOLTAGE;
 					batteryFaultCell = i;
 				}
@@ -1795,24 +1800,27 @@ void battery_state_setter(void* parameters) {
 			if (temperature != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 				if (temperature > HV_BATT_OT_THRESHOLD) {
 					local_battery_overtemperature = 1;
-					batteryState = FAULTED;
 					batteryFaultType = BATTERY_FAULT_OVERTEMPERATURE;
 					batteryFaultTherm = i;
 				} else if (temperature < HV_BATT_UT_THRESHOLD) {
-					local_battery_overtemperature = 1;
-					batteryState = FAULTED;
+					local_battery_undertemperature = 1;
 					batteryFaultType = BATTERY_FAULT_UNDERTEMPERATURE;
 					batteryFaultTherm = i;
 				}
 			}
+		}
+		if (battery_overcurrent) {
+			batteryFaultType = BATTERY_FAULT_OVERCURRENT;
 		}
 		xTaskResumeAll();
 
 		battery_overvoltage = local_battery_overvoltage;
 		battery_undervoltage = local_battery_undervoltage;
 		battery_overtemperature = local_battery_overtemperature;
+		battery_undertemperature = local_battery_undertemperature;
 
 		if (battery_overcurrent || battery_overvoltage || battery_undervoltage || battery_overtemperature) {
+			batteryState = FAULTED;
 			if (run_faulted_routine) {
 				battery_faulted_routine();
 				run_faulted_routine = 0;

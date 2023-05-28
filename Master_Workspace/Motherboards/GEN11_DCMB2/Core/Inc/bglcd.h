@@ -55,13 +55,7 @@ struct disp_detailed_frame{
 	uint8_t	P2_PPT;
 	uint8_t	P2_RAD;
 
-	/* Fault Type:
-	 * 0: OVERTEMPERATURE
-	 * 1: OVERVOLTAGE
-	 * 2: UNDERVOLTAGE
-	 * 3: OVERCURRENT
-	 */
-	uint8_t faultType;
+	uint8_t faultType; // see enum BATTERY_FAULT_TYPE
 	uint8_t faultCell;
 	uint8_t faultTherm;
 

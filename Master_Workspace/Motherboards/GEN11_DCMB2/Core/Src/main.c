@@ -1762,7 +1762,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
 			 detailed_data.faultTherm = pkt->data[6];
-			 detailed_data.overcurrent_status = detailed_data.faultType == 3;
+			 detailed_data.overcurrent_status = detailed_data.faultType == BATTERY_FAULT_OVERCURRENT;
 
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected

@@ -435,25 +435,25 @@ void drawP1BMSFault(){
 	uint8_t faultTypeL = 0;
 
 	switch(detailed_data.faultType){
-	case 0:
+	case BATTERY_FAULT_OVERTEMPERATURE:
 		faultType = "OVERTEMP";
 		faultNum = 0;
 		faultTypeL = 8;
 		faultCell = detailed_data.faultTherm;
 		break;
-	case 1:
+	case BATTERY_FAULT_UNDERTEMPERATURE:
 		faultType = "OVERVOLT";
 		faultNum = 1;
 		faultTypeL = 8;
 		faultCell = detailed_data.faultCell;
 		break;
-	case 2:
+	case BATTERY_FAULT_UNDERVOLTAGE:
 		faultType = "UNDERVOLT";
 		faultNum = 1;
 		faultTypeL = 9;
 		faultCell = detailed_data.faultCell;
 		break;
-	case 3:
+	case BATTERY_FAULT_OVERCURRENT:
 		faultType = "OVERCURRENT";
 		faultNum = 2;
 		faultTypeL = 11;
