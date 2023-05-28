@@ -1693,7 +1693,7 @@ void HeartbeatHandler(TimerHandle_t xTimer){
 	heartbeat[1] = ~heartbeat[1]; //Toggle for next time
 }
 
-void serial(B_tcpPacket_t *pkt){
+void serialParse(B_tcpPacket_t *pkt){
 	vTaskSuspendAll();
 
 	switch(pkt->sender){
