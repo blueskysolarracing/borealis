@@ -263,15 +263,14 @@ static void compute_soc(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++) {
 		if (check_voltage_is_valid(this->_voltages[i])) {
 			uint32_t tick_now = xTaskGetTickCount();
-//			this->_EKF_models[i].run_EKF(
-//					&this->_EKF_models[i],
-//					tick_now - this->_tick_last_soc_compute[i],
-//					this->_current,
-//					sfq_get_avg(&this->past_voltages[i])
-//			);
-//			local_soc_array[i] = this->_EKF_models[i].stateX[0];
+			this->_EKF_models[i].run_EKF(
+					&this->_EKF_models[i],
+					tick_now - this->_tick_last_soc_compute[i],
+					this->_current,
+					sfq_get_avg(&this->past_voltages[i])
+			);
+			local_soc_array[i] = this->_EKF_models[i].stateX[0];
 			this->_tick_last_soc_compute[i] = tick_now;
-			local_soc_array[i] = SOC(sfq_get_avg(&this->past_voltages[i]));
 		} else {
 			// If voltage is invalid, assume bms module is not connected
 			local_soc_array[i] = BATTERY_SOC_INITIAL_VALUE;

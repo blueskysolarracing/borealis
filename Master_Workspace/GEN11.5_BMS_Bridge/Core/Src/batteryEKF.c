@@ -1,12 +1,12 @@
 #include "batteryEKF.h"
 #include "blueskyOCVData.h"
 
-#define Q_CAP (173880.0f)   // in Ampere Second  49 Ampere hour = 49*3600 = 176400 Ampere Second 
-#define R_INT (0.0074f)    // in Ohm
-#define R_CT  (0.005f)     // in Ohm
-#define C_CT  (4772.21f)   // in Farad 
-#define R_D   (0.005f)     // in Ohm
-#define C_D   (4772.21f)   // in Farad
+#define Q_CAP (173880.0f)   	// in Ampere Second  49 Ampere hour = 49*3600 = 176400 Ampere Second
+#define R_INT (0.00228197f)    	// in Ohm
+#define R_CT  (0.00228197f)     // in Ohm
+#define C_CT  (0.00228197f)  	// in Farad
+#define R_D   R_CT     			// in Ohm
+#define C_D   C_CT   			// in Farad
 
 #define VAR_Z    (2e-4f)
 #define VAR_I_D  (1e-6f)
