@@ -682,7 +682,7 @@ void drawP2Detailed_1(/*int value[9]*/){
 		detailed_data.P1_battery_current
 	};
 
-	glcd_tiny_set_font(Font5x7,4,6,32,127);
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 
 	// populate label
