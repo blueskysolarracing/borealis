@@ -441,7 +441,7 @@ void drawP1BMSFault(){
 		faultTypeL = 8;
 		faultCell = detailed_data.faultTherm;
 		break;
-	case BATTERY_FAULT_UNDERTEMPERATURE:
+	case BATTERY_FAULT_OVERVOLTAGE:
 		faultType = "OVERVOLT";
 		faultNum = 1;
 		faultTypeL = 8;
