@@ -26,10 +26,11 @@
 #include "h7Boot.h"
 #include "buart.h"
 #include "btcp.h"
-#include "psm.h"
+#include "newpsm.h"
 #include "protocol_ids.h"
 #include "math.h"
 #include "mitsuba_motor.h"
+#include "cQueue.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -98,13 +99,13 @@ WWDG_HandleTypeDef hwwdg;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 //--- PSM ---//
-struct PSM_Peripheral psmPeriph;
-double voltageCurrent_Motor[2] = {0, 0};
-double voltageCurrent_Supp[2] = {0, 0};
+struct PSM_P psmPeriph;
+//double voltageCurrent_Motor[2] = {0, 0};
+//double voltageCurrent_Supp[2] = {0, 0};
 
 struct PSM_FIR_Filter psmFilter;
 float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB] = {0};
-float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB] = {0};
+float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT] = {0};
 
 //--- COMMS ---//
 B_uartHandle_t *buart;
@@ -127,7 +128,7 @@ typedef enum {
 
 enum motorPowerState {
 	ECO,
-	POWER
+	POWER_STATE
 };
 
 MOTORSTATE motorState; //see below for description
@@ -226,11 +227,12 @@ void HeartbeatHandler(TimerHandle_t xTimer);
 /* ============================================================*/
 
 //Cruise control task
-void cruiseControlTaskHandler(void* parameters);
+// void cruiseControlTaskHandler(void* parameters);
 
 //Tasks for temperature reading and PSM and heartbeat
 void tempSenseTaskHandler(void* parameters);
-void PSMTaskHandler(void* parameters);
+void PSMVoltageTaskHandler(void* parameters);
+void PSMCurrentTaskHandler(void* parameters);
 void measurementSender(TimerHandle_t xTimer);
 
 // function which writes to the MCP4146 potentiometer on the MC^2
@@ -249,6 +251,48 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr);
 float PIDControllerUpdate(float setpoint, float measured);
 float speedToFrequency(uint8_t targetSpeed);
 
+// Special filtering
+typedef struct StaticFloatQueue {
+	float vals[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT];
+	Queue_t q;
+}StaticFloatQueue;
+static void sfq_init(StaticFloatQueue* this)
+{
+	q_init_static(
+			&this->q,
+			sizeof(float),
+			PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT,
+			FIFO,
+			true, // Overwrite old values (so we only need to call push() and no need to pop())
+			this->vals,
+			sizeof(this->vals)
+		);
+}
+StaticFloatQueue current_queue;
+
+static bool sfq_push(StaticFloatQueue* this, float val)
+{
+	return q_push(&this->q, &val);
+}
+
+static bool sfq_peek_idx(StaticFloatQueue* this, float* ret_val, int idx)
+{
+	return q_peekIdx(&this->q, ret_val, idx);
+}
+
+static float sfq_get_avg(StaticFloatQueue* this)
+{
+	float total_past_vals = 0;
+	int num_past_vals = 0;
+	for (int idx = 0; idx < PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT; idx++){
+		float past_val;
+		if (sfq_peek_idx(this, &past_val, idx)) { // evaluates to true if val is available
+			num_past_vals++;
+			total_past_vals += past_val;
+		}
+	}
+	return total_past_vals / (float)num_past_vals;
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -304,7 +348,7 @@ int main(void)
 	//--- NUKE LED ---//
 	HAL_TIM_Base_Start_IT(&htim7);
 
-	uint8_t SPI_START_VAL = 0b00010001;
+	//uint8_t SPI_START_VAL = 0b00010001;
 
     //---- COMMS ---//
     buart = B_uartStart(&huart4); //Use huart2 for uart test. Use huart4 for RS485
@@ -360,31 +404,23 @@ int main(void)
   //  MCP4161_Pot_Write(0, MotorCSAccel_GPIO_Port, MotorCSAccel_Pin, &hspi3);
 
     //--- PSM ---//
-    psmPeriph.CSPin0 = PSM_CS_0_Pin;
-    psmPeriph.CSPin1 = PSM_CS_1_Pin;
-    psmPeriph.CSPin2 = PSM_CS_2_Pin;
-    psmPeriph.CSPin3 = PSM_CS_3_Pin;
-
-    psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-    psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-    psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-    psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
-
-    psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+    psmPeriph.CSPin = PSM_CS_0_Pin;
+    psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
     psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
+    psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
 
-    psmPeriph.DreadyPin = PSM_DReady_Pin;
-    psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+    PSM_init(&psmPeriph, &hspi2, &huart2);
+    PSM_FIR_Init(&psmFilter);
 
-    PSM_Init(&psmPeriph, 2); //2nd argument is PSM ID (2 for MCMB)
-    PSM_FIR_Init(&psmFilter); //Initialize FIR averaging filter for PSM
+    //test_config(&psmPeriph, &hspi2, &huart2);
+
     psmFilter.buf_current = PSM_FIR_HV_Current;
     psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
     psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
 
-    if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
-  	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
-    }
+//    if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
+//  	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+//    }
 
     //--- FREERTOS ---//
     xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
@@ -439,9 +475,9 @@ int main(void)
   //							  );
   //	configASSERT(status == pdPASS); // Error checking
 
-  	TaskHandle_t PSM_handle;
+    TaskHandle_t PSM_handle;
 
-  	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
+  	status = xTaskCreate(PSMVoltageTaskHandler,  //Function that implements the task.
   				"PSMTask",  //Text name for the task.
   				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
   				"none",  //Parameter passed into the task.
@@ -450,16 +486,14 @@ int main(void)
   							);
   	configASSERT(status == pdPASS);// Error checking
 
-  //	TaskHandle_t cruiseControl_handle;
-
-  //	status = xTaskCreate(cruiseControlTaskHandler,  //Function that implements the task.
-  //				"cruiseControlTask",  //Text name for the task.
-  //				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
-  //				"none",  //Parameter passed into the task.
-  //				4,  //Priority at which the task is created.
-  //				&cruiseControl_handle  //Used to pass out the created task's handle.
-  //							);
-  //	configASSERT(status == pdPASS);// Error checking
+  	status = xTaskCreate(PSMCurrentTaskHandler,  //Function that implements the task.
+  				"PSMTask",  //Text name for the task.
+  				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
+  				"none",  //Parameter passed into the task.
+  				4,  //Priority at which the task is created.
+  				&PSM_handle  //Used to pass out the created task's handle.
+  							);
+  	configASSERT(status == pdPASS);// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -1528,7 +1562,8 @@ static void spdTmr(TimerHandle_t xTimer){
 		pwm_in.frequency = 0.0;
 	}
 	else {
-		pwm_in.frequency = 1000000.0 / pwm_in.diffCapture;
+		//pwm_in.frequency = 1000000.0 / pwm_in.diffCapture;
+		pwm_in.frequency = 75000000.0 / pwm_in.diffCapture;
 	}
 	//Note 16 pulse per rotation
 	static uint8_t buf[4] = {MCMB_CAR_SPEED_ID, 0x00, 0x00, 0x00};
@@ -1560,7 +1595,7 @@ void tempSenseTaskHandler(void* parameters) {
 
 
 
-void cruiseControlTaskHandler(void* parameters){
+//void cruiseControlTaskHandler(void* parameters){
 
 //	while(1) {
 //		float target = speedToFrequency(speedTarget);
@@ -1569,7 +1604,7 @@ void cruiseControlTaskHandler(void* parameters){
 //		// TODO: might want to remove this task,might not exactly necessary
 //	}
 
-}
+//}
 
 
 void serialParse(B_tcpPacket_t *pkt){
@@ -1692,17 +1727,40 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 //	}
 //}
 
-void PSMTaskHandler(void* parameters){
+void PSMVoltageTaskHandler(void * parameters){
 
-	double HV_data[2];
+	float voltage;
+
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB));
-	while (1) {
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data, 2);
+
+	while (1){
+
+		voltage = readPSM(&psmPeriph, VBUS, 3);
 
 		vTaskSuspendAll();
 
-		psmFilter.push(&psmFilter, (float) HV_data[0], VOLTAGE);
-		psmFilter.push(&psmFilter, (float) -1.0*HV_data[1], CURRENT); //Invert current polarity as a possible current from PSM means the battery is discharging
+		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
+
+		xTaskResumeAll();
+		vTaskDelay(delay);
+	}
+}
+
+void PSMCurrentTaskHandler(void * parameters){
+
+	float current;
+	sfq_init(&current_queue);
+
+
+	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT));
+
+	while (1){
+
+		current = readPSM(&psmPeriph, CURRENT, 3);
+
+		vTaskSuspendAll();
+
+		sfq_push(&current_queue, current);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
@@ -1716,8 +1774,8 @@ void measurementSender(TimerHandle_t xTimer){
 
 	//Get HV average
 	vTaskSuspendAll();
-	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE);
-	float HV_current = psmFilter.get_average(&psmFilter, CURRENT);
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
+	float HV_current = sfq_get_avg(&current_queue);
 	xTaskResumeAll();
 
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
