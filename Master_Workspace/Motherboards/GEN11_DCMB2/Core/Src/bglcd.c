@@ -447,7 +447,7 @@ void drawP1BMSFault(){
 		faultTypeL = 8;
 		faultCell = detailed_data.faultCell;
 		break;
-	case BATTERY_FAULT_OVERVOLT:
+	case BATTERY_FAULT_OVERVOLTAGE:
 		faultType = "OVERVOLT";
 		faultNum = 1;
 		faultTypeL = 8;
@@ -725,7 +725,7 @@ void drawP2Detailed_2(/*int value[5]*/){
 						common_data.LV_voltage,
 						detailed_data.P2_LV_current,
 						detailed_data.P2_max_batt_temp};
-	char* labelsP2[] = {"LV:", "Max pack temp:"/*, "VFM:"*/};
+	char* labelsP2[] = {"LV:", ""/*, "VFM:"*/};
 	int labelsP2L = 2;
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
@@ -799,12 +799,12 @@ void drawP2Detailed_2(/*int value[5]*/){
     // the temp
     y+=23;
     x = 70;
-    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[3][0]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][1]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][2]);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][3]);
-    glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'C');
+//    glcd_tiny_draw_char_xy(x, correct_Y(y), valueS[3][0]);
+//    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][1]);
+//    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][2]);
+//    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), '.');
+//    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), valueS[3][3]);
+//    glcd_tiny_draw_char_xy(x+=6, correct_Y(y), 'C');
     // VFM
     y+=23;
 //    x = 20;
@@ -862,7 +862,7 @@ void drawP2Detailed_3(){
 		abs(detailed_data.max_temperature) / 10,
 		abs(detailed_data.max_temperature) % 10,
 		detailed_data.max_temperature_cell
-	)
+	);
 	sprintf(
 		labels[1],
 		"V:%c%2d.%d(%d)%c%2d.%d(%d)\0",
@@ -874,7 +874,7 @@ void drawP2Detailed_3(){
 		abs(detailed_data.max_voltage) / 10,
 		abs(detailed_data.max_voltage) % 10,
 		detailed_data.max_voltage_cell
-	)
+	);
 	sprintf(
 		labels[2],
 		"S:%c%2d%%(%d)%c%2d%%(%d)\0",
@@ -884,7 +884,7 @@ void drawP2Detailed_3(){
 		detailed_data.max_soc < 0 ? '-' : '+',
 		abs(detailed_data.max_soc),
 		detailed_data.max_soc_cell
-	)
+	);
 
 	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
 	glcd_clear_buffer();
@@ -894,7 +894,7 @@ void drawP2Detailed_3(){
 			glcd_tiny_draw_char_xy(
 				j * 6,
 				correct_Y(y),
-				labels[i][j],
+				labels[i][j]
 			);
 
 	glcd_write();

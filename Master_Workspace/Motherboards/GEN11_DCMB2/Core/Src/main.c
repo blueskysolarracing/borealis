@@ -1776,19 +1776,21 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_TEMP_SENSORS){ //Check that we're not writing outside of array bounds (in case of bad packet)
 					float temp = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_temp[j] = temp;
-					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
-					detailed_data.undertemperature_status -= detailed_data.undertemperature_status & (1 << j);
+//					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
+//					detailed_data.undertemperature_status -= detailed_data.undertemperature_status & (1 << j);
 					uint32_t scaled_temperature = temp * 10;
+					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
+						if (scaled_temperature < detailed_data.min_temperature) {
+							detailed_data.min_temperature = scaled_temperature;
+							detailed_data.min_temperature_cell = j;
+						}
 
-					if (scaled_temperature < detailed_data.min_temperature) {
-						detailed_data.min_temperature = scaled_temperature;
-						detailed_data.min_temperature_cell = j;
+						if (scaled_temperature > detailed_data.max_temperature) {
+							detailed_data.max_temperature = scaled_temperature;
+							detailed_data.max_temperature_cell = j;
+						}
 					}
 
-					if (scaled_temperature > detailed_data.max_temperature) {
-						detailed_data.max_temperature = scaled_temperature;
-						detailed_data.max_temperature_cell = j;
-					}
 
 					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 						if (temp > HV_BATT_OT_THRESHOLD) {
@@ -1800,12 +1802,12 @@ void serialParse(B_tcpPacket_t *pkt){
 				}
 			}
 
-			//Update display with new max. temp
-			float max_temp = -100; //Low initial value to find max. temp
-			for (int i = 0; i < NUM_BATT_TEMP_SENSORS; i++){
-				if (battery_temp[i] > max_temp){	max_temp = battery_temp[i];	}
-			}
-			detailed_data.P2_max_batt_temp = (short) 10.0*max_temp;
+//			//Update display with new max. temp
+//			float max_temp = -100; //Low initial value to find max. temp
+//			for (int i = 0; i < NUM_BATT_TEMP_SENSORS; i++){
+//				if (battery_temp[i] > max_temp){	max_temp = battery_temp[i];	}
+//			}
+//			detailed_data.P2_max_batt_temp = (short) 10.0*max_temp;
 
 		 } else if (pkt->data[0] == BMS_CELL_VOLT_ID){ //Cell voltage
 			 if (pkt->data[1] == NUM_BMS_MODULES-1){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
@@ -1823,27 +1825,30 @@ void serialParse(B_tcpPacket_t *pkt){
 					float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_cell_voltages[j] = voltage;
 					uint32_t scaled_voltage = voltage * 10;
+					if (voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE && voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE) {
+						if (scaled_voltage < detailed_data.min_voltage) {
+							detailed_data.min_voltage = scaled_voltage;
+							detailed_data.min_voltage_cell = j;
+						}
 
-					if (scaled_voltage < detailed_data.min_voltage) {
-						detailed_data.min_voltage = scaled_voltage;
-						detailed_data.min_voltage_cell = j;
+						if (scaled_voltage > detailed_data.max_voltage) {
+							detailed_data.max_voltage = scaled_voltage;
+							detailed_data.max_voltage_cell = j;
+						}
 					}
 
-					if (scaled_voltage > detailed_data.max_voltage) {
-						detailed_data.max_voltage = scaled_voltage;
-						detailed_data.max_voltage_cell = j;
-					}
 
-					detailed_data.overvoltage_status -= detailed_data.overvoltage_status & (1 << j);
-					detailed_data.undervoltage_status -= detailed_data.undervoltage_status & (1 << j);
+//					detailed_data.overvoltage_status -= detailed_data.overvoltage_status & (1 << j);
+//					detailed_data.undervoltage_status -= detailed_data.undervoltage_status & (1 << j);
 
-          if (voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE && voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE) {
+
+					if (voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE && voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE) {
 						if (voltage > HV_BATT_OV_THRESHOLD) {
 							detailed_data.overvoltage_status |= 1 << j;
-            } else if (voltage < HV_BATT_UV_THRESHOLD) {
-              detailed_data.undervoltage_status |= 1 << j;
-            }
-          }
+						} else if (voltage < HV_BATT_UV_THRESHOLD) {
+						  detailed_data.undervoltage_status |= 1 << j;
+						}
+					}
 				}
 			}
 
@@ -1862,16 +1867,18 @@ void serialParse(B_tcpPacket_t *pkt){
 					float soc = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_soc[j] = soc;
 					uint32_t scaled_soc = soc * 100;
+					if (soc != BATTERY_SOC_INITIAL_VALUE) {
+						if (scaled_soc < detailed_data.min_soc) {
+							detailed_data.min_soc = scaled_soc;
+							detailed_data.min_soc_cell = j;
+						}
 
-					if (scaled_soc < detailed_data.min_soc) {
-						detailed_data.min_soc = scaled_soc;
-						detailed_data.min_soc_cell = j;
+						if (scaled_soc > detailed_data.max_soc) {
+							detailed_data.max_soc = scaled_soc;
+							detailed_data.max_soc_cell = j;
+						}
 					}
 
-					if (scaled_soc > detailed_data.max_soc) {
-						detailed_data.max_soc = scaled_soc;
-						detailed_data.max_soc_cell = j;
-					}
 				}
 			}
 
@@ -2280,7 +2287,7 @@ void displayTask(const void *pv){
 			//Overwrite display state if battery fault
 			if (batteryState == FAULTED){
 				// Allows pressing steering wheel button to toggle between
-				// ..."fault display" (6) and "car is sleeping display" (5)
+				// ..."fault display" (7) and "car is sleeping display" (6)
 				local_display_sel = battery_faulted_display_selection; // either 7 or 6
 				default_data.P2_motor_state = OFF;
 				default_data.batt_warning = 1;
@@ -2294,7 +2301,7 @@ void displayTask(const void *pv){
 			xTaskResumeAll();
 			drawP1(local_display_sel);
 			drawP2(local_display_sel);
-			osDelay(100);
+			osDelay(500);
 		}
 	}
 }
