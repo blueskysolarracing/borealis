@@ -1660,7 +1660,7 @@ void measurementSender(void* p){
 		B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
 		B_tcpSend(btcp_bms, busMetrics_HV, sizeof(busMetrics_HV));
 
-		if (battery_current >= HV_BATT_OC_DISCHARGE){
+		if (fabs(battery_current) >= HV_BATT_OC_DISCHARGE){
 			if (battery_overcurrent_cnt == 0) {
 				battery_overcurrent_cnt++;
 				time_last_overcurrent = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
@@ -1830,7 +1830,7 @@ void battery_state_setter(void* parameters) {
 			run_unfaulted_routine = 1;
 		} else {
 			if (run_unfaulted_routine) {
-				battery_unfaulted_routine();
+				// battery_unfaulted_routine(); commented out to disable car automatically getting out of safe state
 				run_unfaulted_routine = 0;
 			}
 			run_faulted_routine = 1;
