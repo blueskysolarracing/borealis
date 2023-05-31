@@ -137,7 +137,7 @@ float accelValue = 0.0;
 uint8_t refresh_display = 1; //Flag to initiate refreshing of display
 uint8_t pToggle = 0; //Needed to choose which display to write data to
 uint8_t display_selection = 0; //Select which frame to display
-uint8_t battery_faulted_display_selection = 6; //Select which frame to display when battery is faulted
+uint8_t battery_faulted_display_selection = 7; //Select which frame to display when battery is faulted
 struct disp_common common_data = {0}; //Three global structs where data is written to
 struct disp_default_frame default_data = {0};
 struct disp_detailed_frame detailed_data = {0};
@@ -1748,9 +1748,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		 	vTaskSuspendAll();
 			batteryState = pkt->data[1];
 			if (batteryState == HEALTHY && previousBatteryState == FAULTED) {
-				if (battery_faulted_display_selection != 6) {
-					battery_faulted_display_selection = 6;
-				}
+				battery_faulted_display_selection = 7;
 			}
 			previousBatteryState = batteryState;
 			xTaskResumeAll();
@@ -1766,6 +1764,11 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
+														  //
+			detailed_data.min_temperature = 10000;
+			detailed_data.min_temperature_cell = 0;
+			detailed_data.max_temperature = -10000;
+			detailed_data.max_temperature_cell = 0;
 
 			//Update global list
 			for (int i = 0; i < NUM_TEMP_SENSORS_PER_MODULE; i++){
@@ -1775,6 +1778,17 @@ void serialParse(B_tcpPacket_t *pkt){
 					battery_temp[j] = temp;
 					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
 					detailed_data.undertemperature_status -= detailed_data.undertemperature_status & (1 << j);
+					uint32_t scaled_temperature = temp * 10;
+
+					if (scaled_temperature < detailed_data.min_temperature) {
+						detailed_data.min_temperature = scaled_temperature;
+						detailed_data.min_temperature_cell = j;
+					}
+
+					if (scaled_temperature > detailed_data.max_temperature) {
+						detailed_data.max_temperature = scaled_temperature;
+						detailed_data.max_temperature_cell = j;
+					}
 
 					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 						if (temp > HV_BATT_OT_THRESHOLD) {
@@ -1796,6 +1810,11 @@ void serialParse(B_tcpPacket_t *pkt){
 		 } else if (pkt->data[0] == BMS_CELL_VOLT_ID){ //Cell voltage
 			 if (pkt->data[1] == NUM_BMS_MODULES-1){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
+			detailed_data.min_voltage = 10000;
+			detailed_data.min_voltage_cell = 0;
+			detailed_data.max_voltage = -10000;
+			detailed_data.max_voltage_cell = 0;
+
 			//Update global list
 			// TODO: get highest and lowest cell voltage and show on display
 			for (int i = 0; i < NUM_CELLS_PER_MODULE; i++){
@@ -1803,6 +1822,17 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_CELLS) {
 					float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_cell_voltages[j] = voltage;
+					uint32_t scaled_voltage = voltage * 10;
+
+					if (scaled_voltage < detailed_data.min_voltage) {
+						detailed_data.min_voltage = scaled_voltage;
+						detailed_data.min_voltage_cell = j;
+					}
+
+					if (scaled_voltage > detailed_data.max_voltage) {
+						detailed_data.max_voltage = scaled_voltage;
+						detailed_data.max_voltage_cell = j;
+					}
 
 					detailed_data.overvoltage_status -= detailed_data.overvoltage_status & (1 << j);
 					detailed_data.undervoltage_status -= detailed_data.undervoltage_status & (1 << j);
@@ -1820,12 +1850,28 @@ void serialParse(B_tcpPacket_t *pkt){
 		 } else if (pkt->data[0] == BMS_CELL_SOC_ID){ //Cell state of charge
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
 
+			detailed_data.min_soc = 100;
+			detailed_data.min_soc_cell = 0;
+			detailed_data.max_soc = 0;
+			detailed_data.max_soc_cell = 0;
+
 			//Update global list
 			for (int i = 0; i < NUM_CELLS_PER_MODULE; i++){
 				uint8_t j = pkt->data[1]*NUM_CELLS_PER_MODULE + i;
 				if (j < NUM_BATT_CELLS) {
 					float soc = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_soc[j] = soc;
+					uint32_t scaled_soc = soc * 100;
+
+					if (scaled_soc < detailed_data.min_soc) {
+						detailed_data.min_soc = scaled_soc;
+						detailed_data.min_soc_cell = j;
+					}
+
+					if (scaled_soc > detailed_data.max_soc) {
+						detailed_data.max_soc = scaled_soc;
+						detailed_data.max_soc_cell = j;
+					}
 				}
 			}
 
@@ -1999,13 +2045,13 @@ void steeringWheelTask(const void *pv){
 		//		} else if (display_selection){ display_selection = 0;};
 				// Toggle between default and and 2 details so 3 total
 				if (batteryState != FAULTED) {
-					display_selection = (display_selection + 1)%3;
+					display_selection = (display_selection + 1)%4;
 				} else {
 					vTaskSuspendAll();
-					if (battery_faulted_display_selection == 6) {
-						battery_faulted_display_selection = 5;
-					} else {
+					if (battery_faulted_display_selection == 7) {
 						battery_faulted_display_selection = 6;
+					} else {
+						battery_faulted_display_selection = 7;
 					}
 					xTaskResumeAll();
 				}
@@ -2218,16 +2264,16 @@ void displayTask(const void *pv){
 			//Check if need to display low supplemental battery voltage alert
 			if (LOW_SUPP_VOLT_DISP_ALERT_EN){
 				if (default_data.P2_low_supp_volt < 10.0 * LOW_SUPP_VOLT_THRESHOLD){
-					local_display_sel = 7;
+					local_display_sel = 8;
 				}
 			}
 
 			//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
 			if (SLEEP_FRAME_EN) {
 				if (IGNORE_PPTMB){
-					if (batteryRelayState == OPEN) { local_display_sel = 5; }
+					if (batteryRelayState == OPEN) { local_display_sel = 6; }
 				} else {
-					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 5; }
+					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 6; }
 				}
 			}
 
@@ -2235,9 +2281,9 @@ void displayTask(const void *pv){
 			if (batteryState == FAULTED){
 				// Allows pressing steering wheel button to toggle between
 				// ..."fault display" (6) and "car is sleeping display" (5)
-				local_display_sel = battery_faulted_display_selection; // either 6 or 5
+				local_display_sel = battery_faulted_display_selection; // either 7 or 6
 				default_data.P2_motor_state = OFF;
-        default_data.batt_warning = 1;
+				default_data.batt_warning = 1;
 			}
 
 			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status

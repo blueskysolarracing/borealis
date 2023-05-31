@@ -442,6 +442,12 @@ void drawP1BMSFault(){
 		faultCell = detailed_data.faultTherm;
 		break;
 	case BATTERY_FAULT_UNDERTEMPERATURE:
+		faultType = "UNDERTEMP";
+		faultNum = 1;
+		faultTypeL = 8;
+		faultCell = detailed_data.faultCell;
+		break;
+	case BATTERY_FAULT_OVERVOLT:
 		faultType = "OVERVOLT";
 		faultNum = 1;
 		faultTypeL = 8;
@@ -841,6 +847,59 @@ void drawP2Detailed_2(/*int value[5]*/){
 	glcd_write();
 }
 
+
+void drawP2Detailed_3(){
+	char labels[3][50];
+
+	sprintf(
+		labels[0],
+		"T:%c%2d.%d(%d)%c%2d.%d(%d)\0",
+		detailed_data.min_temperature < 0 ? '-' : '+',
+		abs(detailed_data.min_temperature) / 10,
+		abs(detailed_data.min_temperature) % 10,
+		detailed_data.min_temperature_cell,
+		detailed_data.max_temperature < 0 ? '-' : '+',
+		abs(detailed_data.max_temperature) / 10,
+		abs(detailed_data.max_temperature) % 10,
+		detailed_data.max_temperature_cell
+	)
+	sprintf(
+		labels[1],
+		"V:%c%2d.%d(%d)%c%2d.%d(%d)\0",
+		detailed_data.min_voltage < 0 ? '-' : '+',
+		abs(detailed_data.min_voltage) / 10,
+		abs(detailed_data.min_voltage) % 10,
+		detailed_data.min_voltage_cell,
+		detailed_data.max_voltage < 0 ? '-' : '+',
+		abs(detailed_data.max_voltage) / 10,
+		abs(detailed_data.max_voltage) % 10,
+		detailed_data.max_voltage_cell
+	)
+	sprintf(
+		labels[2],
+		"S:%c%2d%%(%d)%c%2d%%(%d)\0",
+		detailed_data.min_soc < 0 ? '-' : '+',
+		abs(detailed_data.min_soc),
+		detailed_data.min_soc_cell,
+		detailed_data.max_soc < 0 ? '-' : '+',
+		abs(detailed_data.max_soc),
+		detailed_data.max_soc_cell
+	)
+
+	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
+	glcd_clear_buffer();
+
+	for (uint32_t i = 0, y = 5; i < 3; ++i, y += 23)
+		for (uint32_t j = 0; labels[i][j]; ++j)
+			glcd_tiny_draw_char_xy(
+				j * 6,
+				correct_Y(y),
+				labels[i][j],
+			);
+
+	glcd_write();
+}
+
 void drawP2Activate(){
 	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
 
@@ -1063,19 +1122,23 @@ void drawP2(uint8_t sel){
 		drawP2Detailed_2(/*defaultDetailed*/);
 		break;
 	case 3:
-		drawP2Activate();
+		drawP2Detailed_3();
 		break;
 	case 4:
-		drawP2Deactivate();
+		drawP2Activate();
 		break;
 	case 5:
-		drawP2IgnitionOff(/*defaultBMSFault*/);
+		drawP2Deactivate();
 		break;
 	case 6:
-		drawP2BMSFault(/*defaultBMSFault*/);
+		drawP2IgnitionOff(/*defaultBMSFault*/);
 		break;
 	case 7:
+		drawP2BMSFault(/*defaultBMSFault*/);
+		break;
+	case 8:
 		drawP2DefaultLow();
+		break;
 	default:
 		drawP2Default(/*defaultTest*/);
 		break;
