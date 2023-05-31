@@ -2074,11 +2074,13 @@ void steeringWheelTask(const void *pv){
 					default_data.P1_left_indicator_status = 0;
 					default_data.P2_right_indicator_status = 0;
 					emergencyLight = 1;
+					default_data.hazard = 1;
 				} else {
 					bufe[1] = 0b00010000; // turn off hazard indicator
 					default_data.P1_left_indicator_status = 1;
 					default_data.P2_right_indicator_status = 1;
 					emergencyLight = 0;
+					default_data.hazard = 0;
 				}
 			}
 			oldRightButton = (steeringData[2] & (1 << 3));
@@ -2231,7 +2233,7 @@ void displayTask(const void *pv){
 	default_data.P1_left_indicator_status = 1;
 	default_data.P2_right_indicator_status = 1;
 	default_data.batt_warning = 0;
-	default_data.hazard = 1;
+	default_data.hazard = 0;
 
 	/* Display selection (sel):
 	 * 0: Default
