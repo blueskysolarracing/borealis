@@ -5,8 +5,8 @@
 #define HV_BATT_OC_CHARGE 		(30.0f) 	//Should be set to 30.0A
 #define HV_BATT_OV_THRESHOLD 	(4.20f)	    //Should be set to 4.20V
 #define HV_BATT_UV_THRESHOLD 	(2.50f)	    //Should be set to 2.50V
-#define HV_BATT_OT_THRESHOLD 	(65.0f) 	//Should be set to 65.0C
-#define HV_BATT_UT_THRESHOLD 	(2.0f) 		//Should be set to 2.0C
+#define HV_BATT_OT_THRESHOLD 	(60.0f) 	//Should be set to 60.0C
+#define HV_BATT_UT_THRESHOLD 	(0.0f) 		//Should be set to 0.0C
 
 
 #define NUM_CELLS_PER_MODULE 	(5)
