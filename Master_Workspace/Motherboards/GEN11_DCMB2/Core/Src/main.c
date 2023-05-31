@@ -1778,7 +1778,7 @@ void serialParse(B_tcpPacket_t *pkt){
 					battery_temp[j] = temp;
 //					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
 //					detailed_data.undertemperature_status -= detailed_data.undertemperature_status & (1 << j);
-					uint32_t scaled_temperature = temp * 10;
+					int32_t scaled_temperature = temp * 10;
 					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 						if (scaled_temperature < detailed_data.min_temperature) {
 							detailed_data.min_temperature = scaled_temperature;
@@ -1824,7 +1824,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_CELLS) {
 					float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_cell_voltages[j] = voltage;
-					uint32_t scaled_voltage = voltage * 10;
+					int32_t scaled_voltage = voltage * 10;
 					if (voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE && voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE) {
 						if (scaled_voltage < detailed_data.min_voltage) {
 							detailed_data.min_voltage = scaled_voltage;
@@ -1866,7 +1866,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_CELLS) {
 					float soc = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_soc[j] = soc;
-					uint32_t scaled_soc = soc * 100;
+					int32_t scaled_soc = soc * 100;
 					if (soc != BATTERY_SOC_INITIAL_VALUE) {
 						if (scaled_soc < detailed_data.min_soc) {
 							detailed_data.min_soc = scaled_soc;
