@@ -121,7 +121,7 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 			if (raw_data == 0xffffff) { // If PSM is not connected
 				result = 0;
 			} else {
-				result = (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4)) * (1-CURRENT_ERROR_MULTIPLIER) - CURRENT_ERROR_OFFSET;
+				result = 0.7857 * ((CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4)) * (CURRENT_ERROR_MULTIPLIER) - (CURRENT_ERROR_OFFSET)) + 0.0276;
 			}
 			break;
 
