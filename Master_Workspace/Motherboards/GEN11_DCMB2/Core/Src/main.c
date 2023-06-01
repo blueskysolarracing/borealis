@@ -223,6 +223,9 @@ float battery_temp[NUM_BATT_TEMP_SENSORS]; //Array of the temp of each thermisto
 //--- ARRAY ---//
 uint8_t arrayRelayState = OPEN;
 
+//--- SIDE PANEL ---//
+uint8_t camera_switch_is_on = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -1753,7 +1756,19 @@ void serialParse(B_tcpPacket_t *pkt){
 			previousBatteryState = batteryState;
 			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
+			 if (batteryRelayState == CLOSED) {
+				 // turn on the back up camera and screen by regulation
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
 
+			 } else if (batteryRelayState == OPEN) {
+				 if (!camera_switch_is_on) {
+					 // turn off back up camera and screen
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+
+				 }
+			 }
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
 			 if (batteryRelayState == OPEN) default_data.P2_VFM = 1;
 
@@ -2123,9 +2138,11 @@ void sidePanelTask(const void *pv){
 				if (sidePanelData & (1 << 6)){
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
+				  camera_switch_is_on = 1;
 				} else {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+				  camera_switch_is_on = 0;
 				}
 
 			//FAN
