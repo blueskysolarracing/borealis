@@ -1538,6 +1538,7 @@ void lightsTask(void * argument){
 	float brake_brightness = 0.25; //Don't go over 50%
 	float hazard_brightness = 0.25; //Don't go over 50%
 	float BPS_fault_brightness = 0.25; //Don't go over 50%
+	uint8_t DRL_switch_is_on = 0;
 
 /**
  * Item in control queue is 8-bit binary instruction
@@ -1572,8 +1573,13 @@ void lightsTask(void * argument){
 			case DRL_LIGHTS: // DRL
 				if ((light_msg & 0x40) != 0x00){
 					turn_on_DRL(&lightsPeriph, DRL_brightness);
+					DRL_switch_is_on = 1;
 				} else {
-					turn_off_DRL(&lightsPeriph);
+					if (relay.battery_relay_state == OPEN) {
+						// Only allow DRL to turn off when battery relay is open
+						turn_off_DRL(&lightsPeriph);
+					}
+					DRL_switch_is_on = 0;
 				}
 				break;
 
@@ -1605,6 +1611,17 @@ void lightsTask(void * argument){
 				break;
 		}
 	}
+	// default light states
+	if (relay.battery_relay_state == CLOSED) {
+		// turn on the DRL by regulation
+		turn_on_DRL(&lightsPeriph, DRL_brightness);
+	} else if (relay.battery_relay_state == OPEN) {
+		if (!DRL_switch_is_on) {
+			// only turn off DRL if the physical switch is off
+			turn_off_DRL(&lightsPeriph);
+		}
+	}
+
   }
 }
 
@@ -1660,7 +1677,7 @@ void measurementSender(void* p){
 		B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
 		B_tcpSend(btcp_bms, busMetrics_HV, sizeof(busMetrics_HV));
 
-		if (battery_current >= HV_BATT_OC_DISCHARGE){
+		if (fabs(battery_current) >= HV_BATT_OC_DISCHARGE){
 			if (battery_overcurrent_cnt == 0) {
 				battery_overcurrent_cnt++;
 				time_last_overcurrent = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
@@ -1830,7 +1847,7 @@ void battery_state_setter(void* parameters) {
 			run_unfaulted_routine = 1;
 		} else {
 			if (run_unfaulted_routine) {
-				battery_unfaulted_routine();
+				// battery_unfaulted_routine(); commented out to disable car automatically getting out of safe state
 				run_unfaulted_routine = 0;
 			}
 			run_faulted_routine = 1;

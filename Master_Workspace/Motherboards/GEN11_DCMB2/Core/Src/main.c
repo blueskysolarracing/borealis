@@ -223,6 +223,9 @@ float battery_temp[NUM_BATT_TEMP_SENSORS]; //Array of the temp of each thermisto
 //--- ARRAY ---//
 uint8_t arrayRelayState = OPEN;
 
+//--- SIDE PANEL ---//
+uint8_t camera_switch_is_on = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -1753,7 +1756,19 @@ void serialParse(B_tcpPacket_t *pkt){
 			previousBatteryState = batteryState;
 			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
+			 if (batteryRelayState == CLOSED) {
+				 // turn on the back up camera and screen by regulation
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
 
+			 } else if (batteryRelayState == OPEN) {
+				 if (!camera_switch_is_on) {
+					 // turn off back up camera and screen
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+
+				 }
+			 }
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
 			 if (batteryRelayState == OPEN) default_data.P2_VFM = 1;
 
@@ -1778,7 +1793,7 @@ void serialParse(B_tcpPacket_t *pkt){
 					battery_temp[j] = temp;
 //					detailed_data.overtemperature_status -= detailed_data.overtemperature_status & (1 << j);
 //					detailed_data.undertemperature_status -= detailed_data.undertemperature_status & (1 << j);
-					uint32_t scaled_temperature = temp * 10;
+					int32_t scaled_temperature = temp * 10;
 					if (temp != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 						if (scaled_temperature < detailed_data.min_temperature) {
 							detailed_data.min_temperature = scaled_temperature;
@@ -1824,7 +1839,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_CELLS) {
 					float voltage = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_cell_voltages[j] = voltage;
-					uint32_t scaled_voltage = voltage * 10;
+					int32_t scaled_voltage = voltage * 10;
 					if (voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE && voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE) {
 						if (scaled_voltage < detailed_data.min_voltage) {
 							detailed_data.min_voltage = scaled_voltage;
@@ -1866,7 +1881,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				if (j < NUM_BATT_CELLS) {
 					float soc = arrayToFloat( &(pkt->data[4 * (i + 1)]) );
 					battery_soc[j] = soc;
-					uint32_t scaled_soc = soc * 100;
+					int32_t scaled_soc = soc * 100;
 					if (soc != BATTERY_SOC_INITIAL_VALUE) {
 						if (scaled_soc < detailed_data.min_soc) {
 							detailed_data.min_soc = scaled_soc;
@@ -2074,11 +2089,13 @@ void steeringWheelTask(const void *pv){
 					default_data.P1_left_indicator_status = 0;
 					default_data.P2_right_indicator_status = 0;
 					emergencyLight = 1;
+					default_data.hazard = 1;
 				} else {
 					bufe[1] = 0b00010000; // turn off hazard indicator
 					default_data.P1_left_indicator_status = 1;
 					default_data.P2_right_indicator_status = 1;
 					emergencyLight = 0;
+					default_data.hazard = 0;
 				}
 			}
 			oldRightButton = (steeringData[2] & (1 << 3));
@@ -2121,9 +2138,11 @@ void sidePanelTask(const void *pv){
 				if (sidePanelData & (1 << 6)){
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
+				  camera_switch_is_on = 1;
 				} else {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+				  camera_switch_is_on = 0;
 				}
 
 			//FAN
@@ -2133,9 +2152,9 @@ void sidePanelTask(const void *pv){
 				  HAL_GPIO_WritePin(GPIOG, FAN_CTRL_Pin, GPIO_PIN_RESET); //Disable fan
 				}
 
-			//AUX0 (DRL in GEN11)
-				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
-
+				//AUX0 (DRL in GEN11) (Regulation requires DRL to turn on the moment battery relay is closed,
+				// ...so when battery relay is closed, even if DRL switch is off, it will automatically turn on
+				uint8_t bufh[4] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 				if (sidePanelData & (1 << 1)){
 					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on
 					default_data.P2_DRL_state = 1;
@@ -2231,7 +2250,7 @@ void displayTask(const void *pv){
 	default_data.P1_left_indicator_status = 1;
 	default_data.P2_right_indicator_status = 1;
 	default_data.batt_warning = 0;
-	default_data.hazard = 1;
+	default_data.hazard = 0;
 
 	/* Display selection (sel):
 	 * 0: Default

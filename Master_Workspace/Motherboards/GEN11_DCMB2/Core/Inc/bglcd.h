@@ -65,18 +65,18 @@ struct disp_detailed_frame{
 	uint32_t undertemperature_status;
 	uint8_t overcurrent_status;
 
-	uint32_t min_temperature;
-	uint32_t min_temperature_cell;
-	uint32_t max_temperature;
-	uint32_t max_temperature_cell;
-	uint32_t min_voltage;
-	uint32_t min_voltage_cell;
-	uint32_t max_voltage;
-	uint32_t max_voltage_cell;
-	uint32_t min_soc;
-	uint32_t min_soc_cell;
-	uint32_t max_soc;
-	uint32_t max_soc_cell;
+	int32_t min_temperature;
+	int32_t min_temperature_cell;
+	int32_t max_temperature;
+	int32_t max_temperature_cell;
+	int32_t min_voltage;
+	int32_t min_voltage_cell;
+	int32_t max_voltage;
+	int32_t max_voltage_cell;
+	int32_t min_soc;
+	int32_t min_soc_cell;
+	int32_t max_soc;
+	int32_t max_soc_cell;
 };
 
 extern struct disp_common common_data;
