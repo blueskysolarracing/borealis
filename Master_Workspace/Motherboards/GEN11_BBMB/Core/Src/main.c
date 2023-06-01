@@ -1538,6 +1538,7 @@ void lightsTask(void * argument){
 	float brake_brightness = 0.25; //Don't go over 50%
 	float hazard_brightness = 0.25; //Don't go over 50%
 	float BPS_fault_brightness = 0.25; //Don't go over 50%
+	uint8_t DRL_switch_is_on = 0;
 
 /**
  * Item in control queue is 8-bit binary instruction
@@ -1572,8 +1573,13 @@ void lightsTask(void * argument){
 			case DRL_LIGHTS: // DRL
 				if ((light_msg & 0x40) != 0x00){
 					turn_on_DRL(&lightsPeriph, DRL_brightness);
+					DRL_switch_is_on = 1;
 				} else {
-					turn_off_DRL(&lightsPeriph);
+					if (relay.battery_relay_state == OPEN) {
+						// Only allow DRL to turn off when battery relay is open
+						turn_off_DRL(&lightsPeriph);
+					}
+					DRL_switch_is_on = 0;
 				}
 				break;
 
@@ -1605,6 +1611,17 @@ void lightsTask(void * argument){
 				break;
 		}
 	}
+	// default light states
+	if (relay.battery_relay_state == CLOSED) {
+		// turn on the DRL by regulation
+		turn_on_DRL(&lightsPeriph, DRL_brightness);
+	} else if (relay.battery_relay_state == OPEN) {
+		if (!DRL_switch_is_on) {
+			// only turn off DRL if the physical switch is off
+			turn_off_DRL(&lightsPeriph);
+		}
+	}
+
   }
 }
 

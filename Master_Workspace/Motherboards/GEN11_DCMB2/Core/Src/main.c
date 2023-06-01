@@ -2135,9 +2135,9 @@ void sidePanelTask(const void *pv){
 				  HAL_GPIO_WritePin(GPIOG, FAN_CTRL_Pin, GPIO_PIN_RESET); //Disable fan
 				}
 
-			//AUX0 (DRL in GEN11)
-				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
-
+				//AUX0 (DRL in GEN11) (Regulation requires DRL to turn on the moment battery relay is closed,
+				// ...so when battery relay is closed, even if DRL switch is off, it will automatically turn on
+				uint8_t bufh[4] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 				if (sidePanelData & (1 << 1)){
 					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on
 					default_data.P2_DRL_state = 1;
