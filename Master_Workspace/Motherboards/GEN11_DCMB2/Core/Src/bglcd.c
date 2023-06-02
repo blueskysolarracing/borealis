@@ -291,7 +291,7 @@ void drawP1Default(/*int value[4]*/){
 }
 
 void drawP1Activate(){
-	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
+	char* labels[] = {"CRUIZE CONTROL", "ACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -322,7 +322,7 @@ void drawP1Activate(){
 }
 
 void drawP1Deactivate(){
-	char* labels[] = {"CRUISE CONTROL", "DEACTIVATED"};
+	char* labels[] = {"CRUIZE CONTROL", "DEACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -572,7 +572,7 @@ void drawP2Default(/*int value[4]*/){
 		stateL = 5;
 		break;
 	case 2:
-		state = "CRUISE";
+		state = "CRUIZE";
 		stateL = 6;
 		break;
 	case 3:

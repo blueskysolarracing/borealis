@@ -51,13 +51,19 @@
 
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 
+#define MOTOR_STATE_TMR_PERIOD_MS 20 //Interval (in ms) at which the motor state timer runs (also determines the cruise control PI controller timestep)
+
+#define CRUISE_PI_CHASE_CMD_PASSWORD 123 //16-bit unsigned
+
 //--- MOTOR ---//
 enum CRUISE_MODE {
 	CONSTANT_POWER,
 	CONSTANT_SPEED
 };
 
-#define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
+#define CRUISE_CONTROL_SPEED_AVERAGING_COUNT 20
+
+#define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
 
 /* USER CODE END PD */
@@ -127,9 +133,6 @@ B_tcpHandle_t *radioBtcp;
 
 uint8_t heartbeat[2] = {MCMB_HEARTBEAT_ID, 0};
 
-//uint16_t accValue = 0;
-//uint16_t regenValue = 0;
-
 typedef enum {
 	OFF,
 	PEDAL,
@@ -146,7 +149,7 @@ enum motorPowerState {
 MOTORSTATE motorState; //see below for description
 //	[0] OFF (not reacting to any input)
 //	[1] PEDAL (motor power controlled by accelerator pedal)
-//	[2] CRUISE (DCMB sends target speed to MCMB, which runs a control loop to maintain target speed)
+//	[2] CRUISE (DCMB sends target speed to MCMB, which runs a control loop to maintain target speed). Note: It is also possible to set it to maintain constant power
 //	[3] REGEN (When regen pedal is pressed; has priority over others). DCMB controls motor state
 uint16_t targetPower = 0; // Note: this is not in watts, it is from 0 - 256, for POT
 uint8_t targetSpeed = 0;
@@ -180,18 +183,16 @@ typedef struct {
 PWM_INPUT_CAPTURE pwm_in = {0, 0, 1, 0, 0.0, 0};
 // diffCapture must not be set to zero as it needs to be used as division and dividing by zero causes undefined behaviour
 
-// Struct for cruise control variables -> PID controller
+// Struct for cruise control variables -> PI controller
 typedef struct{
-
-	// Controller Gains
+  // Controller Gains
 	float k_p;
 	float k_i;
-	float k_d;
+  float k_d;
 
 	// Controller inputs
 	float integrator;
 	float prevError;
-	float derivative;
 	float prevMeasurement;
 
 	// Controller output
@@ -202,12 +203,34 @@ typedef struct{
 	float outMax;
 	float integralMin;
 	float integralMax;
+	float derivativeMin;
+	float derivativeMax;
 
-	float time; // Sample time
+	float timeStep_ms; // Sample time
 
 } PIDController;
-PIDController pid = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1};
-// time must not be set to zero as it needs to be used as division
+
+PIDController cruise_control_pi = {
+  //Determined with basic model (PI_cruise_control_simulation.py) followed by empirical testing
+  .k_p = 70.0,
+  .k_i = 0.1,
+  .k_d = 0.0, //Set to 0.0 to effectively change PID to PI (more stable but slower)
+  
+  .integralMin = -200.0,
+  .integralMax = 200.0,
+  .integrator = 0.0,
+
+  .derivativeMin = -100.0,
+  .derivativeMax = 100.0,
+
+  .outMin = -255.0,
+  .outMax = 255.0,
+  .output = 0.0,
+
+  .timeStep_ms = MOTOR_STATE_TMR_PERIOD_MS,
+  .prevMeasurement = 0.0,
+  .prevError = 0.0, 
+};
 
 /* USER CODE END PV */
 
@@ -266,14 +289,13 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr);
 
 /*========== Helper functions for Cruise Control Implementation ========== */
 float PIDControllerUpdate(float setpoint, float measured);
-float speedToFrequency(uint8_t targetSpeed);
-
 
 // Special filtering
 typedef struct StaticFloatQueue {
 	float vals[PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT];
 	Queue_t q;
 }StaticFloatQueue;
+
 static void sfq_init(StaticFloatQueue* this)
 {
 	q_init_static(
@@ -443,7 +465,7 @@ int main(void)
 //  }
 
   //--- FREERTOS ---//
-  xTimerStart(xTimerCreate("motorStateTimer", 20, pdTRUE, NULL, motorTmr), 0);
+  xTimerStart(xTimerCreate("motorStateTimer", MOTOR_STATE_TMR_PERIOD_MS, pdTRUE, NULL, motorTmr), 0);
   xTimerStart(xTimerCreate("spdTimer", 100, pdTRUE, NULL, spdTmr), 0);
   xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0); //Heartbeat handler
   configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
@@ -1956,66 +1978,47 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr) {
 	return temperature;
 }
 
-float speedToFrequency(uint8_t targetSpeed){
+// Function to implement PI controller for cruise control
+float PIControllerUpdate(float setpoint, float measured){
+  //Returns a float between -255 (full regen) and 255 (full accel) to modulate motor power to maintain zero error (desired speed)
 
-	float frequency = targetSpeed * 16 / (3600 * 1000 * 1.7156);
-	// 1.7156 is the circumference of the wheel
-	// This is assuming targetSpeed will be given in kmPerHour
-	return frequency;
+	float error = setpoint - measured;
+	// Proportional term
+	float proportionalError = cruise_control_pi.k_p * error;
+	
+  // Integral term
+  cruise_control_pi.integrator = cruise_control_pi.integrator + cruise_control_pi.k_i * cruise_control_pi.timeStep_ms * (error + cruise_control_pi.prevError)/2.0;
+  if (cruise_control_pi.integrator > cruise_control_pi.integralMax){
+    cruise_control_pi.integrator = cruise_control_pi.integralMax;
+  } else if (cruise_control_pi.integrator < cruise_control_pi.integralMin){
+    cruise_control_pi.integrator = cruise_control_pi.integralMin;
+  }
 
+  //Derivative term
+  float derivative = 0.0;
+  if (cruise_control_pi.timeStep_ms > 0.0){ //Prevent MCU from crashing
+    derivative = cruise_control_pi.k_d * (error - cruise_control_pi.prevError) / cruise_control_pi.timeStep_ms;
+    if (derivative < cruise_control_pi.derivativeMin){
+      derivative = cruise_control_pi.derivativeMin;
+    } else if (derivative > cruise_control_pi.derivativeMax){
+      derivative = cruise_control_pi.derivativeMax;
+    }
+  }
+
+	// Output
+	cruise_control_pi.output = proportionalError + cruise_control_pi.integrator + derivative;
+
+	if(cruise_control_pi.output > cruise_control_pi.outMax){
+		cruise_control_pi.output = cruise_control_pi.outMax;
+	} else if (cruise_control_pi.output < cruise_control_pi.outMin){
+		cruise_control_pi.output = cruise_control_pi.outMin;
+	}
+
+	cruise_control_pi.prevError = error;
+	cruise_control_pi.prevMeasurement = measured;
+
+	return cruise_control_pi.output;
 }
-
-// Function to implement PID controller for cruise control
-//float PIDControllerUpdate(float setpoint, float measured){
-//
-//	float error = setpoint - measured;
-//
-//	// Proportional term
-//	float proportional = pid->k_p * error;
-//	// Integral term
-//	pid->integrator = pid->integrator + pid->k_i * pid->time * (error + pid->prevError)/2.0;
-//
-//	// Calculate integral limits
-//	if(pid->outMax > proportional){
-//		integralMax = pid->outMax - proportional;
-//	} else {
-//		integralMax = 0.0;
-//	}
-//
-//	if(pid->outMax < proportional){
-//		integralMin = pid->outMax - proportional;
-//	} else {
-//		integralMin = 0.0;
-//	}
-//
-//	// Set limits to integration - integral anti-windup
-//	if(pid->integrator > pid->integralMax){
-//		pid->integrator = pid->integralMax;
-//	} else if(pid->integrator < pid->integralMin){
-//		pid->integrator = pid->integralMin;
-//	}
-//
-//	// Derivative term
-//	pid->derivative = pid->k_d * (error - pid->prevError) / pid->time;
-//
-//	// This one includes a filter to prevent HF amplification and on measurement to prevent derivative kick -> use if needed, but need tau term
-//	//pid->derivative = -(2 * pid->k_d * (measurement - pid->prevMeasurement) + (2 * pid->tau - pid->time) * pid->derivative)/ (2* pid->tau + pid->time);
-//
-//	// Output
-//	pid->output = proportional + pid->integrator + pid->derivative;
-//
-//	if(pid->output > pid->outMax){
-//		pid->output = pid->outMax;
-//	} else if(pid->output < pid->outMin){
-//		pid->output = pid->outMin;
-//	}
-//
-//	pid->prevError = error;
-//	pid->prevMeasurement = measured;
-//
-//	return pid->output;
-//}
-
 
 static void motorTmr(TimerHandle_t xTimer){
 	int res = -1; //res will be used for debugging
@@ -2094,13 +2097,26 @@ static void motorTmr(TimerHandle_t xTimer){
 				}
 
 				//Update motor power
+				vTaskSuspendAll();
 				if (CRUISE_MODE == CONSTANT_POWER){
 					res = motor->setAccel(motor, targetPower);
-				} else if (CRUISE_MODE == CONSTANT_SPEED){
-					// TODO: call pid controller update
-				}
-			}
 
+				} else if (CRUISE_MODE == CONSTANT_SPEED){
+				  //TODO: Might need to add hysteresis to PI is it switches between regen and accel too quickly
+				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, globalKmPerHour);
+				  if (cruise_control_PI_output < 0.0){
+					res = motor->setAccel(motor, (uint8_t)0);
+					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
+				  }else if (cruise_control_PI_output > 0.0){
+					res = motor->setRegen(motor, (uint8_t)0);
+					res = motor->setAccel(motor, (uint8_t)cruise_control_PI_output);
+				  }else{
+					res = motor->setAccel(motor, (uint8_t)0);
+					res = motor->setRegen(motor, (uint8_t)0);
+				  }
+				}
+				xTaskResumeAll();
+			}
 			break;
 
 		case REGEN:
@@ -2164,7 +2180,7 @@ static void spdTmr(TimerHandle_t xTimer){
 	// Send frequency to DCMB (for now)
 	buf[1] = (uint8_t) round(kmPerHour);
 
-	globalKmPerHour = kmPerHour; // used for debugger live expression
+	globalKmPerHour = kmPerHour;
 
 	B_tcpSend(btcp, buf, 4);
 }
@@ -2184,25 +2200,36 @@ void tempSenseTaskHandler(void* parameters) {
 
 
 void serialParse(B_tcpPacket_t *pkt){
+  vTaskSuspendAll();
 	switch(pkt->senderID){
 	  case DCMB_ID:
-		lastDcmbPacket = xTaskGetTickCount();
-		if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
-			motorState = pkt->data[1];
-			targetPower = unpacku16(&pkt->data[4]);
-			targetSpeed = pkt->data[8];
+      lastDcmbPacket = xTaskGetTickCount();
+      if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
+        motorState = pkt->data[1];
+        targetPower = unpacku16(&pkt->data[4]);
+        targetSpeed = pkt->data[8];
 
-			//for 5 digital buttons (4 now):
-			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
-			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
-			ecoPwrState = pkt->data[2] & ECO_PWR; //ECO_PWR = 0b0001
-			gearUp = ((pkt->data[2] & VFM_UP) != 0) ? 1 : 0; //VFM_UP = 0b100
-			gearDown = ((pkt->data[2] & VFM_DOWN) != 0) ? 1 : 0; //VFM_DOWN = 0b10
+        //for 5 digital buttons (4 now):
+        // Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
+        fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
+        ecoPwrState = pkt->data[2] & ECO_PWR; //ECO_PWR = 0b0001
+        gearUp = ((pkt->data[2] & VFM_UP) != 0) ? 1 : 0; //VFM_UP = 0b100
+        gearDown = ((pkt->data[2] & VFM_DOWN) != 0) ? 1 : 0; //VFM_DOWN = 0b10
 
-		}
+      }
 		break;
-	}
 
+    case CHASE_ID:
+      if (pkt->data[0] == CHASE_CRUISE_PI_GAIN_ID){
+        //Data format: [ID, password[1], password[0], UNUSED, k_p[1], k_p[0], k_i[1], k_i[0]]
+        //NOTE: k_p and k_i must be multiplied by 100 before transmission
+        if (unpacku16(&pkt->data[1]) == CRUISE_PI_CHASE_CMD_PASSWORD){
+          cruise_control_pi.k_p = (float) unpacku16(&pkt->data[4]) / 100.0;
+          cruise_control_pi.k_i = (float) unpacku16(&pkt->data[6]) / 100.0;
+        }
+      }
+	}
+  xTaskResumeAll();
 }
 
 /** To read PWM diff capture from motor
@@ -2257,7 +2284,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		pwm_in.lastInterrupt = xTaskGetTickCount();
 	}
 }
-//
+
 //void PSMVoltageTaskHandler(void* parameters){
 //	uint8_t busMetrics[3 * 4] = {0};
 //	uint8_t suppBatteryMetrics[2 * 4] = {0};
