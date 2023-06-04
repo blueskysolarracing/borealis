@@ -15,6 +15,7 @@
 #include "display_BSSR.h"
 #include "driver_disp_icon.h"
 #include "battery_config.h"
+#include "protocol_ids.h"
 
 /** Fonts */
 #include "fonts/font5x7.h"
@@ -75,7 +76,7 @@ void drawP1Default_new(/*int value[4]*/){
 
 	// populate label
 	if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "Bat Relay: OPEN\0");
-	else if (common_data.batter_relay_state == CLOSED) sprintf(labelsP1[0], "Bat Relay: CLOSED\0");
+	else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "Bat Relay: CLOSED\0");
 	else sprintf(labelsP1[0], "Bat Relay: N/A\0");
 
 	if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "Arr Relay: OPEN\0");
