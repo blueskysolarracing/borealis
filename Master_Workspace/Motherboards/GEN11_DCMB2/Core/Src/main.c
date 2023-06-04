@@ -2006,17 +2006,17 @@ void steeringWheelTask(const void *pv){
 						motorState = CRUISE; // change global motorState
 						default_data.P2_motor_state = CRUISE;
 
-            if (CRUISE_MODE == CONSTANT_SPEED) {
-              motorTargetSpeed = default_data.P1_speed_kph; //Just recycle this variable set in serialParse
-              motorTargetPower = 0; //MCMB will be doing its own speed control, don't send motorTargetPower commands
-            }
-        	}
-        
-        } else if (motorState == CRUISE){ //If already in cruise
-					motorState = STANDBY;
-					default_data.P2_motor_state = STANDBY;
-          motorTargetSpeed = 0;
-        }
+						if (CRUISE_MODE == CONSTANT_SPEED) {
+						  motorTargetSpeed = default_data.P1_speed_kph; //Just recycle this variable set in serialParse
+						  motorTargetPower = 0; //MCMB will be doing its own speed control, don't send motorTargetPower commands
+						}
+					}
+
+				} else if (motorState == CRUISE){ //If already in cruise
+							motorState = STANDBY;
+							default_data.P2_motor_state = STANDBY;
+				  motorTargetSpeed = 0;
+				}
 			}
 
 			//Radio - Enable driver voice radio
