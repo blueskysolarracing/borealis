@@ -76,6 +76,7 @@ enum CRUISE_MODE {
 #define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
 #define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
+#define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
@@ -1633,7 +1634,8 @@ static void pedalTask(const void* p) {
 		if (motorState != CRUISE){
 #ifdef USE_ADC_REGEN
 			if (steering_wheel_variable_regen_value > 30) {
-				if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD) {
+				// if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD) {
+				if (-REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0 && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD) {
 					motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
 					motorState = REGEN;
 					default_data.P2_motor_state = REGEN;
@@ -2054,7 +2056,8 @@ void steeringWheelTask(const void *pv){
 #ifndef USE_ADC_REGEN
 			//Middle button pressed - Holding it causes regen
 			if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-				if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
+				// if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
+				if (-REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0 && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD) {
 					steering_wheel_regen_button_pressed = 1;
 				}
 			} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
