@@ -1711,6 +1711,7 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		 } else if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
+			common_data.array_relay_state = arrayRelayState;
 		 }
 		 break;
 
@@ -1756,6 +1757,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			previousBatteryState = batteryState;
 			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
+			 common_data.battery_relay_state = batteryRelayState;
 			 if (batteryRelayState == CLOSED) {
 				 // turn on the back up camera and screen by regulation
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
@@ -2295,13 +2297,13 @@ void displayTask(const void *pv){
 			}
 
 			//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
-			if (SLEEP_FRAME_EN) {
-				if (IGNORE_PPTMB){
-					if (batteryRelayState == OPEN) { local_display_sel = 6; }
-				} else {
-					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 6; }
-				}
-			}
+			// if (SLEEP_FRAME_EN) {
+			// 	if (IGNORE_PPTMB){
+			// 		if (batteryRelayState == OPEN) { local_display_sel = 6; }
+			// 	} else {
+			// 		if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 6; }
+			// 	}
+			// }
 
 			//Overwrite display state if battery fault
 			if (batteryState == FAULTED){

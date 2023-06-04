@@ -74,14 +74,15 @@ void drawP1Default_new(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	// populate label
-	if(value[0] >= 0) sprintf(labelsP1[0], "Solar: +%4dW\0", value[0]);
-	else sprintf(labelsP1[0], "Solar:-%4dW\0", abs(value[0]));
+	if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "Bat Relay: OPEN\0");
+	else if (common_data.batter_relay_state == CLOSED) sprintf(labelsP1[0], "Bat Relay: CLOSED\0");
+	else sprintf(labelsP1[0], "Bat Relay: N/A\0");
 
-	if(value[1] >= 0) sprintf(labelsP1[1], "Motor: +%4dW\0", value[1]);
-	else sprintf(labelsP1[1], "Motor:-%4dW\0", abs(value[1]));
+	if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "Arr Relay: OPEN\0");
+	else if (common_data.array_relay_state == CLOSED) sprintf(labelsP1[1], "Arr Relay: CLOSED\0");
+	else sprintf(labelsP1[1], "Arr Relay: N/A\0");
 
-	if(value[2] >= 0) sprintf(labelsP1[2], "Batt:  +%4dW\0", value[2]);
-	else sprintf(labelsP1[2], "Batt: -%4dW\0", abs(value[2]));
+	sprintf(labelsP1[2], "\0");
 
 	// start drawing at y = 5
 	uint8_t y = 5;

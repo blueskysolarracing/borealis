@@ -10,6 +10,9 @@
 
 //Structs containing data to display on driver displays
 struct disp_common{
+	uint8_t battery_relay_state = 255;
+	uint8_t array_relay_state = 255;
+
 	short 	solar_power;
 	short 	motor_power;
 	short	battery_power;
