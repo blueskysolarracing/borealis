@@ -223,6 +223,9 @@ float battery_temp[NUM_BATT_TEMP_SENSORS]; //Array of the temp of each thermisto
 //--- ARRAY ---//
 uint8_t arrayRelayState = OPEN;
 
+//--- SIDE PANEL ---//
+uint8_t camera_switch_is_on = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -338,7 +341,7 @@ int main(void)
   glcd_init();
 
   //--- VFM ---//
-  default_data.P2_VFM = 1;
+  default_data.P2_VFM = 0;
 
   /* USER CODE END 2 */
 
@@ -1753,9 +1756,21 @@ void serialParse(B_tcpPacket_t *pkt){
 			previousBatteryState = batteryState;
 			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
+			 if (batteryRelayState == CLOSED) {
+				 // turn on the back up camera and screen by regulation
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
 
+			 } else if (batteryRelayState == OPEN) {
+				 if (!camera_switch_is_on) {
+					 // turn off back up camera and screen
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+
+				 }
+			 }
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
-			 if (batteryRelayState == OPEN) default_data.P2_VFM = 1;
+			 if (batteryRelayState == OPEN) default_data.P2_VFM = 0;
 
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
@@ -2011,7 +2026,7 @@ void steeringWheelTask(const void *pv){
 
 			//Up button pressed
 			if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-				if (default_data.P2_VFM < MAX_VFM && (batteryRelayState == CLOSED)){ //Bound VFM setting
+				if (default_data.P2_VFM < MAX_VFM - 1 && (batteryRelayState == CLOSED)){ //Bound VFM setting
 					default_data.P2_VFM++;
 				}
 				vfmUpState = 1;
@@ -2023,7 +2038,7 @@ void steeringWheelTask(const void *pv){
 
 			//Down button pressed
 			if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
-				if (default_data.P2_VFM > 1){ //Bound VFM setting
+				if (default_data.P2_VFM > 0){ //Bound VFM setting
 					default_data.P2_VFM--;
 				}
 				vfmDownState = 1;
@@ -2122,9 +2137,11 @@ void sidePanelTask(const void *pv){
 				if (sidePanelData & (1 << 6)){
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
+				  camera_switch_is_on = 1;
 				} else {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+				  camera_switch_is_on = 0;
 				}
 
 			//FAN
@@ -2134,9 +2151,9 @@ void sidePanelTask(const void *pv){
 				  HAL_GPIO_WritePin(GPIOG, FAN_CTRL_Pin, GPIO_PIN_RESET); //Disable fan
 				}
 
-			//AUX0 (DRL in GEN11)
-				uint8_t bufh[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
-
+				//AUX0 (DRL in GEN11) (Regulation requires DRL to turn on the moment battery relay is closed,
+				// ...so when battery relay is closed, even if DRL switch is off, it will automatically turn on
+				uint8_t bufh[4] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
 				if (sidePanelData & (1 << 1)){
 					bufh[1] = 0b01000100; //AUX0 == 1 -> DRL on
 					default_data.P2_DRL_state = 1;
@@ -2336,6 +2353,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;
 	buf[1] = motorState;
 	buf[2] = digitalButtons;
+	buf[3] = default_data.P2_VFM;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
 	buf[8] = motorTargetSpeed;
 

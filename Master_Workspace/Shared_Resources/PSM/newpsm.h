@@ -60,8 +60,8 @@
 #define POWER_LIMIT_CONVERSION 					(256*POWER_CONVERSION)
 
 #define VOLTAGE_DIVIDER							(((double)30000.0)/(double)(30000.0 + 357000.0))
-#define CURRENT_ERROR_MULTIPLIER				((double)(-0.1448))
-#define CURRENT_ERROR_OFFSET					((double)(0.0714))
+#define CURRENT_ERROR_MULTIPLIER				((double)(1.1448) * (double)(1.1399))
+#define CURRENT_ERROR_OFFSET					((double)(0.0714) + (double)(0.07) + (double)(0.158))
 
 struct PSM_P {
 	 SPI_HandleTypeDef* spi_handle;
