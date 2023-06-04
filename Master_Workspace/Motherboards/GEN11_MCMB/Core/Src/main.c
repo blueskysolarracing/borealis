@@ -212,8 +212,8 @@ typedef struct{
 
 PIDController cruise_control_pi = {
   //Determined with basic model (PI_cruise_control_simulation.py) followed by empirical testing
-  .k_p = 70.0,
-  .k_i = 0.1,
+  .k_p = 250.0,
+  .k_i = 0.015,
   .k_d = 0.0, //Set to 0.0 to effectively change PID to PI (more stable but slower)
   
   .integralMin = -200.0,
@@ -2221,11 +2221,18 @@ void serialParse(B_tcpPacket_t *pkt){
 
     case CHASE_ID:
       if (pkt->data[0] == CHASE_CRUISE_PI_GAIN_ID){
-        //Data format: [ID, password[1], password[0], UNUSED, k_p[1], k_p[0], k_i[1], k_i[0]]
-        //NOTE: k_p and k_i must be multiplied by 100 before transmission
+        /*Data format:
+        * [ID, password[1], password[0], UNUSED, 
+           k_p[3], k_p[2], k_p[1], k_p[0], 
+           k_i[3], k_i[2], k_i[1], k_i[0],
+           k_d[3], k_d[2], k_d[1], k_d[0]]
+        *
+        * NOTE: k_p, k_i and k_d must be multiplied by 100000 before transmission
+        */ 
         if (unpacku16(&pkt->data[1]) == CRUISE_PI_CHASE_CMD_PASSWORD){
-          cruise_control_pi.k_p = (float) unpacku16(&pkt->data[4]) / 100.0;
-          cruise_control_pi.k_i = (float) unpacku16(&pkt->data[6]) / 100.0;
+          cruise_control_pi.k_p = (float) unpacku32(&pkt->data[4]) / 100000.0;
+          cruise_control_pi.k_i = (float) unpacku32(&pkt->data[8]) / 100000.0;
+          cruise_control_pi.k_d = (float) unpacku32(&pkt->data[12]) / 100000.0;
         }
       }
 	}

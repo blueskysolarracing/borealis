@@ -48,7 +48,6 @@
 
 //--- DISPLAY ---//
 #define SLEEP_FRAME_EN 1 //When set to 1, enable the sleeping car start frame (when neither relays are closed)
-#define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
@@ -1955,8 +1954,7 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//---------- Process data ----------//
 			// Navigation <- Not implemented
-			// Cruise <- Not implemented
-
+\
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
 			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1993,8 +1991,9 @@ void steeringWheelTask(const void *pv){
 						motorState = CRUISE; // change global motorState
 						default_data.P2_motor_state = CRUISE;
 
-            if (CRUISE_MODE == CONSTANT_SPEED) { //motorTargetPower is set in the pedal task as it is the same variable used in pedal mode
+            if (CRUISE_MODE == CONSTANT_SPEED) {
               motorTargetSpeed = default_data.P1_speed_kph; //Just recycle this variable set in serialParse
+              motorTargetPower = 0; //MCMB will be doing its own speed control, don't send motorTargetPower commands
             }
         	}
         

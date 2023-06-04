@@ -13,8 +13,8 @@ import numpy as np
 import time
 
 #--- CONSTANTS ---#
-k_p = 70
-k_i = 0.1
+k_p = 250
+k_i = 0.015
 k_d = 0
 initial_velocity_m_per_sec = 15
 target_velocity_m_per_sec = 20
@@ -28,12 +28,13 @@ derivativeMin = -200
 derivativeMax = 200
 outputMin = -255
 outputMax = 255
-noise_std_dev = 0.05 #Add noise to the speed measurement
+noise_std_dev = 0.0 #Add noise to the speed measurement
 
 #--- CAR PROPERTIES ---#
 coefficient_rolling_resistance = 0.0025
 car_mass_kg = 280
-torque_slope_Nm_per_velocity = 6.12 #Torque increases by 6.12 Nm per m/s
+wheel_radius = 0.555/2
+motor_max_force = 120 / (wheel_radius) #Max 120Nm of torque
 air_density_kg_per_m_squared = 1.2
 CdA = 0.067
 
@@ -48,6 +49,11 @@ current_velocity_avg = initial_velocity_m_per_sec
 velocity_average_queue_length = 25
 velocity_queue = deque()
 velocity_sum = 0.0
+
+#(timestep, force)
+external_forces = [(5000, 100), (15000, -200)]
+# external_forces = []
+current_external_force = 0
 
 time_list = [0]
 velocity_list = [current_velocity_m_per_sec]
@@ -68,11 +74,14 @@ def velocity_moving_average(current_velocity):
     return velocity_sum / len(velocity_queue)
 
 def compute_max_accel(current_velocity):
-    return (torque_slope_Nm_per_velocity*current_velocity - 0.5*air_density_kg_per_m_squared*CdA*current_velocity**2 - 2744*coefficient_rolling_resistance) / car_mass_kg
+    return (motor_max_force - 0.5*air_density_kg_per_m_squared*CdA*current_velocity**2 - 2744*coefficient_rolling_resistance) / car_mass_kg
 
 def compute_max_decel(current_velocity):
     #Assuming torque provided by regen is half of that provided by accel
-    return (-0.5*torque_slope_Nm_per_velocity*current_velocity - 0.5*air_density_kg_per_m_squared*CdA*current_velocity**2 - 2744*coefficient_rolling_resistance) / car_mass_kg
+    return (-0.5*motor_max_force - 0.5*air_density_kg_per_m_squared*CdA*current_velocity**2 - 2744*coefficient_rolling_resistance) / car_mass_kg
+
+def compute_external_forces(current_velocity):
+    return -0.5*air_density_kg_per_m_squared*CdA*current_velocity**2 - 2744*coefficient_rolling_resistance
 
 def plot_max_accel():
     velocity_list = [i/3.6 for i in range(100)]
@@ -98,18 +107,18 @@ def plot_max_decel():
     plt.ylabel("Max deceleration (m/s^2)")
     plt.show()
 
-def compute_new_speed(current_velocity, PI_control):
+def compute_new_speed(current_velocity, PI_control, applied_external_force):
     new_velocity = current_velocity
     if PI_control < 0: #Regen
-        current_max_decel = compute_max_decel(current_velocity)
-        new_velocity = current_velocity + PI_control/outputMin * current_max_decel * timestep_ms / 1000
+        current_max_decel = -0.5*motor_max_force #Assume 50% less than max accel
+        new_velocity = current_velocity + (PI_control/outputMin * current_max_decel + compute_external_forces(current_velocity) + applied_external_force)/car_mass_kg * timestep_ms / 1000
     elif PI_control > 0: #Accel
-        current_max_accel = compute_max_accel(current_velocity)
-        new_velocity = current_velocity + PI_control/outputMax * current_max_accel * timestep_ms / 1000
+        current_max_accel = motor_max_force
+        new_velocity = current_velocity + (PI_control/outputMax * current_max_accel + compute_external_forces(current_velocity) + applied_external_force)/car_mass_kg * timestep_ms / 1000
         
     return new_velocity
 
-for i in range(10000):
+for i in range(25000):
     #PI CONTROL LOOP
     previous_pi_output = output
 
@@ -152,7 +161,12 @@ for i in range(10000):
         output = previous_pi_output
 
     #CAR KINEMATICS
-    current_velocity_m_per_sec = compute_new_speed(current_velocity_m_per_sec, PI_control=output) + np.random.normal(0, noise_std_dev, size=None)
+    if len(external_forces) > 0:
+        timecount, force = external_forces[0]
+        if (i == timecount):
+            current_external_force = force
+            if len(external_forces) > 0:    external_forces.pop(0)
+    current_velocity_m_per_sec = compute_new_speed(current_velocity_m_per_sec, PI_control=output, applied_external_force=current_external_force) + np.random.normal(0, noise_std_dev, size=None)
     current_velocity_avg = velocity_moving_average(current_velocity_m_per_sec)
     velocity_list.append(current_velocity_avg)
 
@@ -161,6 +175,7 @@ for i in range(10000):
 #Plots and prints
 ax1 = plt.subplot()
 plt.plot(time_list, velocity_list)
+plt.title(f"Modeled speed vs time (k_p: {k_p}, k_i: {k_i})")
 plt.axhline(y=target_velocity_m_per_sec, color='green', linestyle='--')
 ax2 = ax1.twinx()
 ax2.plot(time_list, output_list, 'r')
@@ -168,3 +183,4 @@ ax2.plot(time_list, output_list, 'r')
 print(f"Times between motor changes (ms): {times_between_motor_mode_change[1:-1]}")
 
 plt.show()
+plt.savefig(f"/Users/tristan/Desktop/constant_speed_PI_test_kp-{k_p}_ki-{k_i}.png")
