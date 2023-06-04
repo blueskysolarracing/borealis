@@ -337,18 +337,19 @@ static void mitsubaMotor_vfmQueueHandler(void* parameters)
 				case 0:
 					//gear up
 					HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_RESET);
-					vTaskDelay(pdMS_TO_TICKS(200));  //200ms delay
+					vTaskDelay(pdMS_TO_TICKS(200)); // delay for pulse
 					HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_SET);
 					break;
 				case 1:
 					//gear down
 					HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_RESET);
-					vTaskDelay(pdMS_TO_TICKS(200));  //200ms delay
+					vTaskDelay(pdMS_TO_TICKS(200)); // delay for pulse
 					HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET);
 					break;
 				default:
 					break;
 			}
+			vTaskDelay(pdMS_TO_TICKS(1200));
 		}
 
 	}

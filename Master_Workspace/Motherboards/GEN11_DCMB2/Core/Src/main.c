@@ -341,7 +341,7 @@ int main(void)
   glcd_init();
 
   //--- VFM ---//
-  default_data.P2_VFM = 1;
+  default_data.P2_VFM = 0;
 
   /* USER CODE END 2 */
 
@@ -1770,7 +1770,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				 }
 			 }
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
-			 if (batteryRelayState == OPEN) default_data.P2_VFM = 1;
+			 if (batteryRelayState == OPEN) default_data.P2_VFM = 0;
 
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
@@ -2027,7 +2027,7 @@ void steeringWheelTask(const void *pv){
 
 			//Up button pressed
 			if (~oldUpButton && (steeringData[2] & (1 << 0))){ // 0 --> 1 transition
-				if (default_data.P2_VFM < MAX_VFM && (batteryRelayState == CLOSED)){ //Bound VFM setting
+				if (default_data.P2_VFM < MAX_VFM - 1 && (batteryRelayState == CLOSED)){ //Bound VFM setting
 					default_data.P2_VFM++;
 				}
 				vfmUpState = 1;
@@ -2039,7 +2039,7 @@ void steeringWheelTask(const void *pv){
 
 			//Down button pressed
 			if (~oldDownButton && (steeringData[2] & (1 << 1))){ // 0 --> 1 transition
-				if (default_data.P2_VFM > 1){ //Bound VFM setting
+				if (default_data.P2_VFM > 0){ //Bound VFM setting
 					default_data.P2_VFM--;
 				}
 				vfmDownState = 1;
@@ -2353,6 +2353,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[0] = DCMB_MOTOR_CONTROL_STATE_ID;
 	buf[1] = motorState;
 	buf[2] = digitalButtons;
+	buf[3] = default_data.P2_VFM;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
 	buf[8] = motorTargetSpeed;
 

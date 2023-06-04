@@ -158,7 +158,8 @@ uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER (default to ECO)
 uint8_t gearUp = 0;
 uint8_t fwdRevState = 0;
 uint8_t gearDown = 0;
-uint8_t vfmResetState = 0;
+uint8_t vfm_pos = 0; // default to zero
+uint8_t past_vfm_pos = 0;
 
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
@@ -2127,13 +2128,27 @@ static void motorTmr(TimerHandle_t xTimer){
 		} else if (ecoPwrState == POWER){
 			res = motor->setPwr(motor);
 		}
-		if (gearUp && !gearDown) {
-			res = motor->gearUp(motor);
-			gearUp = 0;
-		} else if (gearDown) {
-			res = motor->gearDown(motor);
-			gearDown = 0;
+		uint8_t current_vfm_pos = vfm_pos;
+		if (current_vfm_pos > past_vfm_pos) {
+			for (int i = 0; i < current_vfm_pos - past_vfm_pos; i++) {
+				res = motor->gearUp(motor);
+			}
 		}
+		if (current_vfm_pos < past_vfm_pos) {
+			for (int i = 0; i < past_vfm_pos - current_vfm_pos; i++) {
+				res = motor->gearDown(motor);
+			}
+		}
+		past_vfm_pos = current_vfm_pos;
+
+		// Deprecated
+//		if (gearUp && !gearDown) {
+//			res = motor->gearUp(motor);
+//			gearUp = 0;
+//		} else if (gearDown) {
+//			res = motor->gearDown(motor);
+//			gearDown = 0;
+//		}
 	}
 }
 
@@ -2191,13 +2206,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			motorState = pkt->data[1];
 			targetPower = unpacku16(&pkt->data[4]);
 			targetSpeed = pkt->data[8];
+			vfm_pos = pkt->data[3];
 
 			//for 5 digital buttons (4 now):
 			// Deprecated: motorOnOff = pkt->data[10] & MOTOR; //Note MOTOR = 0b10000
 			fwdRevState = pkt->data[2] & FWD_REV; //FWD_REV = 0b1000
 			ecoPwrState = pkt->data[2] & ECO_PWR; //ECO_PWR = 0b0001
-			gearUp = ((pkt->data[2] & VFM_UP) != 0) ? 1 : 0; //VFM_UP = 0b100
-			gearDown = ((pkt->data[2] & VFM_DOWN) != 0) ? 1 : 0; //VFM_DOWN = 0b10
+//			gearUp = ((pkt->data[2] & VFM_UP) != 0) ? 1 : 0; //VFM_UP = 0b100
+//			gearDown = ((pkt->data[2] & VFM_DOWN) != 0) ? 1 : 0; //VFM_DOWN = 0b10
 
 		}
 		break;
