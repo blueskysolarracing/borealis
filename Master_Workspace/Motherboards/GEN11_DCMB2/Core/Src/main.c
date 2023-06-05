@@ -48,7 +48,6 @@
 
 //--- DISPLAY ---//
 #define SLEEP_FRAME_EN 1 //When set to 1, enable the sleeping car start frame (when neither relays are closed)
-#define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
@@ -73,8 +72,9 @@ enum CRUISE_MODE {
 
 #define MOTOR_DATA_PERIOD 20 //Send motor data every MOTOR_DATA_PERIOD (ms)
 #define MAX_VFM 8 //Maximum VFM setting
-#define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
+#define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
+#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 130 // regen value when pressing the regen button on the steering wheel
 #define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
 #define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
 
@@ -178,7 +178,7 @@ uint8_t fwdRevState = 0;
 uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
-uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
+uint8_t motorTargetSpeed = 0; // maintain current speed of car when cruise control is enabled by pressing on the steering wheel
 uint8_t brakePressed = 0;
 
 #ifndef USE_ADC_REGEN
@@ -1643,7 +1643,7 @@ static void pedalTask(const void* p) {
 			}
 #else
 			if (steering_wheel_regen_button_pressed) {
-				motorTargetPower = 130;  // can change to any value we want
+				motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 			}
@@ -1973,8 +1973,7 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//---------- Process data ----------//
 			// Navigation <- Not implemented
-			// Cruise <- Not implemented
-
+\
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
 			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
@@ -2004,23 +2003,23 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//Nothing to do for the horn as its state will be d by BBMB from buf_rs485
 
-			//Encoder - Set car motor global values
-			if (motorState == CRUISE && fwdRevState == 0 && CRUISE_MODE == CONSTANT_SPEED){ // check if in cruise state and forward state
-				uint8_t old_ang = encoderMap8[oldSteeringData[0]];
-				uint8_t new_ang = encoderMap8[steeringData[0]];
-				motorTargetSpeed = motorTargetSpeed + CRUISE_MULT * (new_ang - old_ang); // update global variable
-			}
-
 			//Cruise - (Try to change) Motor state and send to MCMB
 			if (steeringData[1] & (1 << 4)){
-				if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), try to put in cruise
+				if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), put in cruise
 					if ((motorState != REGEN) && (motorState != OFF) && (motorState != STANDBY)){
 						motorState = CRUISE; // change global motorState
 						default_data.P2_motor_state = CRUISE;
+
+						if (CRUISE_MODE == CONSTANT_SPEED) {
+						  motorTargetSpeed = default_data.P1_speed_kph; //Just recycle this variable set in serialParse
+						  motorTargetPower = 0; //MCMB will be doing its own speed control, don't send motorTargetPower commands
+						}
 					}
+
 				} else if (motorState == CRUISE){ //If already in cruise
-					motorState = STANDBY;
-					default_data.P2_motor_state = STANDBY;
+							motorState = STANDBY;
+							default_data.P2_motor_state = STANDBY;
+				  motorTargetSpeed = 0;
 				}
 			}
 
@@ -2335,6 +2334,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	if (ignitionState != IGNITION_ON){ //overrides original motor state if IGNITION is not on
 		motorState = OFF;
 		motorTargetPower = (uint16_t) 0;
+    motorTargetSpeed = 0;
 		default_data.P2_motor_state = OFF;
 	}
 
