@@ -1719,6 +1719,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
 			detailed_data.P1_solar_current = 	arrayToFloat(&(pkt->data[8])); //Solar current
 
+			if (detailed_data.overcurrent_status && detailed_data.P1_solar_current > detailed_data.max_solar_current)
+				detailed_data.max_solar_current = detailed_data.P1_solar_current;
 		 } else if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
 			common_data.array_relay_state = arrayRelayState;
@@ -1734,6 +1736,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	arrayToFloat(&(pkt->data[8])); //Motor current
 
+			if (detailed_data.overcurrent_status && detailed_data.P1_motor_current > detailed_data.max_motor_current)
+				detailed_data.max_motor_current = detailed_data.P1_motor_current;
 		} else if (pkt->data[0] == MCMB_SUPP_BATT_VOLTAGE_ID){
 			default_data.P2_low_supp_volt = (uint8_t) round(10.0 * arrayToFloat(&(pkt->data[4])));
 
@@ -1753,6 +1757,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 			batteryVoltage = arrayToFloat(&(pkt->data[4])); //Battery voltage
 
+			if (detailed_data.overcurrent_status && detailed_data.P1_battery_current > detailed_data.max_battery_current)
+				detailed_data.max_battery_current = detailed_data.P1_battery_current;
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
 			 common_data.LV_voltage = 			(short) round(10*arrayToFloat(&(pkt->data[4]))); //LV voltage

@@ -68,6 +68,10 @@ struct disp_detailed_frame{
 	uint32_t undertemperature_status;
 	uint8_t overcurrent_status;
 
+	float max_solar_current;
+	float max_motor_current;
+	float max_battery_current;
+
 	int32_t min_temperature;
 	int32_t min_temperature_cell;
 	int32_t max_temperature;
