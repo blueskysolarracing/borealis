@@ -1105,27 +1105,27 @@ void drawP2BMSFault(/*int value[4]*/){
 	if (detailed_data.overcurrent_status) {
 		glcd_tiny_draw_char_xy(x, correct_Y(y), 'M');
 		x += xStep;
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_motor_current / 10));
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_motor_current) / 10));
 		x += xStep;
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_motor_current % 10));
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_motor_current) % 10));
 		x += xStep;
 		glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 		x += xStep;
 
 		glcd_tiny_draw_char_xy(x, correct_Y(y), 'B');
 		x += xStep;
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_battery_current / 10));
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_battery_current) / 10));
 		x += xStep;
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_battery_current % 10));
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_battery_current) % 10));
 		x += xStep;
 		glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 		x += xStep;
 
 		glcd_tiny_draw_char_xy(x, correct_Y(y), 'S');
 		x += xStep;
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_solar_current / 10));
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_solar_current) / 10));
 		x += xStep;
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_solar_current % 10));
+		glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_solar_current) % 10));
 		x += xStep;
 		glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 		x += xStep;
