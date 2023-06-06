@@ -74,7 +74,7 @@ enum CRUISE_MODE {
 #define MAX_VFM 8 //Maximum VFM setting
 #define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
-#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 130 // regen value when pressing the regen button on the steering wheel
+#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 255 // regen value when pressing the regen button on the steering wheel
 #define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
 #define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
 
@@ -181,9 +181,7 @@ uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // maintain current speed of car when cruise control is enabled by pressing on the steering wheel
 uint8_t brakePressed = 0;
 
-#ifndef USE_ADC_REGEN
-uint8_t steering_wheel_regen_button_pressed = 0; // 1 is on, 0 is off
-#endif
+uint8_t start_steering_wheel_constant_regen = 0; // 1 is on, 0 is off
 
 typedef enum {
 	BRAKE_PRESSED,
@@ -1578,8 +1576,21 @@ static void pedalTask(const void* p) {
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	uint8_t firstTime = 1;
+	uint8_t adc_regen_threshold = 30;
 
+	uint8_t start_adc_regen = 0;
     while (1) {
+#ifdef USE_ADC_REGEN
+    	if (steering_wheel_variable_regen_value > adc_regen_threshold
+    			&& -REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0
+				&& detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD
+		) {
+    		start_adc_regen = 1;
+		} else {
+			start_adc_regen = 0;
+		}
+
+#endif
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
 			vTaskSuspendAll();
@@ -1590,8 +1601,8 @@ static void pedalTask(const void* p) {
 			xTaskResumeAll();
 		}
 
-		// Check if brake is pressed
-		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
+		// Check if brake is pressed or car is going to regen
+		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 || start_steering_wheel_constant_regen || start_adc_regen) {
 			brakeState = BRAKE_PRESSED;
 		} else {
 			brakeState = BRAKE_RELEASED;
@@ -1633,16 +1644,13 @@ static void pedalTask(const void* p) {
 		//Pedal has not effect when the motor is in cruise mode
 		if (motorState != CRUISE){
 #ifdef USE_ADC_REGEN
-			if (steering_wheel_variable_regen_value > 30) {
-				// if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD) {
-				if (-REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0 && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD) {
-					motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
-					motorState = REGEN;
-					default_data.P2_motor_state = REGEN;
-				}
+			if (start_adc_regen) {
+				motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				motorState = REGEN;
+				default_data.P2_motor_state = REGEN;
 			}
 #else
-			if (steering_wheel_regen_button_pressed) {
+			if (start_steering_wheel_constant_regen) {
 				motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
@@ -2057,10 +2065,10 @@ void steeringWheelTask(const void *pv){
 			if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
 				// if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
 				if (-REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0 && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD) {
-					steering_wheel_regen_button_pressed = 1;
+					start_steering_wheel_constant_regen = 1;
 				}
 			} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
-				steering_wheel_regen_button_pressed = 0;
+				start_steering_wheel_constant_regen = 0;
 			}
 			oldMiddleButton = (steeringData[2] & (1 << 4));
 #endif

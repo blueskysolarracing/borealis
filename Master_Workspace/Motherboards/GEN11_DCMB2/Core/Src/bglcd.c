@@ -75,13 +75,13 @@ void drawP1Default_new(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	// populate label
-	if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "Bat Relay: OPEN\0");
-	else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "Bat Relay: CLOSED\0");
-	else sprintf(labelsP1[0], "Bat Relay: N/A\0");
+	if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "BR: OPEN\0");
+	else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "BR: CLOSED\0");
+	else sprintf(labelsP1[0], "BR: N/A\0");
 
-	if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "Arr Relay: OPEN\0");
-	else if (common_data.array_relay_state == CLOSED) sprintf(labelsP1[1], "Arr Relay: CLOSED\0");
-	else sprintf(labelsP1[1], "Arr Relay: N/A\0");
+	if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "AR: OPEN\0");
+	else if (common_data.array_relay_state == CLOSED) sprintf(labelsP1[1], "AR: CLOSED\0");
+	else sprintf(labelsP1[1], "AR: N/A\0");
 
 	sprintf(labelsP1[2], "\0");
 
