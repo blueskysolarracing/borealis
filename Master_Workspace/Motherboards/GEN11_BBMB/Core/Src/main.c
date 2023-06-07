@@ -53,7 +53,7 @@
 #define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
 
 #define RELAY_STATE_TIMER_INTERVAL 	500 // Interval at which BBMB broadcasts the battery relay state in ms
-
+#define PSM_FILTER_SIZE 400
 
 /* USER CODE END PD */
 
@@ -113,8 +113,8 @@ float battery_current = 0;
 //double voltageCurrent_HV[2] = {0};
 
 struct PSM_FIR_Filter psmFilter;
-float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
-float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
+float PSM_FIR_HV_Voltage[PSM_FILTER_SIZE] = {0};
+float PSM_FIR_HV_Current[PSM_FILTER_SIZE] = {0};
 
 
 //--- RELAYS ---//
@@ -229,7 +229,7 @@ int main(void)
   NVIC_EnableIRQ(TIM7_IRQn);
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
-  HAL_Delay(500);
+  HAL_Delay(1000);
 
   //--- PSM ---//
 
@@ -245,7 +245,7 @@ int main(void)
 
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   psmFilter.buf_current = PSM_FIR_HV_Current;
-  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_BBMB;
+  psmFilter.buf_size = PSM_FILTER_SIZE;
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
 //  }
@@ -1636,8 +1636,8 @@ void PSMTaskHandler(void * parameters){
 
 	double voltage, current;
 
-	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
-
+	// int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
+	int delay = pdMS_TO_TICKS(5);
 	while (1){
 
 		voltage = readPSM(&psmPeriph, VBUS, 3);
