@@ -167,7 +167,8 @@ uint8_t past_vfm_pos = 0;
 long lastDcmbPacket = 0;
 uint8_t temperature = 0;
 uint8_t speedTarget;
-uint8_t globalKmPerHour = 0;
+float prevKmPerHour = 0;
+float kmPerHour = 0;
 
 MotorInterface* motor;
 MitsubaMotor mitsuba;
@@ -2095,7 +2096,7 @@ static void motorTmr(TimerHandle_t xTimer){
 
 				} else if (CRUISE_MODE == CONSTANT_SPEED){
 				  //TODO: Might need to add hysteresis to PI is it switches between regen and accel too quickly
-				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, globalKmPerHour);
+				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, prevKmPerHour);
 				  if (cruise_control_PI_output < 0.0){
 					res = motor->setAccel(motor, (uint8_t)0);
 					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
@@ -2181,12 +2182,17 @@ static void spdTmr(TimerHandle_t xTimer){
 
 	// Get KM per Hour
 	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
-	float kmPerHour = meterPerSecond / 1000.0 * 3600.0;
+	kmPerHour = meterPerSecond / 1000.0 * 3600.0;
 
+	// Check if change is too great (most likely due to noise)
+	// If so, use the previous value
+	if (fabs(kmPerHour - prevKmPerHour) > 25.0) {
+		kmPerHour = prevKmPerHour;
+	}
 	// Send frequency to DCMB (for now)
 	buf[1] = (uint8_t) round(kmPerHour);
 
-	globalKmPerHour = kmPerHour;
+	prevKmPerHour = kmPerHour;
 
 	B_tcpSend(btcp, buf, 4);
 }
