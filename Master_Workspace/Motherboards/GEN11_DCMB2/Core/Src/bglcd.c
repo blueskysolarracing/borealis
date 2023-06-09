@@ -855,7 +855,7 @@ void drawP2Detailed_3(){
 
 	sprintf(
 		labels[0],
-		"T:%c%2d.%d(%2d)%c%2d.%d(%2d)\0",
+		"T: %c%2d.%d(%2d) %c%2d.%d(%2d)\0",
 		detailed_data.min_temperature < 0 ? '-' : '+',
 		abs(detailed_data.min_temperature) / 10,
 		abs(detailed_data.min_temperature) % 10,
@@ -867,7 +867,7 @@ void drawP2Detailed_3(){
 	);
 	sprintf(
 		labels[1],
-		"V:%c%2d.%d(%2d)%c%2d.%d(%2d)\0",
+		"V: %c%2d.%d(%2d) %c%2d.%d(%2d)\0",
 		detailed_data.min_voltage < 0 ? '-' : '+',
 		abs(detailed_data.min_voltage) / 10,
 		abs(detailed_data.min_voltage) % 10,
@@ -879,7 +879,7 @@ void drawP2Detailed_3(){
 	);
 	sprintf(
 		labels[2],
-		"S:%c%2d%%(%2d)%c%2d%%(%2d)\0",
+		"S: %c%2d%%(%2d) %c%2d%%(%2d)\0",
 		detailed_data.min_soc < 0 ? '-' : '+',
 		abs(detailed_data.min_soc),
 		detailed_data.min_soc_cell,
