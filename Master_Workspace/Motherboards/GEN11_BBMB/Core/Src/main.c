@@ -229,7 +229,7 @@ int main(void)
   NVIC_EnableIRQ(TIM7_IRQn);
   HAL_TIM_Base_Start_IT((TIM_HandleTypeDef*) &htim7); //Blink LED to show that CPU is still alive
 
-  HAL_Delay(1000);
+  HAL_Delay(1500);
 
   //--- PSM ---//
 
