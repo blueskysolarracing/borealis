@@ -272,8 +272,7 @@ void HeartbeatHandler(TimerHandle_t xTimer);
 
 //Tasks for temperature reading and PSM and heartbeat
 void tempSenseTaskHandler(void* parameters);
-void PSMVoltageTaskHandler(void* parameters);
-void PSMCurrentTaskHandler(void* parameters);
+void PSMTaskHandler(void* parameters);
 void measurementSender(TimerHandle_t xTimer);
 
 // function which writes to the MCP4146 potentiometer on the MC^2
@@ -457,7 +456,8 @@ int main(void)
   //test_config(&psmPeriph, &hspi2, &huart2);
 
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
-  //psmFilter.buf_current = PSM_FIR_HV_Current;
+  //psmFilter.buf_current = PSM_FIR_HV_Current; // discarded to use a different filter
+  sfq_init(&current_queue);
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
 
 
@@ -520,16 +520,7 @@ int main(void)
 
 	TaskHandle_t PSM_handle;
 
-	status = xTaskCreate(PSMVoltageTaskHandler,  //Function that implements the task.
-				"PSMTask",  //Text name for the task.
-				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
-				"none",  //Parameter passed into the task.
-				4,  //Priority at which the task is created.
-				&PSM_handle  //Used to pass out the created task's handle.
-							);
-	configASSERT(status == pdPASS);// Error checking
-
-	status = xTaskCreate(PSMCurrentTaskHandler,  //Function that implements the task.
+	status = xTaskCreate(PSMTaskHandler,  //Function that implements the task.
 				"PSMTask",  //Text name for the task.
 				200, 		 //200 words *4(bytes/word) = 800 bytes allocated for task's stack
 				"none",  //Parameter passed into the task.
@@ -2353,30 +2344,14 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 //	}
 //}
 
-void PSMVoltageTaskHandler(void * parameters){
 
-	float voltage;
-
-	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB));
-
-	while (1){
-
-		voltage = readPSM(&psmPeriph, VBUS, 3);
-
-		vTaskSuspendAll();
-
-		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
-
-		xTaskResumeAll();
-		vTaskDelay(delay);
-	}
-}
-
-void PSMCurrentTaskHandler(void * parameters){
+void PSMTaskHandler(void * parameters){
+	// we want to read voltage at half the frequency of current to avoid cpu overload
+	int read_volt_counter_default_val = 1;
+	int read_volt_counter = read_volt_counter_default_val;
 
 	float current;
-	sfq_init(&current_queue);
-
+	float voltage;
 
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_MCMB_CURRENT));
 
@@ -2384,11 +2359,20 @@ void PSMCurrentTaskHandler(void * parameters){
 
 		current = readPSM(&psmPeriph, CURRENT, 3);
 
+		if (read_volt_counter == 0){
+			voltage = readPSM(&psmPeriph, VBUS, 3);
+			vTaskSuspendAll();
+			psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
+			xTaskResumeAll();
+			read_volt_counter = read_volt_counter_default_val;
+		} else{
+			read_volt_counter--;
+		}
+
 		vTaskSuspendAll();
-
 		sfq_push(&current_queue, current);
-
 		xTaskResumeAll();
+
 		vTaskDelay(delay);
 	}
 }
