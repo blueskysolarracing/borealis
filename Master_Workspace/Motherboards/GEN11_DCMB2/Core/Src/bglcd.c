@@ -75,15 +75,37 @@ void drawP1Default_new(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	// populate label
-	if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "BR: OPEN\0");
-	else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "BR: CLOSED\0");
-	else sprintf(labelsP1[0], "BR: N/A\0");
+	if (default_data.batt_warning) {
+		sprintf(
+			labelsP1[0],
+			"MV: %c%3d\0",
+			(detailed_data.P1_motor_voltage >= 0 ? '+' : '-'),
+			abs(detailed_data.P1_motor_voltage)
+		);
+		sprintf(
+			labelsP1[1],
+			"MC: %c%3d.%d\0",
+		       	(detailed_data.P1_motor_current >= 0 ? '+' : '-'),
+			abs(detailed_data.P1_motor_current),
+			abs(detailed_data.P1_motor_current * 10) % 10
+		);
+		sprintf(
+			labelsP1[2],
+			"MT: %c%3d\0",
+		       	(detailed_data.P1_motor_temperature >= 0 ? '+' : '-'),
+			abs(detailed_data.P1_motor_temperature)
+		);
+	} else {
+		if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "BR: OPEN\0");
+		else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "BR: CLOSED\0");
+		else sprintf(labelsP1[0], "BR: N/A\0");
 
-	if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "AR: OPEN\0");
-	else if (common_data.array_relay_state == CLOSED) sprintf(labelsP1[1], "AR: CLOSED\0");
-	else sprintf(labelsP1[1], "AR: N/A\0");
+		if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "AR: OPEN\0");
+		else if (common_data.array_relay_state == CLOSED) sprintf(labelsP1[1], "AR: CLOSED\0");
+		else sprintf(labelsP1[1], "AR: N/A\0");
 
-	sprintf(labelsP1[2], "\0");
+		sprintf(labelsP1[2], "\0");
+	}
 
 	// start drawing at y = 5
 	uint8_t y = 5;

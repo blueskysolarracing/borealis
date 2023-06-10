@@ -45,6 +45,7 @@ struct disp_detailed_frame{
 	float 	P1_solar_current;
 	short 	P1_motor_voltage;
 	float 	P1_motor_current;
+	short	P1_motor_temperature;
 	short 	P1_battery_voltage;
 	float 	P1_battery_current;
 

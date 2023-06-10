@@ -1743,6 +1743,8 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
+		} else if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID) {
+			detailed_data.P1_motor_temperature = pkt->data[1];
 		}
 		break;
 
