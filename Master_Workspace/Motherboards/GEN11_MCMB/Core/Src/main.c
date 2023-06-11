@@ -165,7 +165,7 @@ uint8_t vfm_pos = 0; // default to zero
 uint8_t past_vfm_pos = 0;
 
 long lastDcmbPacket = 0;
-uint8_t temperature = 0;
+float temperature = 0;
 uint8_t speedTarget;
 float prevKmPerHour = 0;
 float kmPerHour = 0;
@@ -2198,13 +2198,13 @@ static void spdTmr(TimerHandle_t xTimer){
 }
 
 void tempSenseTaskHandler(void* parameters) {
-	static uint8_t buf[4] = {MCMB_MOTOR_TEMPERATURE_ID, 0x00, 0x00, 0x00};
+	uint8_t buf[8] = {0};
 	while(1) {
-		temperature = (uint8_t)getTemperature(&hadc1);
+		temperature = getTemperature(&hadc1);
 		vTaskDelay(pdMS_TO_TICKS(1000));
-
-		buf[1] = temperature;
-//		B_tcpSend(btcp, buf, 4); // Temperature sense is not implemented hardware wise
+		buf[0] = MCMB_MOTOR_TEMPERATURE_ID;
+		floatToArray(temperature, buf + 4);
+//		B_tcpSend(btcp, buf, sizeof(buf)); // Temperature sense is not implemented hardware wise
 	}
 }
 

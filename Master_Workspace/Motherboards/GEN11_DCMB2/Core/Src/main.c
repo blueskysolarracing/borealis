@@ -1719,7 +1719,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
 			detailed_data.P1_solar_current = 	arrayToFloat(&(pkt->data[8])); //Solar current
 
-			if (detailed_data.overcurrent_status && detailed_data.P1_solar_current > detailed_data.max_solar_current)
+			if (batteryState == FAULTED && fabs(detailed_data.P1_solar_current) > fabs(detailed_data.max_solar_current))
 				detailed_data.max_solar_current = detailed_data.P1_solar_current;
 		 } else if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
@@ -1736,7 +1736,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	arrayToFloat(&(pkt->data[8])); //Motor current
 
-			if (detailed_data.overcurrent_status && detailed_data.P1_motor_current > detailed_data.max_motor_current)
+			if (batteryState == FAULTED && fabs(detailed_data.P1_motor_current) > fabs(detailed_data.max_motor_current))
 				detailed_data.max_motor_current = detailed_data.P1_motor_current;
 		} else if (pkt->data[0] == MCMB_SUPP_BATT_VOLTAGE_ID){
 			default_data.P2_low_supp_volt = (uint8_t) round(10.0 * arrayToFloat(&(pkt->data[4])));
@@ -1744,7 +1744,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
 		} else if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID) {
-			detailed_data.P1_motor_temperature = pkt->data[1];
+			detailed_data.P1_motor_temperature = (short) arrayToFloat(&(pkt->data[4]));
 		}
 		break;
 
@@ -1759,7 +1759,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 			batteryVoltage = arrayToFloat(&(pkt->data[4])); //Battery voltage
 
-			if (detailed_data.overcurrent_status && detailed_data.P1_battery_current > detailed_data.max_battery_current)
+			if (batteryState == FAULTED && fabs(detailed_data.P1_battery_current) > fabs(detailed_data.max_battery_current))
 				detailed_data.max_battery_current = detailed_data.P1_battery_current;
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
@@ -1795,7 +1795,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
 			 detailed_data.faultTherm = pkt->data[6];
-			 detailed_data.overcurrent_status = detailed_data.faultType == BATTERY_FAULT_OVERCURRENT;
 
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
@@ -2334,7 +2333,7 @@ void displayTask(const void *pv){
 
 			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status
 			// 		|| detailed_data.overtemperature_status || detailed_data.undertemperature_status
-			// 		|| detailed_data.overcurrent_status)
+			// 		|| batteryState == FAULTED)
                         //        local_display_sel = battery_faulted_display_selection;
 
 			xTaskResumeAll();

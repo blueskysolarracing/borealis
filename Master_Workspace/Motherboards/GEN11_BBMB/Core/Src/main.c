@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdbool.h"
 #include "buart.h"
 #include "btcp.h"
 #include "protocol_ids.h"
@@ -33,6 +34,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "battery_config.h"
+#include "cQueue.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,7 +55,8 @@
 #define PROTECTION_ENABLE 		1 		//Flag to enable (1) or disable (0) relay control
 
 #define RELAY_STATE_TIMER_INTERVAL 	500 // Interval at which BBMB broadcasts the battery relay state in ms
-#define PSM_FILTER_SIZE 400
+
+#define OVERCURRENT_FILTER_SIZE  (MAX_ALLOWD_OVERCURRENT_TIME / PSM_SEND_INTERVAL)
 
 /* USER CODE END PD */
 
@@ -113,8 +116,8 @@ float battery_current = 0;
 //double voltageCurrent_HV[2] = {0};
 
 struct PSM_FIR_Filter psmFilter;
-float PSM_FIR_HV_Voltage[PSM_FILTER_SIZE] = {0};
-float PSM_FIR_HV_Current[PSM_FILTER_SIZE] = {0};
+float PSM_FIR_HV_Voltage[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
+float PSM_FIR_HV_Current[PSM_FIR_FILTER_SAMPLING_FREQ_BBMB] = {0};
 
 
 //--- RELAYS ---//
@@ -128,7 +131,7 @@ uint8_t BMS_data_received[3] = {RECEIVED, RECEIVED, RECEIVED}; //Holds whether w
 uint32_t BMS_tick_count_last_packet;
 
 //--- Battery ---/
-uint8_t batteryState;
+uint8_t batteryState = HEALTHY;
 uint8_t batteryFaultType = BATTERY_FAULT_NONE; //Default to fault type 4, which doesn't correspond to any fault
 uint8_t batteryFaultCell = 0;
 uint8_t batteryFaultTherm = 0;
@@ -137,6 +140,10 @@ uint8_t battery_undervoltage = 0;
 uint8_t battery_overtemperature = 0;
 uint8_t battery_undertemperature = 0;
 uint8_t battery_overcurrent = 0;
+uint8_t motor_overtemperature = 0;
+
+float motor_temperature = 0;
+
 
 float battery_cell_voltages[NUM_BATT_CELLS] = {[0 ... (NUM_BATT_CELLS-1)] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE};
 float battery_temperatures[NUM_BATT_TEMP_SENSORS] = {[0 ... (NUM_BATT_TEMP_SENSORS-1)] = BATTERY_TEMPERATURES_INITIAL_VALUE};
@@ -144,6 +151,52 @@ float battery_temperatures[NUM_BATT_TEMP_SENSORS] = {[0 ... (NUM_BATT_TEMP_SENSO
 //--- Discharge test ---//
 float cellUnderTestVoltage = -1;
 float cellUnderTestSOC = -1;
+
+
+// Special filtering
+typedef struct StaticFloatQueue {
+	float vals[OVERCURRENT_FILTER_SIZE];
+	Queue_t q;
+}StaticFloatQueue;
+
+static void sfq_init(StaticFloatQueue* this)
+{
+	q_init_static(
+			&this->q,
+			sizeof(float),
+			OVERCURRENT_FILTER_SIZE,
+			FIFO,
+			true, // Overwrite old values (so we only need to call push() and no need to pop())
+			this->vals,
+			sizeof(this->vals)
+		);
+}
+StaticFloatQueue battery_overcurrent_queue, motor_overcurrent_queue, array_overcurrent_queue;
+
+static bool sfq_push(StaticFloatQueue* this, float val)
+{
+	return q_push(&this->q, &val);
+}
+
+static bool sfq_peek_idx(StaticFloatQueue* this, float* ret_val, int idx)
+{
+	return q_peekIdx(&this->q, ret_val, idx);
+}
+
+static float sfq_get_avg(StaticFloatQueue* this)
+{
+	float total_past_vals = 0;
+	int num_past_vals = 0;
+	for (int idx = 0; idx < OVERCURRENT_FILTER_SIZE; idx++){
+		float past_val;
+		if (sfq_peek_idx(this, &past_val, idx)) { // evaluates to true if val is available
+			num_past_vals++;
+			total_past_vals += past_val;
+		}
+	}
+	return total_past_vals / (float)num_past_vals;
+}
+
 
 /* USER CODE END PV */
 
@@ -175,7 +228,7 @@ void battery_faulted_routine(/*uint8_t fault_type, uint8_t fault_cell, uint8_t f
 void battery_unfaulted_routine();
 void RelayStateTimer(TimerHandle_t xTimer);
 void dischargeTest(TimerHandle_t xTimer);
-void battery_state_setter();
+void fault_state_setter();
 
 /* USER CODE END PFP */
 
@@ -231,6 +284,10 @@ int main(void)
 
   HAL_Delay(1500);
 
+  sfq_init(&battery_overcurrent_queue);
+  sfq_init(&motor_overcurrent_queue);
+  sfq_init(&array_overcurrent_queue);
+
   //--- PSM ---//
 
   psmPeriph.CSPin = PSM_CS_0_Pin;
@@ -245,7 +302,7 @@ int main(void)
 
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   psmFilter.buf_current = PSM_FIR_HV_Current;
-  psmFilter.buf_size = PSM_FILTER_SIZE;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_BBMB;
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
 //  }
@@ -315,8 +372,6 @@ int main(void)
   configASSERT(xTaskCreate(relayTask, "relayCtrl", 1024, ( void * ) 1, 4, NULL));
 
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
-  // configASSERT(xTimerStart(xTimerCreate("PSMTaskHandler",  pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB)), pdTRUE, (void *)0, PSMTaskHandler), 0)); //Temperature and voltage measurements
-  // configASSERT(xTimerStart(xTimerCreate("measurementSender",  pdMS_TO_TICKS(PSM_SEND_INTERVAL), pdTRUE, (void *)0, measurementSender), 0)); //Periodically send data on UART bus
   configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
   configASSERT(xTimerStart(xTimerCreate("relayStateTimer",  pdMS_TO_TICKS(RELAY_STATE_TIMER_INTERVAL), pdTRUE, (void *)0, RelayStateTimer), 0));
 
@@ -330,7 +385,6 @@ int main(void)
 
 
   //--- BATTERY ---//
-  batteryState = HEALTHY;
   HAL_GPIO_WritePin(relay.DISCHARGE_GPIO_Port, relay.DISCHARGE_Pin, GPIO_PIN_SET); //Turn off HV discharge
   HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET); //Turn off BPS fault LED on driver's panel and activate Vicor 12V
   HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_SET); //Power BMS from battery module instead of supplemental battery
@@ -385,13 +439,13 @@ int main(void)
   configASSERT(status == pdPASS);// Error checking
 
 
-  TaskHandle_t battery_state_setter_handle;
-  status = xTaskCreate(battery_state_setter,  //Function that implements the task.
+  TaskHandle_t fault_state_setter_handle;
+  status = xTaskCreate(fault_state_setter,  //Function that implements the task.
 						"measurementSender",  // Text name for the task.
 						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
 						"none",  // Parameter passed into the task.
 						4,  // Priority at which the task is created.
-						&battery_state_setter_handle  // Used to pass out the created task's handle.
+						&fault_state_setter_handle  // Used to pass out the created task's handle.
 									);
   configASSERT(status == pdPASS);// Error checking
 
@@ -1373,7 +1427,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
 				vTaskSuspendAll();	relay.array_relay_state = pkt->data[3];	xTaskResumeAll();
 			}
-
+			if (pkt->data[0] == PPTMB_BUS_METRICS_ID){
+				vTaskSuspendAll();
+				sfq_push(&array_overcurrent_queue, fabs(arrayToFloat(&(pkt->data[8]))));
+				xTaskResumeAll();
+			}
 			break;
 
 		case DCMB_ID: //Parse data from DCMB
@@ -1468,7 +1526,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case MCMB_ID:
-			/*BBMB no need for MCMB data*/
+			if (pkt->data[0] == MCMB_BUS_METRICS_ID){
+				vTaskSuspendAll();
+				sfq_push(&motor_overcurrent_queue, fabs(arrayToFloat(&(pkt->data[8]))));
+				xTaskResumeAll();
+			}
+			if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID){
+				motor_temperature = arrayToFloat(&(pkt->data[4]));
+			}
 			break;
 	}
 }
@@ -1636,8 +1701,7 @@ void PSMTaskHandler(void * parameters){
 
 	double voltage, current;
 
-	// int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
-	int delay = pdMS_TO_TICKS(5);
+	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_BBMB));
 	while (1){
 
 		voltage = readPSM(&psmPeriph, VBUS, 3);
@@ -1669,6 +1733,8 @@ void measurementSender(void* p){
 		//Update battery pack current global variable (used for BMS communication)
 		battery_current = HV_current;
 
+		sfq_push(&battery_overcurrent_queue, fabs(HV_current));
+
 		xTaskResumeAll();
 
 		floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
@@ -1677,27 +1743,28 @@ void measurementSender(void* p){
 		B_tcpSend(btcp_main, busMetrics_HV, sizeof(busMetrics_HV));
 		B_tcpSend(btcp_bms, busMetrics_HV, sizeof(busMetrics_HV));
 
-		if (fabs(battery_current) >= HV_BATT_OC_DISCHARGE){
-			if (battery_overcurrent_cnt == 0) {
-				battery_overcurrent_cnt++;
-				time_last_overcurrent = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
-			} else {
-				uint32_t time_now = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
-				if (time_now - time_last_overcurrent >= BATT_OVERCURRENT_CNT_RESET_TIME) {
-					battery_overcurrent_cnt = 0;
-				} else {
-					battery_overcurrent_cnt++;
-				}
-				time_last_overcurrent = time_now;
-			}
-		}
-		vTaskSuspendAll();
-		if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
-			battery_overcurrent = 1;
-		} else {
-			battery_overcurrent = 0;
-		}
-		xTaskResumeAll();
+
+		// if (fabs(battery_current) >= HV_BATT_OC_DISCHARGE){
+		// 	if (battery_overcurrent_cnt == 0) {
+		// 		battery_overcurrent_cnt++;
+		// 		time_last_overcurrent = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
+		// 	} else {
+		// 		uint32_t time_now = xTaskGetTickCount() * 1000 / configTICK_RATE_HZ;
+		// 		if (time_now - time_last_overcurrent >= BATT_OVERCURRENT_CNT_RESET_TIME) {
+		// 			battery_overcurrent_cnt = 0;
+		// 		} else {
+		// 			battery_overcurrent_cnt++;
+		// 		}
+		// 		time_last_overcurrent = time_now;
+		// 	}
+		// }
+		// vTaskSuspendAll();
+		// if (battery_overcurrent_cnt >= BATT_OVERCURRENT_CNT_THRESHOLD){ //Overcurrent protection --> Put car into safe state
+		// 	battery_overcurrent = 1;
+		// } else {
+		// 	battery_overcurrent = 0;
+		// }
+		// xTaskResumeAll();
 
 
 //	//LV
@@ -1790,27 +1857,19 @@ void battery_unfaulted_routine() {
 	HAL_GPIO_WritePin(BMS_NO_FLT_GPIO_Port, BMS_NO_FLT_Pin, GPIO_PIN_SET);
 }
 
-void battery_state_setter(void* parameters) {
+void fault_state_setter(void* parameters) {
 	uint8_t run_unfaulted_routine = 1;
 	uint8_t run_faulted_routine = 1;
 	while(1) {
-		uint8_t local_battery_overvoltage = 0;
-		uint8_t local_battery_undervoltage = 0;
-		uint8_t local_battery_overtemperature = 0;
-		uint8_t local_battery_undertemperature = 0;
 
 		vTaskSuspendAll();
 		for (int i = 0; i < NUM_BATT_CELLS; i++) {
 			float voltage = battery_cell_voltages[i];
 			if (voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE && voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE) {
 				if ((voltage > HV_BATT_OV_THRESHOLD)){
-					local_battery_overvoltage = 1;
-					batteryFaultType = BATTERY_FAULT_OVERVOLTAGE;
-					batteryFaultCell = i;
+					battery_overvoltage = 1;
 				} else if (voltage < HV_BATT_UV_THRESHOLD){
-					local_battery_undervoltage = 1;
-					batteryFaultType = BATTERY_FAULT_UNDERVOLTAGE;
-					batteryFaultCell = i;
+					battery_undervoltage = 1;
 				}
 			}
 		}
@@ -1818,39 +1877,34 @@ void battery_state_setter(void* parameters) {
 			float temperature = battery_temperatures[i];
 			if (temperature != BATTERY_TEMPERATURES_INITIAL_VALUE) {
 				if (temperature > HV_BATT_OT_THRESHOLD) {
-					local_battery_overtemperature = 1;
-					batteryFaultType = BATTERY_FAULT_OVERTEMPERATURE;
-					batteryFaultTherm = i;
+					battery_overtemperature = 1;
 				} else if (temperature < HV_BATT_UT_THRESHOLD) {
-					local_battery_undertemperature = 1;
-					batteryFaultType = BATTERY_FAULT_UNDERTEMPERATURE;
-					batteryFaultTherm = i;
+					battery_undertemperature = 1;
 				}
 			}
 		}
-		if (battery_overcurrent) {
-			batteryFaultType = BATTERY_FAULT_OVERCURRENT;
+
+		if (sfq_get_avg(&battery_overcurrent_queue) > HV_BATT_OC_THRESHOLD
+				|| sfq_get_avg(&motor_overcurrent_queue) > HV_BATT_OC_THRESHOLD
+				|| sfq_get_avg(&array_overcurrent_queue) > HV_BATT_OC_THRESHOLD) {
+			battery_overcurrent = 1;
 		}
+
+		if (motor_temperature > MOTOR_OT_THRESHOLD) {
+			motor_overtemperature = 1;
+		}
+
 		xTaskResumeAll();
 
-		battery_overvoltage = local_battery_overvoltage;
-		battery_undervoltage = local_battery_undervoltage;
-		battery_overtemperature = local_battery_overtemperature;
-		battery_undertemperature = local_battery_undertemperature;
 
-		if (battery_overcurrent || battery_overvoltage || battery_undervoltage || battery_overtemperature) {
+		if (battery_overvoltage || battery_undervoltage || battery_overtemperature || battery_undertemperature
+					|| battery_overcurrent || motor_overtemperature) {
 			batteryState = FAULTED;
 			if (run_faulted_routine) {
 				battery_faulted_routine();
 				run_faulted_routine = 0;
 			}
 			run_unfaulted_routine = 1;
-		} else {
-			if (run_unfaulted_routine) {
-				// battery_unfaulted_routine(); commented out to disable car automatically getting out of safe state
-				run_unfaulted_routine = 0;
-			}
-			run_faulted_routine = 1;
 		}
 
 		vTaskDelay(pdMS_TO_TICKS(BMS_READ_INTERVAL)); // Don't need to run faster since the voltages , current, and temperatures are not updated more frequently than this.
