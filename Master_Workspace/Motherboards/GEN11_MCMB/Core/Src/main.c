@@ -435,14 +435,14 @@ int main(void)
 
   motor = mitsubaMotor_init(&mitsuba);
 
-  //Gen11 regen write below:
+//  //Gen11 regen write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(255, GPIOG, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
-//
+////
 //  //Gen11 accel write below:
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
-//  MCP4161_Pot_Write(200, GPIOK, GPIO_PIN_2, &hspi3);
+//  MCP4161_Pot_Write(255, GPIOK, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 
   //--- PSM ---//
@@ -454,7 +454,7 @@ int main(void)
   PSM_init(&psmPeriph, &hspi2, &huart2);
   PSM_FIR_Init(&psmFilter);
 
-  //test_config(&psmPeriph, &hspi2, &huart2);
+//  test_config(&psmPeriph, &hspi2, &huart2);
 
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   //psmFilter.buf_current = PSM_FIR_HV_Current; // discarded to use a different filter
