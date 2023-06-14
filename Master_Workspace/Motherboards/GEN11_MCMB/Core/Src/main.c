@@ -66,6 +66,15 @@ enum CRUISE_MODE {
 #define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
 
+//--- TEMPERATURE SENSOR ---//
+
+// Parameters for Platinum 3850 ppm/K
+#define RESISTANCE_ZERO_DEG			100
+#define COEF_A 						(3.9083 * 0.001)
+#define COEF_B						(-5.775 * 0.0000001)
+#define COEF_C						(-4.183 * 0.000000000001)
+#define PULL_DOWN_RESISTANCE		200
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -508,16 +517,16 @@ int main(void)
   /* add threads, ... */
 
   BaseType_t status;
-//  TaskHandle_t tempSense_handle;
-//
-//	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
-//				"tempSenseTask", /* Text name for the task. */
-//				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
-//				"none", /* Parameter passed into the task. */
-//				4, /* Priority at which the task is created. */
-//				&tempSense_handle /* Used to pass out the created task's handle. */
-//							  );
-//	configASSERT(status == pdPASS); // Error checking
+  TaskHandle_t tempSense_handle;
+
+	status = xTaskCreate(tempSenseTaskHandler,  /* Function that implements the task. */
+				"tempSenseTask", /* Text name for the task. */
+				200, 		/* 200 words *4(bytes/word) = 800 bytes allocated for task's stack*/
+				"none", /* Parameter passed into the task. */
+				4, /* Priority at which the task is created. */
+				&tempSense_handle /* Used to pass out the created task's handle. */
+							  );
+	configASSERT(status == pdPASS); // Error checking
 
 	TaskHandle_t PSM_handle;
 
@@ -1953,21 +1962,13 @@ float ADCMapToVolt(float ADCValue) {
 	return ADCValue / ADCResolution * ADCRefVoltage;
 }
 
-//Converts ADC input voltage to its corresponding temperature using LMT86's data-sheet equation
-float convertToTemp(float Vadc) {
-	// change Voltage unit from Volts to miliVolts
-	float Vadc_mV = Vadc *1000;
-
-	// use equation from PG 9 of the LMT86 temperature sensor data-sheet
-	float temperature = (10.888 - sqrtf(10.888*10.888 + 4*0.00347*(1777.3-Vadc_mV)))/(2*(-0.00347)) + 30;
-
-	return temperature;
-}
-
 //Function to call to get the temperature measured by the tempSensor
 float getTemperature(ADC_HandleTypeDef *hadcPtr) {
-	float Vadc = ADCMapToVolt(ADC_poll_read(hadcPtr));
-	float temperature = convertToTemp(Vadc);
+
+	float adc_voltage = ADCMapToVolt(ADC_poll_read(hadcPtr));
+	float resistance = PULL_DOWN_RESISTANCE * 3.316 / adc_voltage - PULL_DOWN_RESISTANCE;
+	float temperature = (-1*COEF_A + sqrtf(COEF_A*COEF_A - 4*COEF_B*(1 - resistance/RESISTANCE_ZERO_DEG))) / (2*COEF_B);
+
 	return temperature;
 }
 
