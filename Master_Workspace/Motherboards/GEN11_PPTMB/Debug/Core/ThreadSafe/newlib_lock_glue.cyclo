@@ -1,0 +1,17 @@
+newlib_lock_glue.c:44:13:Error_Handler	1
+stm32_lock.h:279:20:stm32_lock_init	3
+stm32_lock.h:293:20:stm32_lock_acquire	3
+stm32_lock.h:304:20:stm32_lock_release	3
+lock.h:41:13:__retarget_lock_init	1
+lock.h:43:13:__retarget_lock_init_recursive	3
+lock.h:45:13:__retarget_lock_close	1
+lock.h:47:13:__retarget_lock_close_recursive	1
+lock.h:49:13:__retarget_lock_acquire	2
+lock.h:51:13:__retarget_lock_acquire_recursive	2
+lock.h:53:12:__retarget_lock_try_acquire	1
+lock.h:55:12:__retarget_lock_try_acquire_recursive	1
+lock.h:58:13:__retarget_lock_release	2
+lock.h:60:13:__retarget_lock_release_recursive	2
+newlib_lock_glue.c:351:5:__cxa_guard_acquire	5
+newlib_lock_glue.c:387:6:__cxa_guard_abort	3
+newlib_lock_glue.c:408:6:__cxa_guard_release	2

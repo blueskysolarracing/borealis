@@ -40,7 +40,12 @@
 #define TCP_ID PPTMB_ID
 #define CONNECTION_EXPIRY_THRESHOLD 5000 //Number of ticks since last packet received before connection is considered "lost"
 
+enum MPPT {
+	AERL_MPPT,
+	BSSR_MPPT
+};
 
+#define MPPT_DEVICE AERL_MPPT
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -87,10 +92,10 @@ float PSM_FIR_current[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_SPI2_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM7_Init(void);
-static void MX_DMA_Init(void);
+static void MX_SPI2_Init(void);
 static void MX_CRC_Init(void);
 static void MX_UART4_Init(void);
 void StartDefaultTask(void const * argument);
@@ -101,11 +106,26 @@ void measurementSender(TimerHandle_t xTimer);
 void HeartbeatHandler(TimerHandle_t xTimer);
 static void arrayRelayTask(void * argument);
 
+
 //Turn off 12V supply to PPT
-void shutDownPPTs() {HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);}
+void shutDownPPTs() {
+	if(MPPT_DEVICE == BSSR_MPPT){
+		HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+	}
+	else if(MPPT_DEVICE == AERL_MPPT){
+		HAL_GPIO_WritePin(AERL_PPT_EN_GPIO_Port, AERL_PPT_EN_Pin, GPIO_PIN_RESET);
+	}
+}
 
 //Turn on 12V supply to PPT
-void turnOnPPTs() { HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);}
+void turnOnPPTs() {
+	if(MPPT_DEVICE == BSSR_MPPT){
+		HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+	}
+	else if(MPPT_DEVICE == AERL_MPPT){
+		HAL_GPIO_WritePin(AERL_PPT_EN_GPIO_Port, AERL_PPT_EN_Pin, GPIO_PIN_SET);
+	}
+}
 
 /* USER CODE END PFP */
 
@@ -144,10 +164,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_SPI2_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_TIM7_Init();
-  MX_DMA_Init();
+  MX_SPI2_Init();
   MX_CRC_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
@@ -590,7 +610,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(PSM_DReady_GPIO_Port, PSM_DReady_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(PSM_CS_2_GPIO_Port, PSM_CS_2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOG, PSM_CS_2_Pin|AERL_PPT_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
@@ -633,12 +653,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(PSM_DReady_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PSM_CS_2_Pin */
-  GPIO_InitStruct.Pin = PSM_CS_2_Pin;
+  /*Configure GPIO pins : PSM_CS_2_Pin AERL_PPT_EN_Pin */
+  GPIO_InitStruct.Pin = PSM_CS_2_Pin|AERL_PPT_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(PSM_CS_2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED2_Pin */
   GPIO_InitStruct.Pin = LED2_Pin;
