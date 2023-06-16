@@ -75,7 +75,7 @@ void drawP1Default_new(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	// populate label
-	if (default_data.batt_warning) {
+	if (default_data.batt_warning || default_data.motor_warning) {
 		sprintf(
 			labelsP1[0],
 			"MV: %c%3d\0",

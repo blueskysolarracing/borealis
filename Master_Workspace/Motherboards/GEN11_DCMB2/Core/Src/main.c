@@ -1755,6 +1755,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
 		} else if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID) {
 			detailed_data.P1_motor_temperature = (short) arrayToFloat(&(pkt->data[4]));
+
+			if (detailed_data.P1_motor_temperature > 100)
+				default_data.motor_warning = 1;
+			else
+				default_data.motor_warning = 0;
 		}
 		break;
 
