@@ -1058,6 +1058,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
 			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_voltages[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_voltages[i] % 10));
+			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
 		}
@@ -1075,6 +1081,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_voltages[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_voltages[i] % 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
@@ -1094,6 +1106,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
 			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_temperatures[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_temperatures[i] % 10));
+			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
 		}
@@ -1111,6 +1129,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_temperatures[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_temperatures[i] % 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;

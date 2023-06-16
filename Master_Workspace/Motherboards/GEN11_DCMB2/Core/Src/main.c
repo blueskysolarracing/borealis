@@ -328,6 +328,16 @@ int main(void)
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
 
+  for (int i = 0; i < NUM_BATT_CELLS; ++i) {
+	  detailed_data.min_cell_voltages[i] = 100000;
+	  detailed_data.max_cell_voltages[i] = -100000;
+  }
+
+  for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
+	  detailed_data.min_cell_temperatures[i] = 100000;
+	  detailed_data.max_cell_temperatures[i] = -100000;
+  }
+
   //--- FREERTOS ---//
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
   xTaskCreate(displayTask, "displayTask", 1024, 1, 4, NULL);
@@ -1833,6 +1843,14 @@ void serialParse(B_tcpPacket_t *pkt){
 							detailed_data.undertemperature_status |= 1 << j;
 						}
 					}
+
+					if ((detailed_data.overtemperature_status & (1 << j)) && temp > detailed_data.max_cell_temperatures[j]) {
+						detailed_data.max_cell_temperatures[j] = temp;
+					}
+
+					if ((detailed_data.undertemperature_status & (1 << j)) && temp < detailed_data.min_cell_temperatures[j]) {
+						detailed_data.min_cell_temperatures[j] = temp;
+					}
 				}
 			}
 
@@ -1882,6 +1900,14 @@ void serialParse(B_tcpPacket_t *pkt){
 						} else if (voltage < HV_BATT_UV_THRESHOLD) {
 						  detailed_data.undervoltage_status |= 1 << j;
 						}
+					}
+
+					if ((detailed_data.overvoltage_status & (1 << j)) && temp > detailed_data.max_cell_voltages[j]) {
+						detailed_data.max_cell_voltages[j] = temp;
+					}
+
+					if ((detailed_data.undervoltage_status & (1 << j)) && temp < detailed_data.min_cell_voltages[j]) {
+						detailed_data.min_cell_voltages[j] = temp;
 					}
 				}
 			}

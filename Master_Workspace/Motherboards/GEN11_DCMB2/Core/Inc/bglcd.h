@@ -8,6 +8,8 @@
 #ifndef BGLCD_H_
 #define BGLCD_H_
 
+#include "battery_config.h"
+
 //Structs containing data to display on driver displays
 struct disp_common{
 	uint8_t battery_relay_state;
@@ -72,6 +74,11 @@ struct disp_detailed_frame{
 	float max_solar_current;
 	float max_motor_current;
 	float max_battery_current;
+
+	int32_t min_cell_voltages[NUM_BATT_CELLS];
+	int32_t max_cell_voltages[NUM_BATT_CELLS];
+	int32_t min_cell_temperatures[NUM_BATT_TEMP_SENSORS];
+	int32_t max_cell_temperatures[NUM_BATT_TEMP_SENSORS];
 
 	int32_t min_temperature;
 	int32_t min_temperature_cell;
