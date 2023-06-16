@@ -1902,12 +1902,12 @@ void serialParse(B_tcpPacket_t *pkt){
 						}
 					}
 
-					if ((detailed_data.overvoltage_status & (1 << j)) && temp > detailed_data.max_cell_voltages[j]) {
-						detailed_data.max_cell_voltages[j] = temp;
+					if ((detailed_data.overvoltage_status & (1 << j)) && voltage > detailed_data.max_cell_voltages[j]) {
+						detailed_data.max_cell_voltages[j] = voltage;
 					}
 
-					if ((detailed_data.undervoltage_status & (1 << j)) && temp < detailed_data.min_cell_voltages[j]) {
-						detailed_data.min_cell_voltages[j] = temp;
+					if ((detailed_data.undervoltage_status & (1 << j)) && voltage < detailed_data.min_cell_voltages[j]) {
+						detailed_data.min_cell_voltages[j] = voltage;
 					}
 				}
 			}
