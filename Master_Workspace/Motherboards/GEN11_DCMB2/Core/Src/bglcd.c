@@ -1049,7 +1049,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	uint8_t x = 2, xStep = 6, y = 5, yStep = 10;
 	char *label = labels[0];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_CELLS; ++i) {
@@ -1073,7 +1073,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[1];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_CELLS; ++i) {
@@ -1097,7 +1097,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[2];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
@@ -1121,7 +1121,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[3];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
@@ -1145,7 +1145,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[4];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	glcd_tiny_draw_char_xy(x, correct_Y(y), 'M');
