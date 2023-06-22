@@ -68,6 +68,8 @@ enum CRUISE_MODE {
 
 //--- TEMPERATURE SENSOR ---//
 
+#define TEMP_AVG_SIZE 				10
+
 // Parameters for Platinum 3850 ppm/K
 #define RESISTANCE_ZERO_DEG			100
 #define COEF_A 						(3.9083 * 0.001)
@@ -2201,16 +2203,19 @@ static void spdTmr(TimerHandle_t xTimer){
 void tempSenseTaskHandler(void* parameters) {
 	uint8_t buf[8] = {0};
 	while(1) {
-		temperature = getTemperature(&hadc1);
+		temperature = 0;
+		for(int i = 0; i < TEMP_AVG_SIZE; i++){
+			temperature += getTemperature(&hadc1);
+		}
+		temperature = temperature / TEMP_AVG_SIZE;
+
 		vTaskDelay(pdMS_TO_TICKS(1000));
 		buf[0] = MCMB_MOTOR_TEMPERATURE_ID;
 		floatToArray(temperature, buf + 4);
-//		B_tcpSend(btcp, buf, sizeof(buf)); // Temperature sense is not implemented hardware wise
+
+		B_tcpSend(btcp, buf, sizeof(buf));
 	}
 }
-
-
-
 
 void serialParse(B_tcpPacket_t *pkt){
   vTaskSuspendAll();
