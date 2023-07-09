@@ -224,6 +224,8 @@ uint8_t arrayRelayState = OPEN;
 
 //--- SIDE PANEL ---//
 uint8_t camera_switch_is_on = 0;
+uint8_t efficiency_mode_on = 1;
+uint8_t current_speed_kph;
 
 /* USER CODE END PV */
 
@@ -1753,6 +1755,8 @@ void serialParse(B_tcpPacket_t *pkt){
 
 		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
+			current_speed_kph = pkt->data[1];
+
 		} else if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID) {
 			detailed_data.P1_motor_temperature = (short) arrayToFloat(&(pkt->data[4]));
 
@@ -1791,19 +1795,30 @@ void serialParse(B_tcpPacket_t *pkt){
 			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 			 common_data.battery_relay_state = batteryRelayState;
-			 if (batteryRelayState == CLOSED) {
-				 // turn on the back up camera and screen by regulation
+
+			 // When in efficiency mode, if car speed > 40 km/h, backup camera/screen is controlled by camera switch
+			 if (efficiency_mode_on && current_speed_kph > 40) {
+				 if (camera_switch_is_on) {
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
+
+				 } else {
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
+					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+				 }
+
+			 // If relays are closed, turn on backup camera/screen to follow regulation
+			 } else if (batteryRelayState == CLOSED) {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
 
+			 // If relays are open, turn off backup camera/screen if camera switch is off
 			 } else if (batteryRelayState == OPEN) {
 				 if (!camera_switch_is_on) {
-					 // turn off back up camera and screen
 					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
 					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
-
-				 }
 			 }
+
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
 			 if (batteryRelayState == OPEN) default_data.P2_VFM = 0;
 

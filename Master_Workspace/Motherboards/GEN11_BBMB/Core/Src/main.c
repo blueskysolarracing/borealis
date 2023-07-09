@@ -108,6 +108,8 @@ uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 struct lights_stepper_ctrl lightsPeriph;
 QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
+uint8_t efficiency_mode_on = 1;
+uint8_t current_speed_kph;
 
 //--- PSM ---//
 struct PSM_P psmPeriph;
@@ -1534,6 +1536,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID){
 				motor_temperature = arrayToFloat(&(pkt->data[4]));
 			}
+			if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
+				current_speed_kph = pkt->data[1];
+			}
 			break;
 	}
 }
@@ -1676,17 +1681,25 @@ void lightsTask(void * argument){
 				break;
 		}
 	}
+
 	// default light states
-	if (relay.battery_relay_state == CLOSED) {
-		// turn on the DRL by regulation
-		turn_on_DRL(&lightsPeriph, DRL_brightness);
-	} else if (relay.battery_relay_state == OPEN) {
-		if (!DRL_switch_is_on) {
-			// only turn off DRL if the physical switch is off
+	// When in efficiency mode, if car speed > 40 km/h, DRL lights are controlled by DRL switch
+	if (efficiency_mode_on && current_speed_kph > 40) {
+		if (DRL_switch_is_on) {
+			turn_on_DRL(&lightsPeriph, DRL_brightness);
+		} else {
 			turn_off_DRL(&lightsPeriph);
 		}
-	}
 
+	// If relays are closed, turn on DRL lights to follow regulation
+	} else if (relay.battery_relay_state == CLOSED) {
+		turn_on_DRL(&lightsPeriph, DRL_brightness);
+
+	// If relays are open, turn off DRL lights if DRL switch is off
+	} else if (relay.battery_relay_state == OPEN) {
+		if (!DRL_switch_is_on) {
+			turn_off_DRL(&lightsPeriph);
+	}
   }
 }
 
