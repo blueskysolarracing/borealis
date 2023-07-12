@@ -1,8 +1,7 @@
 #ifndef __BATTERY_CONFIG_H__
 #define __BATTERY_CONFIG_H__
 
-#define HV_BATT_OC_DISCHARGE 	(45.0f) 	//Should be set to 45.0A
-#define HV_BATT_OC_CHARGE 		(30.0f) 	//Should be set to 30.0A
+#define HV_BATT_OC_THRESHOLD 	(60.0f) 	//Should be set to 60.0A
 #define HV_BATT_OV_THRESHOLD 	(4.20f)	    //Should be set to 4.20V
 #define HV_BATT_UV_THRESHOLD 	(2.50f)	    //Should be set to 2.50V
 #define HV_BATT_OT_THRESHOLD 	(60.0f) 	//Should be set to 60.0C
@@ -21,6 +20,11 @@
 #define BATTERY_TEMPERATURES_INITIAL_VALUE      (-1000.0f)
 #define BATTERY_SOC_INITIAL_VALUE               (-1000.0f)
 
+#define MAX_ALLOWD_OVERCURRENT_TIME (7000) // 7 seconds
+#define MOTOR_OT_THRESHOLD (120.0f) // 120.0C
+#define MOTOR_OT_WARNING_THRESHOLD (100.0f) // 100.0C
+
+// deprecated
 enum BATTERY_FAULT_TYPE {
 	BATTERY_FAULT_OVERTEMPERATURE,
 	BATTERY_FAULT_UNDERTEMPERATURE,

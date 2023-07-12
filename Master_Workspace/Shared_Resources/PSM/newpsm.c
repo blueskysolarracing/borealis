@@ -94,12 +94,13 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 
-	uint64_t raw_data;
+	int32_t raw_data;
+
 	if(numBytes == 3){
-		raw_data = ((uint32_t)buffer[0] << 16 | (uint32_t)buffer[1] << 8 | buffer[2]);
+		raw_data = ((uint32_t)buffer[0] << 16 | (uint32_t)buffer[1] << 8 | buffer[2]) << 8;
 	}
 	else if(numBytes == 5){ // energy and charge registers
-		raw_data = ((uint64_t)buffer[0] << 32 | (uint64_t)buffer[1] << 24 | (uint32_t)buffer[2] << 16 |
+		int64_t raw_data = ((uint64_t)buffer[0] << 32 | (uint64_t)buffer[1] << 24 | (uint32_t)buffer[2] << 16 |
 				(uint16_t)buffer[3] << 8 | buffer[4]);
 	}
 	else{
@@ -113,7 +114,7 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 			if (raw_data == 0xffffff) { // If PSM is not connected
 				result = 0;
 			} else {
-				result = (raw_data >> 4) * VBUS_CONVERSION / VOLTAGE_DIVIDER;
+				result = (raw_data >> 12) * VBUS_CONVERSION / VOLTAGE_DIVIDER;
 			}
 			break;
 
@@ -121,12 +122,12 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 			if (raw_data == 0xffffff) { // If PSM is not connected
 				result = 0;
 			} else {
-				result = 0.7857 * ((CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 4)) * (CURRENT_ERROR_MULTIPLIER) - (CURRENT_ERROR_OFFSET)) + 0.0276;
+				result = 0.7857 * (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 12) * (CURRENT_ERROR_MULTIPLIER) - (CURRENT_ERROR_OFFSET)) + 0.0276;
 			}
 			break;
 
 		case POWER:
-			result = raw_data * POWER_CONVERSION;
+			result = (raw_data >> 8) * POWER_CONVERSION;
 			break;
 
 		case VSHUNT:
@@ -134,11 +135,11 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 			break;
 
 		case ENERGY:
-			result = raw_data * ENERGY_CONVERSION;
+			result = (raw_data >> 8) * ENERGY_CONVERSION;
 			break;
 
 		case CHARGE:
-			result = raw_data * CURRENT_CONVERSION(MAX_CURRENT);
+			result = (raw_data >> 8) * CURRENT_CONVERSION(MAX_CURRENT);
 			break;
 	}
 	return result;

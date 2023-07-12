@@ -15,6 +15,7 @@
 #include "display_BSSR.h"
 #include "driver_disp_icon.h"
 #include "battery_config.h"
+#include "protocol_ids.h"
 
 /** Fonts */
 #include "fonts/font5x7.h"
@@ -74,14 +75,37 @@ void drawP1Default_new(/*int value[4]*/){
 	glcd_clear_buffer();
 
 	// populate label
-	if(value[0] >= 0) sprintf(labelsP1[0], "Solar: +%4dW\0", value[0]);
-	else sprintf(labelsP1[0], "Solar:-%4dW\0", abs(value[0]));
+	if (default_data.batt_warning || default_data.motor_warning) {
+		sprintf(
+			labelsP1[0],
+			"MV: %c%3d\0",
+			(detailed_data.P1_motor_voltage >= 0 ? '+' : '-'),
+			abs(detailed_data.P1_motor_voltage)
+		);
+		sprintf(
+			labelsP1[1],
+			"MC: %c%3d.%d\0",
+		       	(detailed_data.P1_motor_current >= 0 ? '+' : '-'),
+			abs(detailed_data.P1_motor_current),
+			abs(detailed_data.P1_motor_current * 10) % 10
+		);
+		sprintf(
+			labelsP1[2],
+			"MT: %c%3d\0",
+		       	(detailed_data.P1_motor_temperature >= 0 ? '+' : '-'),
+			abs(detailed_data.P1_motor_temperature)
+		);
+	} else {
+		if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "BR: OPEN\0");
+		else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "BR: CLOSED\0");
+		else sprintf(labelsP1[0], "BR: N/A\0");
 
-	if(value[1] >= 0) sprintf(labelsP1[1], "Motor: +%4dW\0", value[1]);
-	else sprintf(labelsP1[1], "Motor:-%4dW\0", abs(value[1]));
+		if (common_data.array_relay_state == OPEN) sprintf(labelsP1[1], "AR: OPEN\0");
+		else if (common_data.array_relay_state == CLOSED) sprintf(labelsP1[1], "AR: CLOSED\0");
+		else sprintf(labelsP1[1], "AR: N/A\0");
 
-	if(value[2] >= 0) sprintf(labelsP1[2], "Batt:  +%4dW\0", value[2]);
-	else sprintf(labelsP1[2], "Batt: -%4dW\0", abs(value[2]));
+		sprintf(labelsP1[2], "\0");
+	}
 
 	// start drawing at y = 5
 	uint8_t y = 5;
@@ -291,7 +315,7 @@ void drawP1Default(/*int value[4]*/){
 }
 
 void drawP1Activate(){
-	char* labels[] = {"CRUISE CONTROL", "ACTIVATED"};
+	char* labels[] = {"CRUIZE CONTROL", "ACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -322,7 +346,7 @@ void drawP1Activate(){
 }
 
 void drawP1Deactivate(){
-	char* labels[] = {"CRUISE CONTROL", "DEACTIVATED"};
+	char* labels[] = {"CRUIZE CONTROL", "DEACTIVATED"};
 
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
@@ -572,7 +596,7 @@ void drawP2Default(/*int value[4]*/){
 		stateL = 5;
 		break;
 	case 2:
-		state = "CRUISE";
+		state = "CRUIZE";
 		stateL = 6;
 		break;
 	case 3:
@@ -853,7 +877,7 @@ void drawP2Detailed_3(){
 
 	sprintf(
 		labels[0],
-		"T:%c%2d.%d(%2d)%c%2d.%d(%2d)\0",
+		"T: %c%2d.%d(%2d) %c%2d.%d(%2d)\0",
 		detailed_data.min_temperature < 0 ? '-' : '+',
 		abs(detailed_data.min_temperature) / 10,
 		abs(detailed_data.min_temperature) % 10,
@@ -865,7 +889,7 @@ void drawP2Detailed_3(){
 	);
 	sprintf(
 		labels[1],
-		"V:%c%2d.%d(%2d)%c%2d.%d(%2d)\0",
+		"V: %c%2d.%d(%2d) %c%2d.%d(%2d)\0",
 		detailed_data.min_voltage < 0 ? '-' : '+',
 		abs(detailed_data.min_voltage) / 10,
 		abs(detailed_data.min_voltage) % 10,
@@ -877,7 +901,7 @@ void drawP2Detailed_3(){
 	);
 	sprintf(
 		labels[2],
-		"S:%c%2d%%(%2d)%c%2d%%(%2d)\0",
+		"S: %c%2d%%(%2d) %c%2d%%(%2d)\0",
 		detailed_data.min_soc < 0 ? '-' : '+',
 		abs(detailed_data.min_soc),
 		detailed_data.min_soc_cell,
@@ -1013,11 +1037,11 @@ void drawP2IgnitionOff(/*int value[4]*/){
 
 void drawP2BMSFault(/*int value[4]*/){
 	char *labels[] = {
-		"BMS OV: ",
-		"BMS UV: ",
-		"BMS OT: ",
-		"BMS UT: ",
-		"BMS OC: "
+		"OV: ",
+		"UV: ",
+		"OT: ",
+		"UT: ",
+		"OC: "
 	};
 	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
 	glcd_clear_buffer();
@@ -1025,7 +1049,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	uint8_t x = 2, xStep = 6, y = 5, yStep = 10;
 	char *label = labels[0];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_CELLS; ++i) {
@@ -1033,6 +1057,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_voltages[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_voltages[i] % 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
@@ -1043,7 +1073,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[1];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_CELLS; ++i) {
@@ -1051,6 +1081,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_voltages[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_voltages[i] % 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
@@ -1061,7 +1097,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[2];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
@@ -1069,6 +1105,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_temperatures[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.max_cell_temperatures[i] % 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
@@ -1079,7 +1121,7 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[3];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
 	for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
@@ -1087,6 +1129,12 @@ void drawP2BMSFault(/*int value[4]*/){
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i / 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (i % 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), ':');
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_temperatures[i] / 10));
+			x += xStep;
+			glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (detailed_data.min_cell_temperatures[i] % 10));
 			x += xStep;
 			glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
 			x += xStep;
@@ -1097,13 +1145,35 @@ void drawP2BMSFault(/*int value[4]*/){
 	y += yStep;
 	label = labels[4];
 
-	for (int i = 0; i < 8; ++i, x += xStep)
+	for (int i = 0; i < 4; ++i, x += xStep)
 		glcd_tiny_draw_char_xy(x, correct_Y(y), label[i]);
 
-	if (detailed_data.overcurrent_status)
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '1');
-	else
-		glcd_tiny_draw_char_xy(x, correct_Y(y), '0');
+	glcd_tiny_draw_char_xy(x, correct_Y(y), 'M');
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_motor_current) / 10));
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_motor_current) % 10));
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+	x += xStep;
+
+	glcd_tiny_draw_char_xy(x, correct_Y(y), 'B');
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_battery_current) / 10));
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_battery_current) % 10));
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+	x += xStep;
+
+	glcd_tiny_draw_char_xy(x, correct_Y(y), 'S');
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_solar_current) / 10));
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), '0' + (abs(detailed_data.max_solar_current) % 10));
+	x += xStep;
+	glcd_tiny_draw_char_xy(x, correct_Y(y), ' ');
+	x += xStep;
 
 	glcd_write();
 }

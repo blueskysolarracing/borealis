@@ -136,13 +136,16 @@ void bms_module_init(
 		this->_temperatures[i] = BATTERY_TEMPERATURES_INITIAL_VALUE;
 	}
 
-	measure_voltage(this);
-	measure_temperature(this);
+	// we want to measure many times to ensure we initialize SOC with a filtered voltage
+	for (int i = 0; i < 10; i++) {
+		measure_voltage(this);
+		measure_temperature(this);
+	}
 
 	//--- SOC algorithm ---//
 	for (int i = 0; i < BMS_MODULE_NUM_STATE_OF_CHARGES; i++){
 		this->_tick_last_soc_compute[i] = xTaskGetTickCount();
-		initBatteryAlgo(&this->_EKF_models[i], this->_voltages[i], this->_tick_last_soc_compute[i]);
+		initBatteryAlgo(&this->_EKF_models[i], sfq_get_avg(&this->past_voltages[i]), this->_tick_last_soc_compute[i]);
 	}
 
 	compute_soc(this);
@@ -216,13 +219,7 @@ static void measure_temperature(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_TEMPERATURES; i++) {
 		if (check_temperature_is_valid(local_temp_array[i])) {
 			this->_temperatures[i] = local_temp_array[i];
-			if (sfq_is_empty(&this->past_temperatures[i])) {
-				for (int j = 0; j < STATIC_FLOAT_QUEUE_NUM_VALUES; j++) {
-					sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
-				}
-			} else {
-				sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
-			}
+			sfq_push(&this->past_temperatures[i], this->_temperatures[i]);
 		} else {
 			// If temperature is invalid, assume bms module is not connected, and don't push to queue
 			this->_temperatures[i] = BATTERY_TEMPERATURES_INITIAL_VALUE;
@@ -241,13 +238,7 @@ static void measure_voltage(BmsModule* this)
 	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
 		if (check_voltage_is_valid(local_voltage_array[i])) {
 			this->_voltages[i] = local_voltage_array[i];
-			if (sfq_is_empty(&this->past_voltages[i])) {
-				for (int j = 0; j < STATIC_FLOAT_QUEUE_NUM_VALUES; j++) {
-					sfq_push(&this->past_voltages[i], this->_voltages[i]);
-				}
-			} else {
-				sfq_push(&this->past_voltages[i], this->_voltages[i]);
-			}
+			sfq_push(&this->past_voltages[i], this->_voltages[i]);
 		} else {
 			// If voltage is invalid, assume bms module is not connected, and don't push to queue
 			this->_voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
@@ -287,6 +278,7 @@ static void compute_soc(BmsModule* this)
 static inline bool check_voltage_is_valid(float voltage)
 {
 	return voltage < BMS_DISCONNECTED_VOLTAGE_THRESHOLD
+			&& voltage > 1.5 // to prevent triggering UV with noise
 			&& voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
 }
 

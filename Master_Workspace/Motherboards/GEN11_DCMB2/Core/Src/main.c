@@ -48,7 +48,6 @@
 
 //--- DISPLAY ---//
 #define SLEEP_FRAME_EN 1 //When set to 1, enable the sleeping car start frame (when neither relays are closed)
-#define CRUISE_MULT 1 //Multiplier delta rotary encoder position by this to adjust cruise control speed
 #define DISP_REFRESH_DELAY 200 //Period between refreshes of driver display (in ms)
 #define PEDALS_REFRESH_PERIOD 50 //Period between sending new pedal measurements (in ms)
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeat (in ms)
@@ -73,9 +72,11 @@ enum CRUISE_MODE {
 
 #define MOTOR_DATA_PERIOD 20 //Send motor data every MOTOR_DATA_PERIOD (ms)
 #define MAX_VFM 8 //Maximum VFM setting
-#define CRUISE_MODE CONSTANT_POWER //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
+#define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
+#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 255 // regen value when pressing the regen button on the steering wheel
 #define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
+#define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
@@ -177,12 +178,10 @@ uint8_t fwdRevState = 0;
 uint8_t ecoPwrState = 0; //0 is ECO, 1 is POWER
 uint8_t vfmUpState = 0;
 uint8_t vfmDownState = 0;
-uint8_t motorTargetSpeed = 0; // added by Nat, set by encoder
+uint8_t motorTargetSpeed = 0; // maintain current speed of car when cruise control is enabled by pressing on the steering wheel
 uint8_t brakePressed = 0;
 
-#ifndef USE_ADC_REGEN
-uint8_t steering_wheel_regen_button_pressed = 0; // 1 is on, 0 is off
-#endif
+uint8_t start_steering_wheel_constant_regen = 0; // 1 is on, 0 is off
 
 typedef enum {
 	BRAKE_PRESSED,
@@ -328,6 +327,16 @@ int main(void)
   //--- ADC ---//
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
+
+  for (int i = 0; i < NUM_BATT_CELLS; ++i) {
+	  detailed_data.min_cell_voltages[i] = 100000;
+	  detailed_data.max_cell_voltages[i] = -100000;
+  }
+
+  for (int i = 0; i < NUM_BATT_TEMP_SENSORS; ++i) {
+	  detailed_data.min_cell_temperatures[i] = 100000;
+	  detailed_data.max_cell_temperatures[i] = -100000;
+  }
 
   //--- FREERTOS ---//
   xTaskCreate(pedalTask, "pedalTask", 1024, ( void * ) 1, 4, NULL);
@@ -1577,8 +1586,21 @@ static void pedalTask(const void* p) {
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
 	uint8_t firstTime = 1;
+	uint8_t adc_regen_threshold = 30;
 
+	uint8_t start_adc_regen = 0;
     while (1) {
+#ifdef USE_ADC_REGEN
+    	if (steering_wheel_variable_regen_value > adc_regen_threshold
+    			&& -REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0
+				&& detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD
+		) {
+    		start_adc_regen = 1;
+		} else {
+			start_adc_regen = 0;
+		}
+
+#endif
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
 			vTaskSuspendAll();
@@ -1589,8 +1611,8 @@ static void pedalTask(const void* p) {
 			xTaskResumeAll();
 		}
 
-		// Check if brake is pressed
-		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0) {
+		// Check if brake is pressed or car is going to regen
+		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 || start_steering_wheel_constant_regen || start_adc_regen) {
 			brakeState = BRAKE_PRESSED;
 		} else {
 			brakeState = BRAKE_RELEASED;
@@ -1632,16 +1654,14 @@ static void pedalTask(const void* p) {
 		//Pedal has not effect when the motor is in cruise mode
 		if (motorState != CRUISE){
 #ifdef USE_ADC_REGEN
-			if (steering_wheel_variable_regen_value > 30) {
-				if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD) {
-					motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
-					motorState = REGEN;
-					default_data.P2_motor_state = REGEN;
-				}
+			if (start_adc_regen) {
+				motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				motorState = REGEN;
+				default_data.P2_motor_state = REGEN;
 			}
 #else
-			if (steering_wheel_regen_button_pressed) {
-				motorTargetPower = 130;  // can change to any value we want
+			if (start_steering_wheel_constant_regen) {
+				motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 			}
@@ -1709,8 +1729,11 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_solar_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Solar voltage
 			detailed_data.P1_solar_current = 	arrayToFloat(&(pkt->data[8])); //Solar current
 
+			if (batteryState == FAULTED && fabs(detailed_data.P1_solar_current) > fabs(detailed_data.max_solar_current))
+				detailed_data.max_solar_current = detailed_data.P1_solar_current;
 		 } else if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Read relay state from PPTMB
 			arrayRelayState = pkt->data[3]; //Display task will take care of choosing appropriate frame
+			common_data.array_relay_state = arrayRelayState;
 		 }
 		 break;
 
@@ -1723,11 +1746,20 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P1_motor_voltage = 	(short) round(arrayToFloat(&(pkt->data[4]))); //Motor voltage
 			detailed_data.P1_motor_current = 	arrayToFloat(&(pkt->data[8])); //Motor current
 
+			if (batteryState == FAULTED && fabs(detailed_data.P1_motor_current) > fabs(detailed_data.max_motor_current))
+				detailed_data.max_motor_current = detailed_data.P1_motor_current;
 		} else if (pkt->data[0] == MCMB_SUPP_BATT_VOLTAGE_ID){
 			default_data.P2_low_supp_volt = (uint8_t) round(10.0 * arrayToFloat(&(pkt->data[4])));
 
 		} else if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
 			default_data.P1_speed_kph = pkt->data[1]; //Car speed (uint8_t)
+		} else if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID) {
+			detailed_data.P1_motor_temperature = (short) arrayToFloat(&(pkt->data[4]));
+
+			if (detailed_data.P1_motor_temperature > 100)
+				default_data.motor_warning = 1;
+			else
+				default_data.motor_warning = 0;
 		}
 		break;
 
@@ -1742,6 +1774,8 @@ void serialParse(B_tcpPacket_t *pkt){
 			detailed_data.P2_HV_voltage = detailed_data.P1_battery_voltage;
 			batteryVoltage = arrayToFloat(&(pkt->data[4])); //Battery voltage
 
+			if (batteryState == FAULTED && fabs(detailed_data.P1_battery_current) > fabs(detailed_data.max_battery_current))
+				detailed_data.max_battery_current = detailed_data.P1_battery_current;
 		 } else if (pkt->data[0] == BBMB_LP_BUS_METRICS_ID){ //LV bus
 			 common_data.LV_power = 			(short) round(10*arrayToFloat(&(pkt->data[4])) * arrayToFloat(&(pkt->data[8]))); //LV power
 			 common_data.LV_voltage = 			(short) round(10*arrayToFloat(&(pkt->data[4]))); //LV voltage
@@ -1756,6 +1790,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			previousBatteryState = batteryState;
 			xTaskResumeAll();
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
+			 common_data.battery_relay_state = batteryRelayState;
 			 if (batteryRelayState == CLOSED) {
 				 // turn on the back up camera and screen by regulation
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
@@ -1775,7 +1810,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			 detailed_data.faultType = pkt->data[4];
 			 detailed_data.faultCell = pkt->data[5];
 			 detailed_data.faultTherm = pkt->data[6];
-			 detailed_data.overcurrent_status = detailed_data.faultType == BATTERY_FAULT_OVERCURRENT;
 
 		 } else if (pkt->data[0] == BMS_CELL_TEMP_ID){ //Cell temperature
 			 if (pkt->data[1] == 5){	BMS_last_packet_tick_count = xTaskGetTickCount();	} //Hearing from BMS #5 implies as the other ones are connected
@@ -1813,6 +1847,14 @@ void serialParse(B_tcpPacket_t *pkt){
 						} else if (temp < HV_BATT_UT_THRESHOLD) {
 							detailed_data.undertemperature_status |= 1 << j;
 						}
+					}
+
+					if ((detailed_data.overtemperature_status & (1 << j)) && temp > detailed_data.max_cell_temperatures[j]) {
+						detailed_data.max_cell_temperatures[j] = temp;
+					}
+
+					if ((detailed_data.undertemperature_status & (1 << j)) && temp < detailed_data.min_cell_temperatures[j]) {
+						detailed_data.min_cell_temperatures[j] = temp;
 					}
 				}
 			}
@@ -1863,6 +1905,14 @@ void serialParse(B_tcpPacket_t *pkt){
 						} else if (voltage < HV_BATT_UV_THRESHOLD) {
 						  detailed_data.undervoltage_status |= 1 << j;
 						}
+					}
+
+					if ((detailed_data.overvoltage_status & (1 << j)) && voltage > detailed_data.max_cell_voltages[j]) {
+						detailed_data.max_cell_voltages[j] = voltage;
+					}
+
+					if ((detailed_data.undervoltage_status & (1 << j)) && voltage < detailed_data.min_cell_voltages[j]) {
+						detailed_data.min_cell_voltages[j] = voltage;
 					}
 				}
 			}
@@ -1969,8 +2019,7 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//---------- Process data ----------//
 			// Navigation <- Not implemented
-			// Cruise <- Not implemented
-
+\
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
 			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
@@ -2000,23 +2049,23 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//Nothing to do for the horn as its state will be d by BBMB from buf_rs485
 
-			//Encoder - Set car motor global values
-			if (motorState == CRUISE && fwdRevState == 0 && CRUISE_MODE == CONSTANT_SPEED){ // check if in cruise state and forward state
-				uint8_t old_ang = encoderMap8[oldSteeringData[0]];
-				uint8_t new_ang = encoderMap8[steeringData[0]];
-				motorTargetSpeed = motorTargetSpeed + CRUISE_MULT * (new_ang - old_ang); // update global variable
-			}
-
 			//Cruise - (Try to change) Motor state and send to MCMB
 			if (steeringData[1] & (1 << 4)){
-				if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), try to put in cruise
+				if (motorState != CRUISE){ //If pressed and not already in cruise (nor off nor standby), put in cruise
 					if ((motorState != REGEN) && (motorState != OFF) && (motorState != STANDBY)){
 						motorState = CRUISE; // change global motorState
 						default_data.P2_motor_state = CRUISE;
+
+						if (CRUISE_MODE == CONSTANT_SPEED) {
+						  motorTargetSpeed = default_data.P1_speed_kph; //Just recycle this variable set in serialParse
+						  motorTargetPower = 0; //MCMB will be doing its own speed control, don't send motorTargetPower commands
+						}
 					}
+
 				} else if (motorState == CRUISE){ //If already in cruise
-					motorState = STANDBY;
-					default_data.P2_motor_state = STANDBY;
+							motorState = STANDBY;
+							default_data.P2_motor_state = STANDBY;
+				  motorTargetSpeed = 0;
 				}
 			}
 
@@ -2052,11 +2101,12 @@ void steeringWheelTask(const void *pv){
 #ifndef USE_ADC_REGEN
 			//Middle button pressed - Holding it causes regen
 			if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-				if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
-					steering_wheel_regen_button_pressed = 1;
+				// if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
+				if (-REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0 && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD) {
+					start_steering_wheel_constant_regen = 1;
 				}
 			} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
-				steering_wheel_regen_button_pressed = 0;
+				start_steering_wheel_constant_regen = 0;
 			}
 			oldMiddleButton = (steeringData[2] & (1 << 4));
 #endif
@@ -2295,13 +2345,13 @@ void displayTask(const void *pv){
 			}
 
 			//Check if we need to display the "Car is sleeping" frame when neither PPTMB nor BBMB relays are closed
-			if (SLEEP_FRAME_EN) {
-				if (IGNORE_PPTMB){
-					if (batteryRelayState == OPEN) { local_display_sel = 6; }
-				} else {
-					if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 6; }
-				}
-			}
+			// if (SLEEP_FRAME_EN) {
+			// 	if (IGNORE_PPTMB){
+			// 		if (batteryRelayState == OPEN) { local_display_sel = 6; }
+			// 	} else {
+			// 		if ((batteryRelayState == OPEN) && (arrayRelayState == OPEN)) { local_display_sel = 6; }
+			// 	}
+			// }
 
 			//Overwrite display state if battery fault
 			if (batteryState == FAULTED){
@@ -2314,7 +2364,7 @@ void displayTask(const void *pv){
 
 			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status
 			// 		|| detailed_data.overtemperature_status || detailed_data.undertemperature_status
-			// 		|| detailed_data.overcurrent_status)
+			// 		|| batteryState == FAULTED)
                         //        local_display_sel = battery_faulted_display_selection;
 
 			xTaskResumeAll();
@@ -2330,6 +2380,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	if (ignitionState != IGNITION_ON){ //overrides original motor state if IGNITION is not on
 		motorState = OFF;
 		motorTargetPower = (uint16_t) 0;
+    motorTargetSpeed = 0;
 		default_data.P2_motor_state = OFF;
 	}
 

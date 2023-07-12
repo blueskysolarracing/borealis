@@ -170,6 +170,7 @@ int main(void)
    * Array of chip selects used by each BMS Module object
    * Since each object communicates to its corresponding physical BMS Module's LTC6810 device through a shared LTC6820 isoSPI transceiver, all chip selects are meant for LTC6820 and are identical
    */
+  HAL_Delay(200);
   GPIO_TypeDef* spi_cs_ports[] = {[0 ... (BMS_NUM_BMS_MODULES-1)] = GPIOC};
   uint16_t spi_cs_pins[] = {[0 ... (BMS_NUM_BMS_MODULES-1)] = GPIO_PIN_9};
 

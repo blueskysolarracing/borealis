@@ -83,6 +83,8 @@ void Error_Handler(void);
 #define LED0_GPIO_Port GPIOH
 #define LED1_Pin GPIO_PIN_9
 #define LED1_GPIO_Port GPIOH
+#define AERL_PPT_EN_Pin GPIO_PIN_2
+#define AERL_PPT_EN_GPIO_Port GPIOG
 #define PSM_CS_0_Pin GPIO_PIN_0
 #define PSM_CS_0_GPIO_Port GPIOI
 /* USER CODE BEGIN Private defines */

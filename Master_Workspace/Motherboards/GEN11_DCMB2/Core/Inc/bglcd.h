@@ -8,8 +8,13 @@
 #ifndef BGLCD_H_
 #define BGLCD_H_
 
+#include "battery_config.h"
+
 //Structs containing data to display on driver displays
 struct disp_common{
+	uint8_t battery_relay_state;
+	uint8_t array_relay_state;
+
 	short 	solar_power;
 	short 	motor_power;
 	short	battery_power;
@@ -28,6 +33,7 @@ struct disp_default_frame{
 	uint8_t eco;
 	uint8_t light;
 	uint8_t batt_warning;
+	uint8_t motor_warning;
 	uint8_t hazard;
 
 	uint8_t	P2_DRL_state;
@@ -42,6 +48,7 @@ struct disp_detailed_frame{
 	float 	P1_solar_current;
 	short 	P1_motor_voltage;
 	float 	P1_motor_current;
+	short	P1_motor_temperature;
 	short 	P1_battery_voltage;
 	float 	P1_battery_current;
 
@@ -64,6 +71,15 @@ struct disp_detailed_frame{
 	uint32_t overtemperature_status;
 	uint32_t undertemperature_status;
 	uint8_t overcurrent_status;
+
+	float max_solar_current;
+	float max_motor_current;
+	float max_battery_current;
+
+	int32_t min_cell_voltages[NUM_BATT_CELLS];
+	int32_t max_cell_voltages[NUM_BATT_CELLS];
+	int32_t min_cell_temperatures[NUM_BATT_TEMP_SENSORS];
+	int32_t max_cell_temperatures[NUM_BATT_TEMP_SENSORS];
 
 	int32_t min_temperature;
 	int32_t min_temperature_cell;
