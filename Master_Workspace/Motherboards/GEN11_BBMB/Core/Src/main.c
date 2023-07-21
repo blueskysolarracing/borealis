@@ -110,6 +110,7 @@ QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
 uint8_t efficiency_mode_on = 1;
 uint8_t current_speed_kph;
+float DRL_BRIGHTNESS_DIM = 0.1;
 
 //--- PSM ---//
 struct PSM_P psmPeriph;
@@ -1686,7 +1687,7 @@ void lightsTask(void * argument){
 	// When in efficiency mode, if car speed > 40 km/h, DRL lights are controlled by DRL switch
 	if (efficiency_mode_on && current_speed_kph > 40) {
 		if (DRL_switch_is_on) {
-			turn_on_DRL(&lightsPeriph, DRL_brightness);
+			turn_on_DRL(&lightsPeriph, DRL_BRIGHTNESS_DIM);
 		} else {
 			turn_off_DRL(&lightsPeriph);
 		}
