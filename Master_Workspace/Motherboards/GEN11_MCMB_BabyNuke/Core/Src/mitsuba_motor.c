@@ -115,8 +115,8 @@ static void mitsubaMotor_eepromInit(MotorInterface* interface)
 	_MCP4161_Pot_Write_Internal(0, self->cs0AccelPort, self->cs0AccelPin, self->potSpiPtr, true);
 	_MCP4161_Pot_Write_Internal(0, self->cs1RegenPort, self->cs1RegenPin, self->potSpiPtr, true);
 
-	/* need to wait for t_wc (max. 10ms) */
-	HAL_Delay(10);
+//	/* need to wait for t_wc (max. 10ms) */
+//	HAL_Delay(10);
 }
 static int mitsubaMotor_isOn(MotorInterface* interface)
 {
