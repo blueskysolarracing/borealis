@@ -2093,7 +2093,6 @@ static void motorTmr(TimerHandle_t xTimer){
 				}
 
 				//Update motor power
-				vTaskSuspendAll();
 				if (CRUISE_MODE == CONSTANT_POWER){
 					res = motor->setAccel(motor, targetPower);
 
@@ -2102,7 +2101,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, prevKmPerHour);
 				  if (cruise_control_PI_output < 0.0){
 					res = motor->setAccel(motor, (uint8_t)0);
-					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
+//					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
 				  }else if (cruise_control_PI_output > 0.0){
 					res = motor->setRegen(motor, (uint8_t)0);
 					res = motor->setAccel(motor, (uint8_t)cruise_control_PI_output);
@@ -2111,7 +2110,6 @@ static void motorTmr(TimerHandle_t xTimer){
 					res = motor->setRegen(motor, (uint8_t)0);
 				  }
 				}
-				xTaskResumeAll();
 			}
 			break;
 
