@@ -63,6 +63,17 @@
 #define CURRENT_ERROR_MULTIPLIER				((double)(1.1448) * (double)(1.1399))
 #define CURRENT_ERROR_OFFSET					((double)(0.0714) + (double)(0.07) + (double)(0.158))
 
+#define BBMB_CURRENT_MULTIPLIER					(double) (0.9999)
+#define MCMB_CURRENT_MULTIPLIER					(double) (0.99694)
+#define PPTMB_CURRENT_MULTIPLIER				(double) (0.9955)
+#define BBMB_CURRENT_OFFSET						(double) (0.153 * (-1))
+#define MCMB_CURRENT_OFFSET						(double) (0.1178)
+#define PPTMB_CURRENT_OFFSET 					(double) (0.0751)
+
+#define BBMB_PSM 	0
+#define MCMB_PSM	1
+#define PPTMB_PSM	2
+
 struct PSM_P {
 	 SPI_HandleTypeDef* spi_handle;
 	 UART_HandleTypeDef* uart_handle;
@@ -72,6 +83,8 @@ struct PSM_P {
 
 	 GPIO_TypeDef* LVDSPort;
 	 uint16_t LVDSPin;
+
+	 uint8_t motherboard;
 };
 
 struct PSM_FIR_Filter {
@@ -131,6 +144,7 @@ enum measurementType{
 void PSM_init(struct PSM_P * PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTypeDef* uart_handle);
 void config_PSM(struct PSM_P * PSM);
 void resetPSM(struct PSM_P * PSM);
+void configTriggerMode(struct PSM_P * PSM);
 
 // Function used for initial testing (reading and writing to registers)
 void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTypeDef* uart_handle);
@@ -138,6 +152,8 @@ void test_read(struct PSM_P* PSM);
 
 // Read Data
 float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes);
+float readTriggerMode(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes);
+uint16_t readAlert(struct PSM_P * PSM);
 
 // Safety Thresholds
 void writeOnce_PSM(struct PSM_P * PSM, uint8_t * data, uint8_t numBytes);
