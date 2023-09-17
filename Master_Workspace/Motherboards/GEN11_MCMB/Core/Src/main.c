@@ -461,11 +461,15 @@ int main(void)
   psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+  psmPeriph.motherboard = MCMB_PSM;
+
 
   PSM_init(&psmPeriph, &hspi2, &huart2);
   PSM_FIR_Init(&psmFilter);
 
-//  test_config(&psmPeriph, &hspi2, &huart2);
+//  configTriggerMode(&psmPeriph);
+//  resetPSM(&psmPeriph);
+  test_config(&psmPeriph, &hspi2, &huart2);
 
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   //psmFilter.buf_current = PSM_FIR_HV_Current; // discarded to use a different filter
@@ -2093,7 +2097,6 @@ static void motorTmr(TimerHandle_t xTimer){
 				}
 
 				//Update motor power
-				vTaskSuspendAll();
 				if (CRUISE_MODE == CONSTANT_POWER){
 					res = motor->setAccel(motor, targetPower);
 
@@ -2102,7 +2105,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, prevKmPerHour);
 				  if (cruise_control_PI_output < 0.0){
 					res = motor->setAccel(motor, (uint8_t)0);
-					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
+//					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
 				  }else if (cruise_control_PI_output > 0.0){
 					res = motor->setRegen(motor, (uint8_t)0);
 					res = motor->setAccel(motor, (uint8_t)cruise_control_PI_output);
@@ -2111,7 +2114,6 @@ static void motorTmr(TimerHandle_t xTimer){
 					res = motor->setRegen(motor, (uint8_t)0);
 				  }
 				}
-				xTaskResumeAll();
 			}
 			break;
 

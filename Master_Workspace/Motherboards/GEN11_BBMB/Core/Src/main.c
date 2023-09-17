@@ -297,11 +297,12 @@ int main(void)
   psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
-
-//  test_config(&psmPeriph, &hspi2, &huart2);
+  psmPeriph.motherboard = BBMB_PSM;
 
   PSM_init(&psmPeriph, &hspi2, &huart2);
   PSM_FIR_Init(&psmFilter);
+
+  test_config(&psmPeriph, &hspi2, &huart2);
 
   psmFilter.buf_voltage = PSM_FIR_HV_Voltage;
   psmFilter.buf_current = PSM_FIR_HV_Current;
