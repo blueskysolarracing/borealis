@@ -38,7 +38,9 @@
 #define REGEN_IDLE_VAL 52.0
 #define REGEN_MAX_VAL 115.0
 #define REGEN_NEW_MAX 255
-//#define USE_ADC_REGEN
+#define REGEN_OFFSET  19
+#define REGEN_MULTIPLIER -63.75
+#define USE_ADC_REGEN
 
 /* USER CODE END PD */
 
@@ -205,7 +207,7 @@ int main(void)
 		}
 	}
 
-	newRegenValue = (uint8_t)(regenTotalReading/ADC_NUM_AVG);
+	newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULITIPLIER);
 #endif
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
