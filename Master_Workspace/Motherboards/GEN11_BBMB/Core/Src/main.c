@@ -1701,6 +1701,7 @@ void lightsTask(void * argument){
 	} else if (relay.battery_relay_state == OPEN) {
 		if (!DRL_switch_is_on) {
 			turn_off_DRL(&lightsPeriph);
+		}
 	}
   }
 }
