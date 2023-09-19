@@ -1817,8 +1817,8 @@ void serialParse(B_tcpPacket_t *pkt){
 				 if (!camera_switch_is_on) {
 					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
 					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+				 }
 			 }
-
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
 			 if (batteryRelayState == OPEN) default_data.P2_VFM = 0;
 
@@ -2034,7 +2034,7 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//---------- Process data ----------//
 			// Navigation <- Not implemented
-\
+
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
 			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
