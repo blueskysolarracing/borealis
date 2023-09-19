@@ -2019,7 +2019,7 @@ void steeringWheelTask(const void *pv){
 			vTaskSuspendAll();
 			//---------- Process data ----------//
 			// Navigation <- Not implemented
-\
+
 			//INDICATOR LIGHTS - SEND TO BBMB
 			//Left indicator - SEND TO BBMB
 			uint8_t bufh1[2] = {DCMB_LIGHTCONTROL_ID, 0, 0, 0}; //[DATA ID, LIGHT INSTRUCTION]
