@@ -62,7 +62,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-//#define USE_ADC_REGEN
+#define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
