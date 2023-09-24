@@ -6,6 +6,7 @@ void PSM_init(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTypeD
 	PSM->uart_handle = uart_handle;
 
 	config_PSM(PSM);
+//	configTriggerMode(PSM);
 
 }
 
@@ -20,12 +21,45 @@ void config_PSM(struct PSM_P* PSM){
 	 * ADC Sample Averaging Count: 16
 	 */
 
-	// Write documentation for config settings later - Tony
-
 	uint8_t config_buffer[3] = {(CONFIG << 2), 0b00000000, 0b01000000};
 	uint8_t adc_config_buffer[3] = {(ADC_CONFIG << 2), 0b10111001, 0b00100010};
 	uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001001, 0b11000100}; // Max current set as 50A
 	//uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001011, 0b10111000}; // Max current set as 60A
+
+	char errorMessage[64];
+	uint8_t errorMessageLength;
+
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
+
+	if (HAL_SPI_Transmit(PSM->spi_handle, config_buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
+		//data could not be written! transmit some error message to the computer
+		errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING TO CONFIG");
+		HAL_UART_Transmit(PSM->uart_handle, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+	}
+//	HAL_Delay(1);
+	if (HAL_SPI_Transmit(PSM->spi_handle, adc_config_buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
+		//data could not be written! transmit some error message to the computer
+		errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING TO ADC CONFIG");
+		HAL_UART_Transmit(PSM->uart_handle, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+	}
+//	HAL_Delay(1);
+	if (HAL_SPI_Transmit(PSM->spi_handle, shunt_cal_buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
+		//data could not be written! transmit some error message to the computer
+		errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING TO SHUNT CAL");
+		HAL_UART_Transmit(PSM->uart_handle, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+	}
+
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+
+}
+
+void configTriggerMode(struct PSM_P * PSM){
+
+	uint8_t config_buffer[3] = {(CONFIG << 2), 0b00000000, 0b01000000};
+	uint8_t adc_config_buffer[3] = {(ADC_CONFIG << 2), 0b00111001, 0b00100010};
+	uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001001, 0b11000100};
 
 	char errorMessage[64];
 	uint8_t errorMessageLength;
@@ -54,6 +88,46 @@ void config_PSM(struct PSM_P* PSM){
 
 }
 
+float readTriggerMode(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
+
+	uint8_t adc_config_buffer[3] = {(ADC_CONFIG << 2), 0b00111001, 0b00100010};
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
+
+	char errorMessage[64];
+	uint8_t errorMessageLength;
+
+	if (HAL_SPI_Transmit(PSM->spi_handle, adc_config_buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
+		//data could not be written! transmit some error message to the computer
+		errorMessageLength = (uint8_t)sprintf(errorMessage, "ERROR SENDING TO ADC CONFIG");
+		HAL_UART_Transmit(PSM->uart_handle, (uint8_t*)errorMessage, (uint16_t)errorMessageLength, MAX_UART_TRANSMIT_TIMEOUT);
+	}
+
+	float value = readPSM(PSM, addr, numBytes);
+	return value;
+
+}
+
+uint16_t readAlert(struct PSM_P * PSM){
+
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
+
+	uint8_t reg_addr[1] = {((0xB << 2) + 1)};
+	uint8_t buffer[2];
+
+	if (HAL_SPI_Transmit(PSM->spi_handle, reg_addr, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+		HAL_SPI_Receive(PSM->spi_handle, buffer, 2, MAX_SPI_TRANSMIT_TIMEOUT);
+	}
+
+	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
+
+	uint16_t alert = (buffer[1] << 8) | (buffer[0]);
+	return alert;
+
+}
+
 void resetPSM(struct PSM_P * PSM){
 	// not implemented, for device reset
 	HAL_Delay(0);
@@ -76,21 +150,29 @@ void resetPSM(struct PSM_P * PSM){
 
 float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 
-	HAL_Delay(0);
+//	HAL_Delay(0);
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t reg_addr[1] = {((addr << 2) + 1)};
+//	uint8_t reg_addr[numBytes];
+//	reg_addr[numBytes-1] =((addr << 2) + 1);
+
 	uint8_t buffer[numBytes];
 
-	for(uint8_t i = 0; i < numBytes; i++){
-		buffer[i] = 0;
-	}
+//	for(uint8_t i = 0; i < numBytes; i++){
+//		buffer[i] = 0;
+//	}
 
 	if (HAL_SPI_Transmit(PSM->spi_handle, reg_addr, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
 		HAL_SPI_Receive(PSM->spi_handle, buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 	}
 
+//	if (HAL_SPI_Transmit(PSM->spi_handle, reg_addr, numBytes, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK){
+//		HAL_SPI_Receive(PSM->spi_handle, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
+//	}
+
+//	HAL_SPI_TransmitReceive(PSM->spi_handle, reg_addr, buffer, numBytes, MAX_SPI_TRANSMIT_TIMEOUT);
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 
@@ -122,7 +204,19 @@ float readPSM(struct PSM_P * PSM, uint8_t addr, uint8_t numBytes){
 			if (raw_data == 0xffffff) { // If PSM is not connected
 				result = 0;
 			} else {
-				result = 0.7857 * (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 12) * (CURRENT_ERROR_MULTIPLIER) - (CURRENT_ERROR_OFFSET)) + 0.0276;
+				result = CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 12);
+				switch(PSM->motherboard){
+					case BBMB_PSM:
+						result = BBMB_CURRENT_MULTIPLIER * result + BBMB_CURRENT_OFFSET;
+						break;
+					case MCMB_PSM:
+						result = MCMB_CURRENT_MULTIPLIER * result + MCMB_CURRENT_OFFSET;
+						break;
+					case PPTMB_PSM:
+						result = PPTMB_CURRENT_MULTIPLIER * result + PPTMB_CURRENT_OFFSET;
+						break;
+				}
+//				result = 0.7857 * (CURRENT_CONVERSION(MAX_CURRENT) * (raw_data >> 12) * (CURRENT_ERROR_MULTIPLIER) - (CURRENT_ERROR_OFFSET)) + 0.0276;
 			}
 			break;
 
@@ -206,19 +300,13 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 	PSM->spi_handle = spi_handle;
 	PSM->uart_handle = uart_handle;
 
-
 	// config register
 	uint8_t spi_frame[3] = {0x0, 0b00000000, 0b01000000}; // default settings for config register
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 	//HAL_Delay(0);
 
-	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
+	HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 	spi_frame[0]++;
 	uint8_t readbuf1[2];
 	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK) {
@@ -227,12 +315,7 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 
 	// adc config register
 	uint8_t spi_frame1[3] = {(0x1 << 2), 0b11111001, 0b00100010};
-	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame1, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
+	HAL_SPI_Transmit(PSM->spi_handle, spi_frame1, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 
 	spi_frame1[0]++;
 	uint8_t readbuf2[2];
@@ -243,12 +326,8 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 	// shunt_cal register
 	// adcrange = 0 is +/-163.84mV range; acdrange = 1 is +/-40.96mV range
 	uint8_t spi_frame2[3] = {(0x2 << 2), 0b00001001, 0b11000100};
-	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame2, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
+	HAL_SPI_Transmit(PSM->spi_handle, spi_frame2, 3, MAX_SPI_TRANSMIT_TIMEOUT);
+
 	uint8_t readbuf3[2];
 	spi_frame2[0]++;
 	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame2, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK) {
