@@ -70,7 +70,7 @@ enum CRUISE_MODE {
 	CONSTANT_SPEED
 };
 
-#define MOTOR_DATA_PERIOD 20 //Send motor data every MOTOR_DATA_PERIOD (ms)
+#define MOTOR_DATA_PERIOD 100 //Send motor data every MOTOR_DATA_PERIOD (ms)
 #define MAX_VFM 8 //Maximum VFM setting
 #define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */

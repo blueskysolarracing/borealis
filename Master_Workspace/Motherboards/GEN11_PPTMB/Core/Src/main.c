@@ -198,7 +198,6 @@ int main(void)
 
   PSM_init(&psmPeriph, &hspi2, &huart2);
   PSM_FIR_Init(&psmFilter);
-  //test_read(&psmPeriph);
 
   test_config(&psmPeriph, &hspi2, &huart2);
 
