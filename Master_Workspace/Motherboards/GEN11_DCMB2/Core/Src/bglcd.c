@@ -67,8 +67,8 @@ void drawP1Default_new(/*int value[4]*/){
 						common_data.battery_power,
 						(short)(default_data.P1_speed_kph)};
 
-	char labelsP1[3][14] = {0};
-	int labelsP1L = 3;
+	char labelsP1[2][14] = {0};
+	int labelsP1L = 2;
 	char* labelspeed = "km/h";
 
 	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
@@ -76,25 +76,26 @@ void drawP1Default_new(/*int value[4]*/){
 
 	// populate label
 //	if (default_data.batt_warning || default_data.motor_warning) {
+		// sprintf(
+		// 	labelsP1[0],
+		// 	"MV: %c%3d\0",
+		// 	(detailed_data.P1_motor_voltage >= 0 ? '+' : '-'),
+		// 	abs(detailed_data.P1_motor_voltage)
+		// );
 		sprintf(
 			labelsP1[0],
-			"MV: %c%3d\0",
-			(detailed_data.P1_motor_voltage >= 0 ? '+' : '-'),
-			abs(detailed_data.P1_motor_voltage)
-		);
-		sprintf(
-			labelsP1[1],
 			"MC: %c%3d.%d\0",
 		       	(detailed_data.P1_motor_current >= 0 ? '+' : '-'),
 			abs(detailed_data.P1_motor_current),
 			abs(detailed_data.P1_motor_current * 10) % 10
 		);
 		sprintf(
-			labelsP1[2],
+			labelsP1[1],
 			"MT: %c%3d\0",
 		       	(detailed_data.P1_motor_temperature >= 0 ? '+' : '-'),
 			abs(detailed_data.P1_motor_temperature)
 		);
+
 //	} else {
 //		if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "BR: OPEN\0");
 //		else if (common_data.battery_relay_state == CLOSED) sprintf(labelsP1[0], "BR: CLOSED\0");
@@ -120,6 +121,16 @@ void drawP1Default_new(/*int value[4]*/){
 			j++;
 		}
 		// go next rows, these value are just what I think will look good
+		y+=15;
+	}
+
+	// draw chase message
+	if (xTaskGetTickCount() - detailed_data.last_chase_msg_time < 60000) {
+		int j = 0;
+		while(detailed_data.chase_msg[j] != '\0'){
+			glcd_tiny_draw_char_xy(j*6, correct_Y(y), detailed_data.chase_msg[j]);
+			j++;
+		}
 		y+=15;
 	}
 
