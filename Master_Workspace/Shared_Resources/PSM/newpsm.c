@@ -306,12 +306,7 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 	//HAL_Delay(0);
 
-	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
+	HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 	spi_frame[0]++;
 	uint8_t readbuf1[2];
 	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK) {
@@ -320,12 +315,7 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 
 	// adc config register
 	uint8_t spi_frame1[3] = {(0x1 << 2), 0b11111001, 0b00100010};
-	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame1, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
+	HAL_SPI_Transmit(PSM->spi_handle, spi_frame1, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 
 	spi_frame1[0]++;
 	uint8_t readbuf2[2];
@@ -336,12 +326,8 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 	// shunt_cal register
 	// adcrange = 0 is +/-163.84mV range; acdrange = 1 is +/-40.96mV range
 	uint8_t spi_frame2[3] = {(0x2 << 2), 0b00001001, 0b11000100};
-	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame2, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
+	HAL_SPI_Transmit(PSM->spi_handle, spi_frame2, 3, MAX_SPI_TRANSMIT_TIMEOUT);
+
 	uint8_t readbuf3[2];
 	spi_frame2[0]++;
 	if (HAL_SPI_Transmit(PSM->spi_handle, spi_frame2, 1, MAX_SPI_TRANSMIT_TIMEOUT) == HAL_OK) {
