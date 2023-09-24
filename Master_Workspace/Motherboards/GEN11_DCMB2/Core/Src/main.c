@@ -169,7 +169,8 @@ typedef enum {
 	PEDAL,
 	CRUISE,
 	REGEN,
-	STANDBY
+	STANDBY,
+	REGEN_NA
 } MOTORSTATE;
 uint16_t motorTargetPower = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
@@ -353,6 +354,8 @@ int main(void)
 
   //--- VFM ---//
   default_data.P2_VFM = 0;
+
+  detailed_data.chase_msg[0] = '\0';
 
   // test, store hello world into detailed_data.chase_msg
 	// for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
@@ -1608,6 +1611,9 @@ static void pedalTask(const void* p) {
 		) {
     		start_adc_regen = 1;
 		} else {
+			if (steering_wheel_variable_regen_value > adc_regen_threshold) {
+				default_data.P2_motor_state = REGEN_NA;
+			}
 			start_adc_regen = 0;
 		}
 

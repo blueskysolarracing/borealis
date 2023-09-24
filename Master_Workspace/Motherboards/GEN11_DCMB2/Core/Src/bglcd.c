@@ -127,7 +127,7 @@ void drawP1Default_new(/*int value[4]*/){
 	// draw chase message
 	if (xTaskGetTickCount() - detailed_data.last_chase_msg_time < 60000) {
 		int j = 0;
-		while(detailed_data.chase_msg[j] != '\0'){
+		while(detailed_data.chase_msg[j] != '\0' && j < sizeof(detailed_data.chase_msg)){
 			glcd_tiny_draw_char_xy(j*6, correct_Y(y), detailed_data.chase_msg[j]);
 			j++;
 		}
@@ -613,6 +613,10 @@ void drawP2Default(/*int value[4]*/){
 	case 3:
 		state = "REGEN";
 		stateL = 5;
+		break;
+	case 5:
+		state = "REGEN_NA";
+		stateL = 8;
 		break;
 	default:
 		state = "OFF";

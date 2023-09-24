@@ -1908,6 +1908,15 @@ void fault_state_setter(void* parameters) {
 			run_unfaulted_routine = 1;
 		}
 
+		uint8_t buf[2] = {BBMB_FAULT_STATE_ID, 0, 0, 0};
+		buf[1] |= battery_overvoltage << 0;
+		buf[1] |= battery_undervoltage << 1;
+		buf[1] |= battery_overtemperature << 2;
+		buf[1] |= battery_undertemperature << 3;
+		buf[1] |= battery_overcurrent << 4;
+		buf[1] |= motor_overtemperature << 5;
+		B_tcpSend(btcp_main, buf, sizeof(buf));
+
 		vTaskDelay(pdMS_TO_TICKS(BMS_READ_INTERVAL)); // Don't need to run faster since the voltages , current, and temperatures are not updated more frequently than this.
 	}
 }
