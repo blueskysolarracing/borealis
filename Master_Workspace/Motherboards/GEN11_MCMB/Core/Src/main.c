@@ -68,7 +68,7 @@ enum CRUISE_MODE {
 
 //--- TEMPERATURE SENSOR ---//
 
-#define TEMP_AVG_SIZE 				10
+#define TEMP_AVG_SIZE 				20
 
 // Parameters for Platinum 3850 ppm/K
 #define RESISTANCE_ZERO_DEG			100

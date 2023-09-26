@@ -207,7 +207,7 @@ int main(void)
 		}
 	}
 
-	newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULITIPLIER);
+	newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULTIPLIER);
 #endif
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
