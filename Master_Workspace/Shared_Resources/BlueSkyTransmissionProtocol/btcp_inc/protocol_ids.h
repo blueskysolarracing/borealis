@@ -18,7 +18,7 @@ enum Sender_ID {
 /* ===== Data IDs ===== */
 enum BBMB_Data_ID {
 	BBMB_BUS_METRICS_ID,
-	BBMB_UNUSED_ID_0x1,
+	BBMB_FAULT_STATE_ID,
 	BBMB_BSD_ID, // not used
 	BBMB_BMS_MCU_STATUS_ID,   // not used
 	BBMB_UNUSED_ID_0x4,
@@ -74,6 +74,7 @@ enum Chase_Data_ID {
 	CHASE_LIGHTCONTROL_ID,
 	CHASE_SET_RTC_ID,
 	CHASE_CRUISE_PI_GAIN_ID,
+	CHASE_MESSAGE_ID,
 
 	CHASE_HEARTBEAT_ID = 		0x0F
 };

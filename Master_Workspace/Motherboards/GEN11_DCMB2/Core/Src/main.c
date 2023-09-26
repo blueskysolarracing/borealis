@@ -169,7 +169,8 @@ typedef enum {
 	PEDAL,
 	CRUISE,
 	REGEN,
-	STANDBY
+	STANDBY,
+	REGEN_NA
 } MOTORSTATE;
 uint16_t motorTargetPower = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
@@ -226,6 +227,8 @@ uint8_t arrayRelayState = OPEN;
 uint8_t camera_switch_is_on = 0;
 uint8_t efficiency_mode_on = 1;
 uint8_t current_speed_kph;
+
+char default_chase_msg[11] = {'M', 'E', 'S', 'S', 'A', 'G', 'E', 'S', ' ', ' ', ' '};
 
 /* USER CODE END PV */
 
@@ -353,6 +356,17 @@ int main(void)
 
   //--- VFM ---//
   default_data.P2_VFM = 0;
+
+  detailed_data.chase_msg[0] = '\0';
+
+  // test, store hello world into detailed_data.chase_msg
+	// for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
+	// 	if (i >= sizeof(default_chase_msg)) {
+	// 		break;
+	// 	}
+	// 	detailed_data.chase_msg[i] = default_chase_msg[i];
+	// }
+	// detailed_data.chase_msg[sizeof(detailed_data.chase_msg) - 1] = '\0';
 
   /* USER CODE END 2 */
 
@@ -1599,6 +1613,9 @@ static void pedalTask(const void* p) {
 		) {
     		start_adc_regen = 1;
 		} else {
+			if (steering_wheel_variable_regen_value > adc_regen_threshold) {
+				default_data.P2_motor_state = REGEN_NA;
+			}
 			start_adc_regen = 0;
 		}
 
@@ -1982,6 +1999,14 @@ void serialParse(B_tcpPacket_t *pkt){
 			 //Update connection status
 			 Chase_last_packet_tick_count = xTaskGetTickCount();
 		 }
+		 if (pkt->data[0] == CHASE_MESSAGE_ID) {
+			detailed_data.last_chase_msg_time = xTaskGetTickCount();
+			// store rest of message in detailed_data.chase_msg, plus null terminator
+			for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
+				detailed_data.chase_msg[i] = (char)pkt->data[i + 1];
+			}
+			detailed_data.chase_msg[sizeof(detailed_data.chase_msg) - 1] = '\0';
+		 }
 
 		 break;
 	}
@@ -2344,11 +2369,49 @@ void displayTask(const void *pv){
 			detailed_data.P2_PPT = 	0;
 			detailed_data.P2_RAD = 	0;
 
-			if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
-			if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
-			if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
-			if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
-			if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
+			uint32_t diff = 0;
+
+			if (tick_cnt >= PPTMB_last_packet_tick_count) {
+				diff = tick_cnt - PPTMB_last_packet_tick_count;
+			} else {
+				diff = ((0xFFFFFFFF - PPTMB_last_packet_tick_count)) + tick_cnt + 1;
+			}
+			if (diff < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
+
+			if (tick_cnt >= BBMB_last_packet_tick_count) {
+				diff = tick_cnt - BBMB_last_packet_tick_count;
+			} else {
+				diff = ((0xFFFFFFFF - BBMB_last_packet_tick_count)) + tick_cnt + 1;
+			}
+			if (diff < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
+
+			if (tick_cnt >= MCMB_last_packet_tick_count) {
+				diff = tick_cnt - MCMB_last_packet_tick_count;
+			} else {
+				diff = ((0xFFFFFFFF - MCMB_last_packet_tick_count)) + tick_cnt + 1;
+			}
+			if (diff < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
+
+			if (tick_cnt >= BMS_last_packet_tick_count) {
+				diff = tick_cnt - BMS_last_packet_tick_count;
+			} else {
+				diff = ((0xFFFFFFFF - BMS_last_packet_tick_count)) + tick_cnt + 1;
+			}
+			if (diff < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
+
+			if (tick_cnt >= Chase_last_packet_tick_count) {
+				diff = tick_cnt - Chase_last_packet_tick_count;
+			} else {
+				diff = ((0xFFFFFFFF - Chase_last_packet_tick_count)) + tick_cnt + 1;
+			}
+			if (diff < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
+
+
+			// if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
+			// if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
+			// if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
+			// if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
+			// if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
 
 			local_display_sel = display_selection;
 

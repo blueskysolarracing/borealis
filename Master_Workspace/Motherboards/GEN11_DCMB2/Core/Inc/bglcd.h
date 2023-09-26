@@ -93,6 +93,9 @@ struct disp_detailed_frame{
 	int32_t min_soc_cell;
 	int32_t max_soc;
 	int32_t max_soc_cell;
+
+	char chase_msg[12]; // 11 chars + null terminator
+	uint32_t last_chase_msg_time;
 };
 
 extern struct disp_common common_data;
