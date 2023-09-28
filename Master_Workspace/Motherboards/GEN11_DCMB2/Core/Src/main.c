@@ -62,7 +62,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-#define USE_ADC_REGEN
+//#define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -227,6 +227,7 @@ uint8_t arrayRelayState = OPEN;
 uint8_t camera_switch_is_on = 0;
 uint8_t efficiency_mode_on = 1;
 uint8_t current_speed_kph;
+uint8_t charge_mode = 0;
 
 char default_chase_msg[11] = {'M', 'E', 'S', 'S', 'A', 'G', 'E', 'S', ' ', ' ', ' '};
 
@@ -1710,11 +1711,34 @@ static void pedalTask(const void* p) {
 			default_data.P2_motor_state = OFF;
 		}
 
-		xTaskResumeAll();
-
 		//Reset variables for next averaging
 		accelReading = 0;
 
+		 // When in efficiency mode, if car speed > 40 km/h, backup camera/screen is controlled by camera switch
+		 if (efficiency_mode_on && motorState != OFF && current_speed_kph > 40) {
+			 if (camera_switch_is_on) {
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
+
+			 } else {
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+			 }
+
+		 // If motor is on, turn on backup camera/screen to follow regulation
+		 } else if (motorState != OFF) {
+			  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
+			  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
+
+		 // If motor is off, turn off backup camera/screen if camera switch is off
+		 } else if (motorState == OFF) {
+			 if (!camera_switch_is_on) {
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
+				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
+			 }
+		 }
+
+		xTaskResumeAll();
 		osDelay(PEDALS_MEASUREMENT_INTERVAL);
 	}
 }
@@ -1813,29 +1837,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			 batteryRelayState = pkt->data[2]; //Update global variable tracking battery relay state
 			 common_data.battery_relay_state = batteryRelayState;
 
-			 // When in efficiency mode, if car speed > 40 km/h, backup camera/screen is controlled by camera switch
-			 if (efficiency_mode_on && current_speed_kph > 40) {
-				 if (camera_switch_is_on) {
-					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
-					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
-
-				 } else {
-					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
-					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
-				 }
-
-			 // If relays are closed, turn on backup camera/screen to follow regulation
-			 } else if (batteryRelayState == CLOSED) {
-				  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_SET); //Enable camera
-				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_SET); //Enable screen
-
-			 // If relays are open, turn off backup camera/screen if camera switch is off
-			 } else if (batteryRelayState == OPEN) {
-				 if (!camera_switch_is_on) {
-					  HAL_GPIO_WritePin(GPIOI, BACKUP_CAMERA_CTRL_Pin, GPIO_PIN_RESET); //Disable camera
-					  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
-				 }
-			 }
 			 //Reset VFM (when motor controller loses power, upon startup, VFM resets so we want the display to match)
 			 if (batteryRelayState == OPEN) default_data.P2_VFM = 0;
 
@@ -2206,6 +2207,9 @@ void sidePanelTask(const void *pv){
 	uint8_t firstArrayState = -1; //unknown at this moment. Will be set to OPEN, CLOSED
 	uint8_t toggleArrayRequired = 0;
 
+	uint8_t firstChargeModeState = -1;
+	uint8_t toggleChargeModeRequired = 0;
+
 	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
 
@@ -2267,14 +2271,14 @@ void sidePanelTask(const void *pv){
 					HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_RESET);
 				}
 
-			//AUX2 (ECO/PWR motor state control in GEN11)
-				if (sidePanelData & (1 << 3)){
-					ecoPwrState = 1; //1 is PWR
-					default_data.eco = 1;
-				} else {
-					ecoPwrState = 0; //0 is ECO
-					default_data.eco = 0;
-				}
+//			//AUX2 (ECO/PWR motor state control in GEN11) (deprecated - ECO to be controlled from chase)
+//				if (sidePanelData & (1 << 3)){
+//					ecoPwrState = 1; //1 is PWR
+//					default_data.eco = 1;
+//				} else {
+//					ecoPwrState = 0; //0 is ECO
+//					default_data.eco = 0;
+//				}
 
 			//--- Update states ---//
 			//ARRAY
@@ -2319,6 +2323,24 @@ void sidePanelTask(const void *pv){
 						default_data.P2_motor_state = OFF;
 						bufh3[2] = OPEN;
 						toggleIgnitionRequired = 0;
+					}
+				}
+
+				// charge mode switch (uses ECO switch)
+				if (firstTime) {
+					firstChargeModeState = (sidePanelData & (1 << 3))? 0 : 1;
+					toggleChargeModeRequired = (firstChargeModeState == 0) ? 1 : 0;
+				} else {
+					if (sidePanelData & (1 << 3)){ //charge state ON
+						if (!toggleChargeModeRequired) {
+							charge_mode = 1;
+							bufh3[2] = CLOSED;
+						}
+					} else { //charge state OFF
+						charge_mode = 0;
+						if (ignitionState == IGNITION_OFF)
+							bufh3[2] = OPEN;
+						toggleChargeModeRequired = 0;
 					}
 				}
 				xTaskResumeAll();
