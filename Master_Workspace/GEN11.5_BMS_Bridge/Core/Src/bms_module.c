@@ -233,18 +233,24 @@ static void measure_voltage(BmsModule* this)
 {
 	float local_voltage_array[BMS_MODULE_NUM_VOLTAGES]; //Voltage of each cell
 	LTC6810ReadVolt(this, local_voltage_array); //Places voltage in temp 1, temp
+	uint32_t cur_tick = xTaskGetTickCount();
 
-	vTaskSuspendAll();
-	for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
-		if (check_voltage_is_valid(local_voltage_array[i])) {
-			this->_voltages[i] = local_voltage_array[i];
-			sfq_push(&this->past_voltages[i], this->_voltages[i]);
-		} else {
-			// If voltage is invalid, assume bms module is not connected, and don't push to queue
-			this->_voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
+	// avoids updating voltage too frequently and ensures the queue contains voltage over the period VOLTAGE_AVERAGE_INTERVAL
+	if ((cur_tick - this->_tick_last_voltage_measure / pdMS_TO_TICKS(1)) >= VOLTAGE_AVERAGE_PERIOD / (float)STATIC_FLOAT_QUEUE_NUM_VALUES) {
+		vTaskSuspendAll();
+		for (int i = 0; i < BMS_MODULE_NUM_VOLTAGES; i++) {
+			if (check_voltage_is_valid(local_voltage_array[i])) {
+				this->_voltages[i] = local_voltage_array[i];
+				sfq_push(&this->past_voltages[i], this->_voltages[i]);
+			} else {
+				// If voltage is invalid, assume bms module is not connected, and don't push to queue
+				this->_voltages[i] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE;
+			}
 		}
+		xTaskResumeAll();
 	}
-	xTaskResumeAll();
+
+	this->_tick_last_voltage_measure = cur_tick;
 }
 
 static void compute_soc(BmsModule* this)

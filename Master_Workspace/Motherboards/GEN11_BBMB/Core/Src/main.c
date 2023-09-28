@@ -108,6 +108,9 @@ uint8_t heartbeat[2] = {BBMB_HEARTBEAT_ID, 0};
 struct lights_stepper_ctrl lightsPeriph;
 QueueHandle_t lightsCtrl = NULL;
 uint8_t lightInstruction;
+uint8_t efficiency_mode_on = 1;
+uint8_t current_speed_kph;
+float DRL_BRIGHTNESS_DIM = 0.1;
 
 //--- PSM ---//
 struct PSM_P psmPeriph;
@@ -143,7 +146,17 @@ uint8_t battery_overcurrent = 0;
 uint8_t motor_overtemperature = 0;
 
 float motor_temperature = 0;
+//--- MOTOR ---//
+typedef enum {
+	OFF,
+	PEDAL,
+	CRUISE,
+	REGEN,
+	STANDBY,
+	REGEN_NA
+} MOTORSTATE;
 
+uint8_t motorState = OFF;
 
 float battery_cell_voltages[NUM_BATT_CELLS] = {[0 ... (NUM_BATT_CELLS-1)] = BATTERY_CELL_VOLTAGES_INITIAL_VALUE};
 float battery_temperatures[NUM_BATT_TEMP_SENSORS] = {[0 ... (NUM_BATT_TEMP_SENSORS-1)] = BATTERY_TEMPERATURES_INITIAL_VALUE};
@@ -1469,6 +1482,8 @@ void serialParse(B_tcpPacket_t *pkt){
 				} else { //Turn off horn
 					HAL_GPIO_WritePin(HORN_EN_GPIO_Port, HORN_EN_Pin, GPIO_PIN_RESET);
 				}
+			} else if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
+				motorState = pkt->data[1];
 			}
 			break;
 
@@ -1534,6 +1549,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			}
 			if (pkt->data[0] == MCMB_MOTOR_TEMPERATURE_ID){
 				motor_temperature = arrayToFloat(&(pkt->data[4]));
+			}
+			if (pkt->data[0] == MCMB_CAR_SPEED_ID){ //Car speed
+				current_speed_kph = pkt->data[1];
 			}
 			break;
 	}
@@ -1641,8 +1659,8 @@ void lightsTask(void * argument){
 					turn_on_DRL(&lightsPeriph, DRL_brightness);
 					DRL_switch_is_on = 1;
 				} else {
-					if (relay.battery_relay_state == OPEN) {
-						// Only allow DRL to turn off when battery relay is open
+					if (motorState == OFF) {
+						// Only allow DRL to turn off when motor is off
 						turn_off_DRL(&lightsPeriph);
 					}
 					DRL_switch_is_on = 0;
@@ -1677,17 +1695,26 @@ void lightsTask(void * argument){
 				break;
 		}
 	}
+
 	// default light states
-	if (relay.battery_relay_state == CLOSED) {
-		// turn on the DRL by regulation
+	// When in efficiency mode, if car speed > 40 km/h, DRL lights are controlled by DRL switch
+	if (efficiency_mode_on && motorState != OFF && current_speed_kph > 40) {
+		if (DRL_switch_is_on) {
+			turn_on_DRL(&lightsPeriph, DRL_BRIGHTNESS_DIM);
+		} else {
+			turn_off_DRL(&lightsPeriph);
+		}
+
+	// If motor is on, turn on DRL lights to follow regulation
+	} else if (motorState != OFF) {
 		turn_on_DRL(&lightsPeriph, DRL_brightness);
-	} else if (relay.battery_relay_state == OPEN) {
+
+	// If motor is off, turn off DRL lights if DRL switch is off
+	} else if (motorState == OFF) {
 		if (!DRL_switch_is_on) {
-			// only turn off DRL if the physical switch is off
 			turn_off_DRL(&lightsPeriph);
 		}
 	}
-
   }
 }
 
@@ -1907,6 +1934,15 @@ void fault_state_setter(void* parameters) {
 			}
 			run_unfaulted_routine = 1;
 		}
+
+		uint8_t buf[2] = {BBMB_FAULT_STATE_ID, 0, 0, 0};
+		buf[1] |= battery_overvoltage << 0;
+		buf[1] |= battery_undervoltage << 1;
+		buf[1] |= battery_overtemperature << 2;
+		buf[1] |= battery_undertemperature << 3;
+		buf[1] |= battery_overcurrent << 4;
+		buf[1] |= motor_overtemperature << 5;
+		B_tcpSend(btcp_main, buf, sizeof(buf));
 
 		vTaskDelay(pdMS_TO_TICKS(BMS_READ_INTERVAL)); // Don't need to run faster since the voltages , current, and temperatures are not updated more frequently than this.
 	}
