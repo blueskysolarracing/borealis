@@ -1888,6 +1888,15 @@ void battery_unfaulted_routine() {
 void fault_state_setter(void* parameters) {
 	uint8_t run_unfaulted_routine = 1;
 	uint8_t run_faulted_routine = 1;
+
+	// for each element in battery_cell_voltages[], stores time since overvoltage
+	uint32_t overvoltage_period[NUM_BATT_CELLS] = {0};
+	uint32_t time_last_overvoltage[NUM_BATT_CELLS] = {0};
+
+	// for each element in battery_cell_voltages[], stores time since undervoltage
+	uint32_t undervoltage_period[NUM_BATT_CELLS] = {0};
+	uint32_t time_last_undervoltage[NUM_BATT_CELLS] = {0};
+
 	while(1) {
 
 		vTaskSuspendAll();
@@ -1895,9 +1904,30 @@ void fault_state_setter(void* parameters) {
 			float voltage = battery_cell_voltages[i];
 			if (voltage != BATTERY_CELL_VOLTAGES_FAKE_VALUE && voltage != BATTERY_CELL_VOLTAGES_INITIAL_VALUE) {
 				if ((voltage > HV_BATT_OV_THRESHOLD)){
-					battery_overvoltage = 1;
+					uint32_t curr_time = xTaskGetTickCount() / pdMS_TO_TICKS(1);
+					if (overvoltage_period[i] == 0) {
+						overvoltage_period[i] = 1;
+					} else {
+						overvoltage_period[i] = overvoltage_period[i] + curr_time - time_last_overvoltage[i];
+					}
+					time_last_overvoltage[i] = curr_time;
+					if (overvoltage_period[i] > HV_BATT_OV_DEBOUNCE_TIME) {
+						battery_overvoltage = 1;
+					}
 				} else if (voltage < HV_BATT_UV_THRESHOLD){
-					battery_undervoltage = 1;
+					uint32_t curr_time = xTaskGetTickCount() / pdMS_TO_TICKS(1);
+					if (undervoltage_period[i] == 0) {
+						undervoltage_period[i] = 1;
+					} else {
+						undervoltage_period[i] = undervoltage_period[i] + curr_time - time_last_undervoltage[i];
+					}
+					time_last_undervoltage[i] = curr_time;
+					if (undervoltage_period[i] > HV_BATT_UV_DEBOUNCE_TIME) {
+						battery_undervoltage = 1;
+					}
+				} else {
+					overvoltage_period[i] = 0;
+					undervoltage_period[i] = 0;
 				}
 			}
 		}
@@ -1935,7 +1965,7 @@ void fault_state_setter(void* parameters) {
 			run_unfaulted_routine = 1;
 		}
 
-		uint8_t buf[2] = {BBMB_FAULT_STATE_ID, 0, 0, 0};
+		uint8_t buf[] = {BBMB_FAULT_STATE_ID, 0, 0, 0};
 		buf[1] |= battery_overvoltage << 0;
 		buf[1] |= battery_undervoltage << 1;
 		buf[1] |= battery_overtemperature << 2;
