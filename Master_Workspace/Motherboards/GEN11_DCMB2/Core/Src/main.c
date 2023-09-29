@@ -2428,13 +2428,6 @@ void displayTask(const void *pv){
 			}
 			if (diff < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
 
-
-			// if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
-			// if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
-			// if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
-			// if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
-			// if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
-
 			local_display_sel = display_selection;
 
 			//Check if need to display low supplemental battery voltage alert
@@ -2461,11 +2454,6 @@ void displayTask(const void *pv){
 				default_data.P2_motor_state = OFF;
 				default_data.batt_warning = 1;
 			}
-
-			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status
-			// 		|| detailed_data.overtemperature_status || detailed_data.undertemperature_status
-			// 		|| batteryState == FAULTED)
-                        //        local_display_sel = battery_faulted_display_selection;
 
 			xTaskResumeAll();
 			drawP1(local_display_sel);
