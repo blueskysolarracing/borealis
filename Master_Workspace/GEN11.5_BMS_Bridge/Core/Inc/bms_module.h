@@ -22,7 +22,6 @@
 #define BMS_MODULE_NUM_STATE_OF_CHARGES NUM_CELLS_PER_MODULE
 
 #define STATIC_FLOAT_QUEUE_NUM_VALUES 20
-#define VOLTAGE_AVERAGE_PERIOD 3000.0f // 3 seconds
 
 typedef enum {
 	GET_MOST_RECENT,
@@ -64,7 +63,6 @@ typedef struct BmsModule {
 	float _state_of_charges[BMS_MODULE_NUM_STATE_OF_CHARGES];
 	EKF_Model_14p _EKF_models[BMS_MODULE_NUM_STATE_OF_CHARGES];
 	uint32_t _tick_last_soc_compute[BMS_MODULE_NUM_STATE_OF_CHARGES];
-	uint32_t _tick_last_voltage_measure;
 	float _current;
 	int _bms_module_id;
 
