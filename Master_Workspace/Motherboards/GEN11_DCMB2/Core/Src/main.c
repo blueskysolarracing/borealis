@@ -150,7 +150,6 @@ B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
 uint8_t heartbeat[2] = {DCMB_HEARTBEAT_ID, 0};
 
-uint8_t ignition_state = 0;
 uint8_t array_state = 0;
 
 //Initialize the tick count for each to
@@ -2315,13 +2314,18 @@ void sidePanelTask(const void *pv){
 				} else {
 					if (sidePanelData & (1 << 7)){ //Ignition ON
 						if (!toggleIgnitionRequired) {
-							ignitionState = IGNITION_ON;
+							if (!charge_mode) {
+								ignitionState = IGNITION_ON;
+							} else {
+								ignitionState = IGNITION_OFF;
+							}
 							bufh3[2] = CLOSED;
 						}
 					} else { //Ignition OFF
 						ignitionState = IGNITION_OFF;
-						default_data.P2_motor_state = OFF;
-						bufh3[2] = OPEN;
+						if (!charge_mode) {
+							bufh3[2] = OPEN;
+						}
 						toggleIgnitionRequired = 0;
 					}
 				}
@@ -2335,11 +2339,15 @@ void sidePanelTask(const void *pv){
 						if (!toggleChargeModeRequired) {
 							charge_mode = 1;
 							bufh3[2] = CLOSED;
+							if (ignitionState) {
+								ignitionState = IGNITION_OFF;
+							}
 						}
 					} else { //charge state OFF
 						charge_mode = 0;
-						if (ignitionState == IGNITION_OFF)
+						if (ignitionState == IGNITION_OFF) {
 							bufh3[2] = OPEN;
+						}
 						toggleChargeModeRequired = 0;
 					}
 				}
