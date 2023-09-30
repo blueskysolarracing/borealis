@@ -2023,8 +2023,16 @@ float PIControllerUpdate(float setpoint, float measured){
 static void motorTmr(TimerHandle_t xTimer){
 	int res = -1; //res will be used for debugging
 
-	//TODO: use software timer to handle tickcount overflow
-	if(xTaskGetTickCount() >= (lastDcmbPacket + 4000)){  //if serialParse stops being called (this means uart connection is lost)
+	uint32_t tick_cnt = xTaskGetTickCount();
+	uint32_t diff = 0;
+
+	if (tick_cnt >= lastDcmbPacket) {
+		diff = tick_cnt - lastDcmbPacket;
+	} else {
+		diff = ((0xFFFFFFFF - lastDcmbPacket)) + tick_cnt + 1;
+	}
+
+	if(diff > 4000){  //if serialParse stops being called after 4 seconds (this means uart connection is lost)
 
 		motor->turnOff(motor);
 		gearUp = 0;
