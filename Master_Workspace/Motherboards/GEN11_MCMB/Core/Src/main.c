@@ -2189,11 +2189,6 @@ static void spdTmr(TimerHandle_t xTimer){
 	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
 	kmPerHour = meterPerSecond / 1000.0 * 3600.0;
 
-	// Check if change is too great (most likely due to noise)
-	// If so, use the previous value
-	if (fabs(kmPerHour - prevKmPerHour) > 25.0) {
-		kmPerHour = prevKmPerHour;
-	}
 	// Send frequency to DCMB (for now)
 	buf[1] = (uint8_t) round(kmPerHour);
 

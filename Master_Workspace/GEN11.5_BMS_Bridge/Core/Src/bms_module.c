@@ -857,5 +857,3 @@ static void LTC6810ReadVolt(BmsModule* this, float* voltArray){
 	// Not using the following since voltArray has size of 5 instead of 6
 	// voltArray[5] = voltageDataConversion(dataToReceive[4], dataToReceive[5]) /10000.0;
 }
-
-
