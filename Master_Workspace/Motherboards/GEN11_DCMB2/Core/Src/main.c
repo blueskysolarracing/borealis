@@ -2212,6 +2212,8 @@ void sidePanelTask(const void *pv){
 	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
 
+	uint8_t ignitionOverWritten = ignitionState;
+
 	for(;;){
 		//e = B_uartRead(spbBuart);
 		B_uartReadFullMessage(spbBuart,  rxBuf, expectedLen, BSSR_SERIAL_START);
@@ -2318,11 +2320,13 @@ void sidePanelTask(const void *pv){
 								ignitionState = IGNITION_ON;
 							} else {
 								ignitionState = IGNITION_OFF;
+								ignitionOverWritten = 1;
 							}
 							bufh3[2] = CLOSED;
 						}
 					} else { //Ignition OFF
 						ignitionState = IGNITION_OFF;
+						ignitionOverWritten = 0;
 						if (!charge_mode) {
 							bufh3[2] = OPEN;
 						}
@@ -2339,16 +2343,21 @@ void sidePanelTask(const void *pv){
 						if (!toggleChargeModeRequired) {
 							charge_mode = 1;
 							bufh3[2] = CLOSED;
-							if (ignitionState) {
+							if (ignitionState == IGNITION_ON) {
+								ignitionOverWritten = 1;
 								ignitionState = IGNITION_OFF;
 							}
 						}
 					} else { //charge state OFF
 						charge_mode = 0;
-						if (ignitionState == IGNITION_OFF) {
+						if (!ignitionOverWritten) {
 							bufh3[2] = OPEN;
+						} else {
+							// keep battery relays closed, but turn on motor
+							ignitionState = IGNITION_ON;
 						}
 						toggleChargeModeRequired = 0;
+						ignitionOverWritten = 0;
 					}
 				}
 				xTaskResumeAll();
