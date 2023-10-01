@@ -1998,16 +1998,30 @@ void serialParse(B_tcpPacket_t *pkt){
 		 if (pkt->data[0] == CHASE_HEARTBEAT_ID){
 			 //Update connection status
 			 Chase_last_packet_tick_count = xTaskGetTickCount();
-		 }
-		 if (pkt->data[0] == CHASE_MESSAGE_ID) {
+		 } else if (pkt->data[0] == CHASE_MESSAGE_ID) {
 			detailed_data.last_chase_msg_time = xTaskGetTickCount();
 			// store rest of message in detailed_data.chase_msg, plus null terminator
 			for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
 				detailed_data.chase_msg[i] = (char)pkt->data[i + 1];
 			}
 			detailed_data.chase_msg[sizeof(detailed_data.chase_msg) - 1] = '\0';
+		 } else if (pkt->data[0] == CHASE_VMF_ID) {
+			uint8_t vmf_up = pkt->data[1];
+			if (vmf_up) {
+				if (default_data.P2_VFM < MAX_VFM - 1 && (batteryRelayState == CLOSED)){ //Bound VFM setting
+					default_data.P2_VFM++;
+				}
+				vfmUpState = 1;
+			} else {
+				if (default_data.P2_VFM > 0){
+					default_data.P2_VFM--;
+				}
+				vfmUpState = 0;
+			}
+		 } else if (pkt->data[0] == CHASE_ECO_MODE_ID) {
+			uint8_t eco_on = pkt->data[1];
+			ecoPwrState = 1 - eco_on;
 		 }
-
 		 break;
 	}
 	xTaskResumeAll();
