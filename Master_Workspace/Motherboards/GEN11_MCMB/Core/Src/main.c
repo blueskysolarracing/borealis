@@ -178,8 +178,8 @@ uint8_t past_vfm_pos = 0;
 long lastDcmbPacket = 0;
 float temperature = 0;
 uint8_t speedTarget;
-float prevKmPerHour = 0;
 float kmPerHour = 0;
+float emaKmPerHour = 0;  // Exponential Moving Average of speed
 
 MotorInterface* motor;
 MitsubaMotor mitsuba;
@@ -2110,7 +2110,7 @@ static void motorTmr(TimerHandle_t xTimer){
 
 				} else if (CRUISE_MODE == CONSTANT_SPEED){
 				  //TODO: Might need to add hysteresis to PI is it switches between regen and accel too quickly
-				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, prevKmPerHour);
+				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, emaKmPerHour);
 				  if (cruise_control_PI_output < 0.0){
 					res = motor->setAccel(motor, (uint8_t)0);
 //					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
@@ -2197,10 +2197,12 @@ static void spdTmr(TimerHandle_t xTimer){
 	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
 	kmPerHour = meterPerSecond / 1000.0 * 3600.0;
 
-	// Send frequency to DCMB (for now)
-	buf[1] = (uint8_t) round(kmPerHour);
+	const float alpha = 0.5; // 0.0 < alpha < 1.0. A smaller alpha will provide more smoothing, but react slower to changes.
 
-	prevKmPerHour = kmPerHour;
+	// Update the exponential moving average
+    emaKmPerHour = alpha * kmPerHour + (1 - alpha) * emaKmPerHour;
+
+    buf[1] = (uint8_t) round(emaKmPerHour);
 
 	B_tcpSend(btcp, buf, 4);
 }
