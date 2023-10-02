@@ -1617,11 +1617,11 @@ void RelayStateTimer(xTimerHandle xTimer) {
 
 void lightsTask(void * argument){
 	uint8_t buf_get[10];
-	float indicator_brightness = 0.25; //Don't go over 40%
-	float DRL_brightness = 0.25; //Don't go over 50%
-	float brake_brightness = 0.25; //Don't go over 50%
-	float hazard_brightness = 0.25; //Don't go over 50%
-	float BPS_fault_brightness = 0.25; //Don't go over 50%
+	float indicator_brightness = 0.20; //Don't go over 40%
+	float DRL_brightness = 0.20; //Don't go over 50%
+	float brake_brightness = 0.20; //Don't go over 50%
+	float hazard_brightness = 0.20; //Don't go over 50%
+	float BPS_fault_brightness = 0.20; //Don't go over 50%
 	uint8_t DRL_switch_is_on = 0;
 
 /**
