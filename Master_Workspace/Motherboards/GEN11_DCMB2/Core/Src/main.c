@@ -150,7 +150,6 @@ B_uartHandle_t* swBuart;
 B_tcpHandle_t* btcp;
 uint8_t heartbeat[2] = {DCMB_HEARTBEAT_ID, 0};
 
-uint8_t ignition_state = 0;
 uint8_t array_state = 0;
 
 //Initialize the tick count for each to
@@ -1999,16 +1998,30 @@ void serialParse(B_tcpPacket_t *pkt){
 		 if (pkt->data[0] == CHASE_HEARTBEAT_ID){
 			 //Update connection status
 			 Chase_last_packet_tick_count = xTaskGetTickCount();
-		 }
-		 if (pkt->data[0] == CHASE_MESSAGE_ID) {
+		 } else if (pkt->data[0] == CHASE_MESSAGE_ID) {
 			detailed_data.last_chase_msg_time = xTaskGetTickCount();
 			// store rest of message in detailed_data.chase_msg, plus null terminator
 			for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
 				detailed_data.chase_msg[i] = (char)pkt->data[i + 1];
 			}
 			detailed_data.chase_msg[sizeof(detailed_data.chase_msg) - 1] = '\0';
+		 } else if (pkt->data[0] == CHASE_VMF_ID) {
+			uint8_t vmf_up = pkt->data[1];
+			if (vmf_up) {
+				if (default_data.P2_VFM < MAX_VFM - 1 && (batteryRelayState == CLOSED)){ //Bound VFM setting
+					default_data.P2_VFM++;
+				}
+				vfmUpState = 1;
+			} else {
+				if (default_data.P2_VFM > 0){
+					default_data.P2_VFM--;
+				}
+				vfmUpState = 0;
+			}
+		 } else if (pkt->data[0] == CHASE_ECO_MODE_ID) {
+			uint8_t eco_on = pkt->data[1];
+			ecoPwrState = 1 - eco_on;
 		 }
-
 		 break;
 	}
 	xTaskResumeAll();
@@ -2213,6 +2226,8 @@ void sidePanelTask(const void *pv){
 	uint8_t expectedLen = 4; //must be same length as sent from SPB
     uint8_t rxBuf[expectedLen];
 
+	uint8_t ignitionOverWritten = ignitionState;
+
 	for(;;){
 		//e = B_uartRead(spbBuart);
 		B_uartReadFullMessage(spbBuart,  rxBuf, expectedLen, BSSR_SERIAL_START);
@@ -2307,6 +2322,9 @@ void sidePanelTask(const void *pv){
 				  default_data.direction = REVERSE;
 				}
 
+				uint8_t ignitionSwitchOn = sidePanelData & (1 << 7);
+				uint8_t chargeSwitchOn = sidePanelData & (1 << 3);
+
 			//IGNITION
 				// will not respond to ignition the first time this runs. Forces user to toggle ignition for safety reasons.
 				if (firstTime) {
@@ -2315,13 +2333,16 @@ void sidePanelTask(const void *pv){
 				} else {
 					if (sidePanelData & (1 << 7)){ //Ignition ON
 						if (!toggleIgnitionRequired) {
-							ignitionState = IGNITION_ON;
+							if (!chargeSwitchOn) {
+								ignitionState = IGNITION_ON;
+							}
 							bufh3[2] = CLOSED;
 						}
 					} else { //Ignition OFF
 						ignitionState = IGNITION_OFF;
-						default_data.P2_motor_state = OFF;
-						bufh3[2] = OPEN;
+						if (!chargeSwitchOn) {
+							bufh3[2] = OPEN;
+						}
 						toggleIgnitionRequired = 0;
 					}
 				}
@@ -2335,11 +2356,17 @@ void sidePanelTask(const void *pv){
 						if (!toggleChargeModeRequired) {
 							charge_mode = 1;
 							bufh3[2] = CLOSED;
+							if (ignitionSwitchOn) {
+								ignitionState = IGNITION_OFF;
+							}
 						}
 					} else { //charge state OFF
 						charge_mode = 0;
-						if (ignitionState == IGNITION_OFF)
+						if (ignitionSwitchOn) {
+							ignitionState = IGNITION_ON;
+						} else {
 							bufh3[2] = OPEN;
+						}
 						toggleChargeModeRequired = 0;
 					}
 				}
@@ -2428,13 +2455,6 @@ void displayTask(const void *pv){
 			}
 			if (diff < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
 
-
-			// if ((tick_cnt - PPTMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_PPT 	= 1;	}
-			// if ((tick_cnt - BBMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_BB 	= 1;	}
-			// if ((tick_cnt - MCMB_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_MC 	= 1;	}
-			// if ((tick_cnt - BMS_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){		detailed_data.P2_BMS 	= 1;	}
-			// if ((tick_cnt - Chase_last_packet_tick_count) < CONNECTION_EXPIRY_THRESHOLD){	detailed_data.P2_RAD 	= 1;	}
-
 			local_display_sel = display_selection;
 
 			//Check if need to display low supplemental battery voltage alert
@@ -2461,11 +2481,6 @@ void displayTask(const void *pv){
 				default_data.P2_motor_state = OFF;
 				default_data.batt_warning = 1;
 			}
-
-			// if (detailed_data.overvoltage_status || detailed_data.undervoltage_status
-			// 		|| detailed_data.overtemperature_status || detailed_data.undertemperature_status
-			// 		|| batteryState == FAULTED)
-                        //        local_display_sel = battery_faulted_display_selection;
 
 			xTaskResumeAll();
 			drawP1(local_display_sel);
