@@ -2322,6 +2322,9 @@ void sidePanelTask(const void *pv){
 				  default_data.direction = REVERSE;
 				}
 
+				uint8_t ignitionSwitchOn = sidePanelData & (1 << 7);
+				uint8_t chargeSwitchOn = sidePanelData & (1 << 3);
+
 			//IGNITION
 				// will not respond to ignition the first time this runs. Forces user to toggle ignition for safety reasons.
 				if (firstTime) {
@@ -2330,18 +2333,14 @@ void sidePanelTask(const void *pv){
 				} else {
 					if (sidePanelData & (1 << 7)){ //Ignition ON
 						if (!toggleIgnitionRequired) {
-							if (!charge_mode) {
+							if (!chargeSwitchOn) {
 								ignitionState = IGNITION_ON;
-							} else {
-								ignitionState = IGNITION_OFF;
-								ignitionOverWritten = 1;
 							}
 							bufh3[2] = CLOSED;
 						}
 					} else { //Ignition OFF
 						ignitionState = IGNITION_OFF;
-						ignitionOverWritten = 0;
-						if (!charge_mode) {
+						if (!chargeSwitchOn) {
 							bufh3[2] = OPEN;
 						}
 						toggleIgnitionRequired = 0;
@@ -2357,21 +2356,18 @@ void sidePanelTask(const void *pv){
 						if (!toggleChargeModeRequired) {
 							charge_mode = 1;
 							bufh3[2] = CLOSED;
-							if (ignitionState == IGNITION_ON) {
-								ignitionOverWritten = 1;
+							if (ignitionSwitchOn) {
 								ignitionState = IGNITION_OFF;
 							}
 						}
 					} else { //charge state OFF
 						charge_mode = 0;
-						if (!ignitionOverWritten) {
-							bufh3[2] = OPEN;
-						} else {
-							// keep battery relays closed, but turn on motor
+						if (ignitionSwitchOn) {
 							ignitionState = IGNITION_ON;
+						} else {
+							bufh3[2] = OPEN;
 						}
 						toggleChargeModeRequired = 0;
-						ignitionOverWritten = 0;
 					}
 				}
 				xTaskResumeAll();
