@@ -62,7 +62,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-//#define USE_ADC_REGEN
+#define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -160,6 +160,8 @@ uint32_t BMS_last_packet_tick_count 	= 0;
 uint32_t Chase_last_packet_tick_count 	= 0;
 
 uint8_t BBMBFirstPacketReceived = 0;
+
+float rawAccelReading = 0;
 
 
 //--- MOTOR ---//
@@ -1594,10 +1596,10 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 static void pedalTask(const void* p) {
-	float accel_r_0 = 0.3494; //Resistance when pedal is unpressed (kR)
-	float accel_reading_upper_bound = 61000.0; //ADC reading corresponding to 0% power request
-	float accel_reading_lower_bound = 24250.0; //ADC reading corresponding to 100% power request
-	float accel_reading_threshold = 55.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float accel_r_0 = 0.3607; //Resistance when pedal is unpressed (kR)
+	float accel_reading_upper_bound = 56800.0; //ADC reading corresponding to 0% power request
+	float accel_reading_lower_bound = 22200.0; //ADC reading corresponding to 100% power request
+	float accel_reading_threshold = 40.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1653,7 +1655,7 @@ static void pedalTask(const void* p) {
 
 		//Compute value on 0-256 scale
 		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
-
+		rawAccelReading = accelReading/ADC_NUM_AVG;
 		//Bound acceleration value
 		if (accelValue < 0){ //Deadzone of 15
 			accelValue = 0;

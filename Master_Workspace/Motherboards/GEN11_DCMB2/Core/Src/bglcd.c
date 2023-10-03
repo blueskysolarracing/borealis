@@ -615,8 +615,8 @@ void drawP2Default(/*int value[4]*/){
 		stateL = 5;
 		break;
 	case 4:
-		state = "STANDBY";
-		stateL = 7;
+		state = "IDLE";
+		stateL = 4;
 		break;
 	case 5:
 		state = "REGEN_NA"; // Regen wanted, but not activated due to high battery voltage
