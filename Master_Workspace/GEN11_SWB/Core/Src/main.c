@@ -46,6 +46,9 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+uint8_t mappedRegenValue = 0;
+uint8_t newRegenValue = 0;
+
 
 /* USER CODE END PM */
 
@@ -195,7 +198,6 @@ int main(void)
 	newSwitchState[0] = getSwitchState(0);
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
-	uint8_t newRegenValue = 0;
 	float regenTotalReading = 0;
 
 #ifdef USE_ADC_REGEN
@@ -207,13 +209,13 @@ int main(void)
 		}
 	}
 
-	newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULTIPLIER);
+	newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULTIPLIER) - 63;
 #endif
 
 	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
 
 		//Map regen range from 52-115 to 0-255
-		uint8_t mappedRegenValue = 0;
+		mappedRegenValue = 0;
 #ifdef USE_ADC_REGEN
 		if (newRegenValue > REGEN_IDLE_VAL){
 			if (newRegenValue >= REGEN_MAX_VAL){
@@ -224,7 +226,7 @@ int main(void)
 			}
 		}
 #endif
-		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, 0x00}; // last byte could be used for CRC (optional)
+		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], newRegenValue, 0x00}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB

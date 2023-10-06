@@ -62,7 +62,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-// #define USE_ADC_REGEN
+#define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -1611,8 +1611,8 @@ static void pedalTask(const void* p) {
     while (1) {
 #ifdef USE_ADC_REGEN
     	if (steering_wheel_variable_regen_value > adc_regen_threshold
-    			&& -REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0
-				&& detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD
+    			// && -REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0
+				// && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD
 		) {
     		start_adc_regen = 1;
 		} else {
@@ -1634,7 +1634,7 @@ static void pedalTask(const void* p) {
 		}
 
 		// Check if brake is pressed or car is going to regen
-		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 || start_steering_wheel_constant_regen || start_adc_regen) {
+		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 /*|| start_steering_wheel_constant_regen || start_adc_regen*/) {
 			brakeState = BRAKE_PRESSED;
 		} else {
 			brakeState = BRAKE_RELEASED;
@@ -1678,10 +1678,16 @@ static void pedalTask(const void* p) {
 #ifdef USE_ADC_REGEN
 			if (start_adc_regen) {
 				// motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
-				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
-				motorTargetRegenStrength = (uint16_t)steering_wheel_variable_regen_value;
-				motorState = REGEN;
-				default_data.P2_motor_state = REGEN;
+				// motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				// motorTargetRegenStrength = (uint16_t)steering_wheel_variable_regen_value;
+				// motorState = REGEN;
+				// default_data.P2_motor_state = REGEN;
+
+				// temp change. Use regen value as accel, because accel pedal is broken
+				motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				motorTargetRegenStrength = (uint16_t)0;
+				motorState = PEDAL;
+				default_data.P2_motor_state = PEDAL;
 			}
 #else
 			if (start_steering_wheel_constant_regen) {
