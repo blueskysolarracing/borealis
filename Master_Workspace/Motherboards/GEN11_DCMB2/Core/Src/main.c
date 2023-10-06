@@ -62,7 +62,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-#define USE_ADC_REGEN
+// #define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -74,7 +74,7 @@ enum CRUISE_MODE {
 #define MAX_VFM 8 //Maximum VFM setting
 #define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
-#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 255 // regen value when pressing the regen button on the steering wheel
+#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 150 // regen value when pressing the regen button on the steering wheel
 #define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
 #define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
 
@@ -174,6 +174,7 @@ typedef enum {
 	REGEN_NA
 } MOTORSTATE;
 uint16_t motorTargetPower = 0; // value from 0 - 256
+uint16_t motorTargetRegenStrength = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
 uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
@@ -1599,7 +1600,7 @@ static void pedalTask(const void* p) {
 	float accel_r_0 = 0.3607; //Resistance when pedal is unpressed (kR)
 	float accel_reading_upper_bound = 56800.0; //ADC reading corresponding to 0% power request
 	float accel_reading_lower_bound = 22200.0; //ADC reading corresponding to 100% power request
-	float accel_reading_threshold = 40.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float accel_reading_threshold = 55.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1676,19 +1677,24 @@ static void pedalTask(const void* p) {
 		if (motorState != CRUISE){
 #ifdef USE_ADC_REGEN
 			if (start_adc_regen) {
-				motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				// motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetRegenStrength = (uint16_t)steering_wheel_variable_regen_value;
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 			}
 #else
 			if (start_steering_wheel_constant_regen) {
-				motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
+				// motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
+				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetRegenStrength = REGEN_DEFAULT_VALUE_STEERING_WHEEL;
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 			}
 #endif
 			else if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
-				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
+				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetRegenStrength = 0;
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
 			} else { //Not in cruise and pedal isn't pressed, turn off motor
@@ -1700,6 +1706,7 @@ static void pedalTask(const void* p) {
 		} else {
 			if (brakeState == BRAKE_PRESSED) {
 				motorTargetPower = (uint16_t) 0;
+				motorTargetRegenStrength = 0;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
@@ -1709,6 +1716,7 @@ static void pedalTask(const void* p) {
 		if (ignitionState != IGNITION_ON){
 			motorState = OFF;
 			motorTargetPower = (uint16_t) 0;
+			motorTargetRegenStrength = 0;
 			default_data.P2_motor_state = OFF;
 		}
 
@@ -2497,7 +2505,8 @@ void motorDataTimer(TimerHandle_t xTimer){
 	if (ignitionState != IGNITION_ON){ //overrides original motor state if IGNITION is not on
 		motorState = OFF;
 		motorTargetPower = (uint16_t) 0;
-    motorTargetSpeed = 0;
+		motorTargetRegenStrength = (uint16_t) 0;
+    	motorTargetSpeed = 0;
 		default_data.P2_motor_state = OFF;
 	}
 
@@ -2523,6 +2532,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[2] = digitalButtons;
 	buf[3] = default_data.P2_VFM;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
+	packi16(&buf[6], (uint16_t) motorTargetRegenStrength);
 	buf[8] = motorTargetSpeed;
 
 	B_tcpSend(btcp, buf, sizeof(buf));

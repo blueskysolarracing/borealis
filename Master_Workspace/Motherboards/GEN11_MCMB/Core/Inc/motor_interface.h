@@ -20,8 +20,8 @@ typedef struct MotorInterface {
 	/* =============== MOTOR CONTROL FUNCTIONS BEGIN ====================*/
 	/* The following functions should return 1 if commands to the motor are sent, 0 if not sent
 	 * Examples for returning 0, when commands are not sent, can include:
-	 * 1. Trying to set Accel too quickly after turning on the motor, without waiting for the turn-on process to complete
-	 * 2. Trying to set Accel while already in Regen, or vice versa
+	 * 1. Trying to set accelOrRegen too quickly after turning on the motor, without waiting for the turn-on process to complete
+	 * 2. Trying to set accelOrRegen while already in regenStrength, or vice versa
 	 * 3. Switching gear while the previous gear switch is not finished
 	 */
 	int (*turnOn)(struct MotorInterface* self);
@@ -31,13 +31,16 @@ typedef struct MotorInterface {
 	int (*setForward)(struct MotorInterface* self);
 	int (*setReverse)(struct MotorInterface* self);
 
-	/* Note: The input to setAccel() and setRegen() should be a 8 bit value between 0 - 255
-	 * Then, in your implementation of setAccel(), you are responsible for mapping this 0 - 255 value...
+	/* Note: The input to setAccelOrRegen() and setRegenStrength() should be a 8 bit value between 0 - 255
+	 * Then, in your implementation of setAccelOrRegen(), you are responsible for mapping this 0 - 255 value...
 	 * ...to whatever value is required by the motor control system (such as 0 - 100)
 	 */
 
-	int (*setAccel)(struct MotorInterface* self, uint32_t val);
-	int (*setRegen)(struct MotorInterface* self, uint32_t val);
+	// int (*setAccelOrRegen)(struct MotorInterface* self, uint32_t val);
+	// int (*setRegenStrength)(struct MotorInterface* self, uint32_t val);
+	int (*setAccel)(struct MotorInterface* self, uint32_t val); // overrides regen
+	int (*setRegen)(struct MotorInterface* self, uint32_t regenValue, uint32_t regenStrength); // overrrides accel
+	int (*setZero) (struct MotorInterface* self); // sets both accel and regen to 0
 
 	// Might not be necessary for some motors
 	int (*gearUp) (struct MotorInterface* self);
@@ -51,8 +54,8 @@ typedef struct MotorInterface {
 	int (*getTurnOnPeriod)(struct MotorInterface* self, uint32_t turnOnPeriod);
 	int (*isOn)(struct MotorInterface* self);
 	int (*isForward)(struct MotorInterface* self);
-	int (*isAccel)(struct MotorInterface* self);
-	int (*isRegen)(struct MotorInterface* self);
+	// int (*isaccelOrRegen)(struct MotorInterface* self);
+	// int (*isregenStrengthSet)(struct MotorInterface* self);
 
 } MotorInterface;
 

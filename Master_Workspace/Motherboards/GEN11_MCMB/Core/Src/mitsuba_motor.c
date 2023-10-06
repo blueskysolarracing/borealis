@@ -19,23 +19,26 @@ enum motorPowerState {
 static void mitsubaMotor_eepromInit(MotorInterface* interface);
 static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface);
 static void mitsubaMotor_vfmQueueAndThreadInit(MotorInterface* interface);
-static void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelInputUpperBound, uint32_t regenInputUpperBound);
+static void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelOrRegenInputUpperBound, uint32_t regenStrengthInputUpperBound);
 static int mitsubaMotor_isOn(MotorInterface* interface);
 static int mitsubaMotor_isForward(MotorInterface* interface);
-static int mitsubaMotor_isAccel(MotorInterface* interface);
-static int mitsubaMotor_isRegen(MotorInterface* interface);
+static int mitsubaMotor_isaccelOrRegen(MotorInterface* interface);
+static int mitsubaMotor_isregenStrengthSet(MotorInterface* interface);
 static int mitsubaMotor_turnOn(MotorInterface* interface);
 static int mitsubaMotor_turnOff(MotorInterface* interface);
 static int mitsubaMotor_setEco(MotorInterface* interface);
 static int mitsubaMotor_setPwr(MotorInterface* interface);
 static int mitsubaMotor_setForward(MotorInterface* interface);
 static int mitsubaMotor_setReverse(MotorInterface* interface);
-static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t val);
-static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val);
+static int mitsubaMotor_setAccelOrRegen(MotorInterface* interface, uint32_t val);
+static int mitsubaMotor_setRegenStrength(MotorInterface* interface, uint32_t val);
 static int mitsubaMotor_vfmUp(MotorInterface* interface);
 static int mitsubaMotor_vfmDown(MotorInterface* interface);
 static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turnOnPeriod);
 static void mitsubaMotor_vfmQueueHandler(void* parameters);
+static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t accelVal);
+static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t regenValue, uint32_t regenStrength);
+static int mitsubaMotor_setZero(MotorInterface* interface);
 
 /*
  * Function to set the wiper position of the MCP4146 potentiometer on the MC^2.
@@ -72,14 +75,13 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	interface->setReverse = mitsubaMotor_setReverse;
 	interface->setAccel = mitsubaMotor_setAccel;
 	interface->setRegen = mitsubaMotor_setRegen;
+	interface->setZero = mitsubaMotor_setZero; // sets both accel and regen to 0
 	interface->gearUp = mitsubaMotor_vfmUp;
 	interface->gearDown = mitsubaMotor_vfmDown;
 
 	interface->getTurnOnPeriod = mitsubaMotor_getTurnOnPeriod;
 	interface->isOn = mitsubaMotor_isOn;
 	interface->isForward = mitsubaMotor_isForward;
-	interface->isAccel = mitsubaMotor_isAccel;
-	interface->isRegen = mitsubaMotor_isRegen;
 
 	mitsubaMotor_eepromInit(&self->interface);
 	mitsubaMotor_vfmQueueAndThreadInit(&self->interface);
@@ -94,16 +96,16 @@ MotorInterface* mitsubaMotor_init(MitsubaMotor* self)
 	HAL_GPIO_WritePin(self->vfmUpPort, self->vfmUpPin, GPIO_PIN_SET); // VFM UP
 	HAL_GPIO_WritePin(self->vfmDownPort, self->vfmDownPin, GPIO_PIN_SET); // VFM Down
 	HAL_GPIO_WritePin(self->ecoPort, self->ecoPin, GPIO_PIN_SET); // ECO
-	HAL_GPIO_WritePin(self->cs0AccelPort, self->cs0AccelPin, GPIO_PIN_SET); // CS0
-	HAL_GPIO_WritePin(self->cs1RegenPort, self->cs1RegenPin, GPIO_PIN_SET); // CS1
+	HAL_GPIO_WritePin(self->cs0accelOrRegenPort, self->cs0accelOrRegenPin, GPIO_PIN_SET); // CS0
+	HAL_GPIO_WritePin(self->cs1regenStrengthPort, self->cs1regenStrengthPin, GPIO_PIN_SET); // CS1
 	HAL_GPIO_WritePin(self->vfmResetPort, self->vfmResetPin, GPIO_PIN_SET); // VFM RESET
 	HAL_GPIO_WritePin(self->MT3Port, self->MT3Pin, GPIO_PIN_SET); // MT3
 	HAL_GPIO_WritePin(self->MT2Port, self->MT2Pin, GPIO_PIN_SET); // MT2
 	HAL_GPIO_WritePin(self->MT1Port, self->MT1Pin, GPIO_PIN_SET); // MT1
 	HAL_GPIO_WritePin(self->MT0Port, self->MT0Pin, GPIO_PIN_SET); // MT0
 
-	mitsubaMotor_setAccel(interface, 0);
-	mitsubaMotor_setRegen(interface, 0);
+	mitsubaMotor_setAccelOrRegen(interface, 0);
+	mitsubaMotor_setRegenStrength(interface, 0);
 	return interface;
 }
 
@@ -112,8 +114,8 @@ static void mitsubaMotor_eepromInit(MotorInterface* interface)
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 
 	/* write to non-volative eeprom for each pot */
-	_MCP4161_Pot_Write_Internal(0, self->cs0AccelPort, self->cs0AccelPin, self->potSpiPtr, true);
-	_MCP4161_Pot_Write_Internal(0, self->cs1RegenPort, self->cs1RegenPin, self->potSpiPtr, true);
+	_MCP4161_Pot_Write_Internal(0, self->cs0accelOrRegenPort, self->cs0accelOrRegenPin, self->potSpiPtr, true);
+	_MCP4161_Pot_Write_Internal(0, self->cs1regenStrengthPort, self->cs1regenStrengthPin, self->potSpiPtr, true);
 
 	/* need to wait for t_wc (max. 10ms) */
 	HAL_Delay(10);
@@ -128,16 +130,16 @@ static int mitsubaMotor_isForward(MotorInterface* interface)
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
 	return self->isForward;
 }
-static int mitsubaMotor_isAccel(MotorInterface* interface)
+static int mitsubaMotor_isaccelOrRegen(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	return self->currentAccelValue > 0 ? 1 : 0;
+	return self->currentaccelOrRegenValue > 0 ? 1 : 0;
 }
 
-static int mitsubaMotor_isRegen(MotorInterface* interface)
+static int mitsubaMotor_isregenStrengthSet(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	return self->currentRegenValue > 0 ? 1 : 0;
+	return self->currentregenStrengthValue > 0 ? 1 : 0;
 }
 
 
@@ -177,11 +179,9 @@ static void mitsubaMotor_turnOnTimerInit(MotorInterface* interface)
 static int mitsubaMotor_turnOff(MotorInterface* interface)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	mitsubaMotor_setZero(interface);
 	HAL_GPIO_WritePin(self->mainPort, self->mainPin, GPIO_PIN_SET);
 	self->isOn = 0;
-
-	if (interface->isAccel(interface)) interface->setAccel(interface, 0);
-	if (interface->isRegen(interface)) interface->setRegen(interface, 0);
 
 	return 1;
 }
@@ -231,42 +231,59 @@ static int mitsubaMotor_setReverse(MotorInterface* interface)
 }
 
 
-static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t val)
+static int mitsubaMotor_setAccelOrRegen(MotorInterface* interface, uint32_t val)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (val != 0 && (!mitsubaMotor_isOn(interface) || mitsubaMotor_isRegen(interface))) {
+	if (val != 0 && (!mitsubaMotor_isOn(interface))) {
 		return 0;
 	}
 	uint16_t wiperValue;
-	if (self->accelInputUpperBound != MCP4161_MAX_WIPER_VALUE) {
+	if (self->accelOrRegenInputUpperBound != MCP4161_MAX_WIPER_VALUE) {
 		// map to 0 - MCP4161_MAX_WIPER_VALUE
-		wiperValue = val / self->accelInputUpperBound * MCP4161_MAX_WIPER_VALUE;
+		wiperValue = val / self->accelOrRegenInputUpperBound * MCP4161_MAX_WIPER_VALUE;
 	} else {
 		wiperValue = val;
 	}
-	_MCP4161_Pot_Write(wiperValue, self->cs0AccelPort, self->cs0AccelPin, self->potSpiPtr);
-	self->currentAccelValue = wiperValue;
+	_MCP4161_Pot_Write(wiperValue, self->cs0accelOrRegenPort, self->cs0accelOrRegenPin, self->potSpiPtr);
+	self->currentaccelOrRegenValue = wiperValue;
 	return 1;
 }
 
-static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t val)
+static int mitsubaMotor_setRegenStrength(MotorInterface* interface, uint32_t val)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (val != 0 && (!mitsubaMotor_isOn(interface) || mitsubaMotor_isAccel(interface))) {
+	if (val != 0 && (!mitsubaMotor_isOn(interface))) {
 		return 0;
 	}
 	uint16_t wiperValue;
-	if (self->regenInputUpperBound != MCP4161_MAX_WIPER_VALUE) {
+	if (self->regenStrengthInputUpperBound != MCP4161_MAX_WIPER_VALUE) {
 		// map to 0 - MCP4161_MAX_WIPER_VALUE
-		wiperValue = val / self->regenInputUpperBound * MCP4161_MAX_WIPER_VALUE;
+		wiperValue = val / self->regenStrengthInputUpperBound * MCP4161_MAX_WIPER_VALUE;
 	} else {
 		wiperValue = val;
 	}
-	_MCP4161_Pot_Write(wiperValue, self->cs1RegenPort, self->cs1RegenPin, self->potSpiPtr);
-	self->currentRegenValue = wiperValue;
+	_MCP4161_Pot_Write(wiperValue, self->cs1regenStrengthPort, self->cs1regenStrengthPin, self->potSpiPtr);
+	self->currentregenStrengthValue = wiperValue;
 	return 1;
 }
 
+static int mitsubaMotor_setAccel(MotorInterface* interface, uint32_t accelVal)
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	return mitsubaMotor_setAccelOrRegen(interface, accelVal) & mitsubaMotor_setRegenStrength(interface, 0);
+}
+
+static int mitsubaMotor_setRegen(MotorInterface* interface, uint32_t regenValue, uint32_t regenStrength)
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	return mitsubaMotor_setAccelOrRegen(interface, regenValue) & mitsubaMotor_setRegenStrength(interface, regenStrength);
+}
+
+static int mitsubaMotor_setZero(MotorInterface* interface)
+{
+	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
+	return mitsubaMotor_setAccelOrRegen(interface, 0) & mitsubaMotor_setRegenStrength(interface, 0);
+}
 
 static int mitsubaMotor_vfmUp(MotorInterface* interface)
 {
@@ -355,11 +372,11 @@ static void mitsubaMotor_vfmQueueHandler(void* parameters)
 	}
 }
 
-void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelInputUpperBound, uint32_t regenInputUpperBound)
+void mitsubaMotor_setInputUpperBounds(MotorInterface* interface, uint32_t accelOrRegenInputUpperBound, uint32_t regenStrengthInputUpperBound)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	self->accelInputUpperBound = accelInputUpperBound;
-	self->regenInputUpperBound = regenInputUpperBound;
+	self->accelOrRegenInputUpperBound = accelOrRegenInputUpperBound;
+	self->regenStrengthInputUpperBound = regenStrengthInputUpperBound;
 }
 
 static int mitsubaMotor_getTurnOnPeriod(MotorInterface* interface, uint32_t turnOnPeriod)
