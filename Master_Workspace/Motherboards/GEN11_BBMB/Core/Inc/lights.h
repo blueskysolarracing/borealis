@@ -62,6 +62,8 @@ struct lights_stepper_ctrl{
 
 	//States
 	uint8_t hazard_state;
+	uint8_t right_indicator_state;
+	uint8_t left_indicator_state;
 };
 
 void turn_on_indicators(struct lights_stepper_ctrl* lights, int left_or_right, float pwm_duty_cycle);
