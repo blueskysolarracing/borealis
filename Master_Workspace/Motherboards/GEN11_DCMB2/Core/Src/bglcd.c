@@ -578,10 +578,11 @@ void testAlpha(){
 	glcd_write();
 }
 void drawP2Default(/*int value[4]*/){
-	uint8_t value[4] = {default_data.P2_DRL_state,
+	uint8_t value[5] = {default_data.P2_DRL_state,
 						default_data.P2_motor_state,
 						default_data.P2_VFM,
-						common_data.battery_soc};
+						common_data.battery_soc,
+						detailed_data.motor_accel_value};
 
 	if(value[3] > 99) value[3] = 99;
 
@@ -603,7 +604,7 @@ void drawP2Default(/*int value[4]*/){
 
 	switch(value[1]){
 	case 1:
-		state = "PEDAL";
+		state = "ACCEL";
 		stateL = 5;
 		break;
 	case 2:
@@ -619,7 +620,7 @@ void drawP2Default(/*int value[4]*/){
 		stateL = 4;
 		break;
 	case 5:
-		state = "REGEN_NA"; // Regen wanted, but not activated due to high battery voltage
+		state = "NOACT"; // Regen wanted, but not activated due to high battery voltage
 		stateL = 8;
 		break;
 	default:
@@ -630,6 +631,15 @@ void drawP2Default(/*int value[4]*/){
 
 	for(int i = 0; i < stateL; i++){
 		glcd_draw_char_xy(49+i*13, 25, state[i]);
+	}
+
+	// if case accel, write the accel value on top of the ACCEL word
+	if (value[1] == 1) {
+		char accelString[3] = {0};
+		sprintf(accelString, "%3d", value[4]);
+		for(int i = 0; i < 2; i++){
+			glcd_tiny_draw_char_xy(49+(i*6), correct_Y(10), accelString[i]);
+		}
 	}
 
 	glcd_draw_char_xy(49, correct_Y(45), 'V');
