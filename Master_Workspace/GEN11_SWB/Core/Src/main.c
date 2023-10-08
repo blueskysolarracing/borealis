@@ -40,7 +40,8 @@
 #define REGEN_NEW_MAX 255
 #define REGEN_OFFSET  19
 #define REGEN_MULTIPLIER -63.75
-#define USE_ADC_REGEN
+//#define USE_ADC_REGEN
+#define USE_ACC_ENC
 
 /* USER CODE END PD */
 
@@ -58,6 +59,10 @@ UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+int16_t counter = 0;
+uint8_t bstate = 0;
+uint8_t astate = 0;
+static int outputVal = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -77,8 +82,8 @@ uint8_t getSwitchState(uint8_t whichByte){
 	//Accelerator rotary encoder
 	switch (whichByte){
 	case 0:
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) << 0;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1;
+		//switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) << 0;
+		//switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1;
 		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2;
 		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3;
 		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4;
@@ -183,6 +188,7 @@ int main(void)
   uint8_t oldSwitchState[3] = {0, 0, 0};
   uint8_t newSwitchState[3] = {0, 0, 0};
   uint8_t oldRegenValue = 0;
+  uint8_t oldAccValue = 0;
 
   /* USER CODE END 2 */
 
@@ -192,39 +198,104 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	newSwitchState[0] = getSwitchState(0);
+	//newSwitchState[0] = getSwitchState(0);
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
 	uint8_t newRegenValue = 0;
+	uint8_t newAccValue = 0;
+
 	float regenTotalReading = 0;
 
-#ifdef USE_ADC_REGEN
-	for (int i = 0; i < ADC_NUM_AVG; i++){
-		HAL_ADC_Start(&hadc1);
-		if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){
-			float currRegenValue = HAL_ADC_GetValue(&hadc1);
-			regenTotalReading += currRegenValue;
+	#ifdef USE_ADC_REGEN
+		for (int i = 0; i < ADC_NUM_AVG; i++){
+			HAL_ADC_Start(&hadc1);
+			if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK){
+				float currRegenValue = HAL_ADC_GetValue(&hadc1);
+				regenTotalReading += currRegenValue;
+			}
 		}
-	}
 
-	newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULTIPLIER);
-#endif
+		newRegenValue = ((uint8_t)(regenTotalReading/ADC_NUM_AVG) - REGEN_OFFSET) * (REGEN_MULTIPLIER);
+	#endif
 
-	if ((oldSwitchState[0] != newSwitchState[0]) || (oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2] || oldRegenValue != newRegenValue)){ //If any bit has changed, send data
+	#ifdef USE_ACC_ENC
+		if (counter>255){
+			newAccValue = 255;
+		}
+		else if (counter<0){
+			newAccValue = 0;
+		}
+		else{
+			newAccValue = counter;
+		}
+
+	#endif
+
+	if ((oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2]) || (oldRegenValue != newRegenValue) || (oldAccValue != newAccValue)){ //If any bit has changed, send data
 
 		//Map regen range from 52-115 to 0-255
 		uint8_t mappedRegenValue = 0;
-#ifdef USE_ADC_REGEN
-		if (newRegenValue > REGEN_IDLE_VAL){
-			if (newRegenValue >= REGEN_MAX_VAL){
-				mappedRegenValue = REGEN_NEW_MAX;
-			} else {
-				float mappingRatio = (newRegenValue - REGEN_IDLE_VAL)/(REGEN_MAX_VAL - REGEN_IDLE_VAL);
-				mappedRegenValue = (uint8_t)(mappingRatio * REGEN_NEW_MAX);
+
+		#ifdef USE_ADC_REGEN
+				if (newRegenValue > REGEN_IDLE_VAL){
+					if (newRegenValue >= REGEN_MAX_VAL){
+						mappedRegenValue = REGEN_NEW_MAX;
+					} else {
+						float mappingRatio = (newRegenValue - REGEN_IDLE_VAL)/(REGEN_MAX_VAL - REGEN_IDLE_VAL);
+						mappedRegenValue = (uint8_t)(mappingRatio * REGEN_NEW_MAX);
+					}
+				}
+		#endif
+
+
+		#ifdef USE_ACC_ENC
+			static uint8_t started = 0;
+			static int currentValue = 0;
+			int positiveTurn = 0;
+			int negativeTurn = 0;
+			int difference = 0;
+			//static int outputVal = 0;
+			int accValTemp = newAccValue == 255 ? currentValue : newAccValue;
+			if(!started){
+				started++;
+				currentValue = accValTemp;
+			} else{
+				positiveTurn = (currentValue + 63) % 128;
+				negativeTurn = (currentValue - 64) % 128;
+				if(positiveTurn > currentValue){
+					if(accValTemp <= positiveTurn && accValTemp >= currentValue){
+						difference = accValTemp - currentValue;
+					} else {
+						if(accValTemp < currentValue){
+							difference = accValTemp - currentValue;
+						} else {
+							difference = -(128 -(accValTemp - currentValue));
+						}
+					}
+				} else {
+					if(accValTemp <= currentValue && accValTemp >= negativeTurn){
+						difference = -(currentValue - accValTemp);
+					} else {
+						if(currentValue < accValTemp){
+							difference = accValTemp - currentValue;
+						} else {
+							difference = 128 - (currentValue - accValTemp);
+						}
+					}
+				}
+				difference = difference < 0 ? -difference * difference : difference * difference;
+				outputVal += difference;
+		//		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
+				currentValue = accValTemp;
+				if(outputVal < 0){
+					outputVal = 0;
+				} else if (outputVal > 255){
+					outputVal = 255;
+				}
 			}
-		}
-#endif
-		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, 0x00}; // last byte could be used for CRC (optional)
+		#endif
+
+		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, outputVal}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
@@ -241,8 +312,9 @@ int main(void)
 	//Update switch state
 	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
 	oldRegenValue = newRegenValue;
+	oldAccValue = newAccValue;
 
-	HAL_Delay(15); //Wait for 15ms; could be replaced with power down sleep
+	//HAL_Delay(15); //Wait for 15ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
@@ -486,11 +558,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pins : ACC8_Pin R_SIGNAL_Pin L_SIGNAL_Pin RAD_SIGNAL_Pin
-                           HORN_SIGNAL_Pin ACC1_Pin ACC2_Pin ACC3_Pin
-                           ACC4_Pin ACC5_Pin ACC6_Pin ACC7_Pin */
+                           HORN_SIGNAL_Pin ACC3_Pin ACC4_Pin ACC5_Pin
+                           ACC6_Pin ACC7_Pin */
   GPIO_InitStruct.Pin = ACC8_Pin|R_SIGNAL_Pin|L_SIGNAL_Pin|RAD_SIGNAL_Pin
-                          |HORN_SIGNAL_Pin|ACC1_Pin|ACC2_Pin|ACC3_Pin
-                          |ACC4_Pin|ACC5_Pin|ACC6_Pin|ACC7_Pin;
+                          |HORN_SIGNAL_Pin|ACC3_Pin|ACC4_Pin|ACC5_Pin
+                          |ACC6_Pin|ACC7_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -533,11 +605,21 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PC6 PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PD2 */
   GPIO_InitStruct.Pin = GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 }
 
@@ -562,7 +644,22 @@ static void MX_GPIO_Init(void)
 //		HAL_UART_Transmit_IT(&huart2, uartFrame, uartFrame_SIZE);
 //		osDelay(1000);
 //	}
-//}
+//
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin == GPIO_PIN_7){
+		if (bstate == 0){
+			counter++;
+		}
+		else{
+			bstate = 0;
+		}
+	}
+	if(GPIO_Pin == GPIO_PIN_6){
+		counter--;
+		bstate = 1;
+
+	}
+}
 /* USER CODE END 4 */
 
 /**

@@ -78,10 +78,6 @@ void Error_Handler(void);
 #define RIGHT_GPIO_Port GPIOB
 #define SELECT_Pin GPIO_PIN_15
 #define SELECT_GPIO_Port GPIOB
-#define ACC1_Pin GPIO_PIN_6
-#define ACC1_GPIO_Port GPIOC
-#define ACC2_Pin GPIO_PIN_7
-#define ACC2_GPIO_Port GPIOC
 #define ACC3_Pin GPIO_PIN_8
 #define ACC3_GPIO_Port GPIOC
 #define ACC4_Pin GPIO_PIN_9
