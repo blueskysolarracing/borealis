@@ -2,6 +2,11 @@
 #ifndef INC_UMPPT_H_
 #define INC_UMPPT_H_
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include "main.h"
+
 #define DEFAULT_PWM_FREQ 			30
 #define DEFAULT_PWM_DUTY_CYCLE 		0.8
 
@@ -11,15 +16,17 @@
 #define NUM_UMPPT					5
 
 #define ADC_CONV_FACTOR				(float) 8192
-#define DEBUG_MODE					1
+#define DEBUG_MODE					0
 
 
 
 struct uMPPT {
 
 	uint8_t uMPPT_ID;
+	uint8_t sleeping;
 	uint8_t mppt_in_progress;
 	uint8_t pwm_num;
+
 	double pwm_phase_offset;
 	double pwm_duty_cycle;
 	double pwm_frequency;
@@ -49,8 +56,8 @@ struct board_parameters {
 
 	UART_HandleTypeDef* huart_handle;
 	SPI_HandleTypeDef* hspi_handle;
-	TIM_HandleTypeDef** PWM_TIM;
-	uint32_t* PWM_CHANNEL;
+	TIM_HandleTypeDef** PWM_timers;
+	uint32_t* PWM_channels;
 
 	GPIO_TypeDef** CS_Ports;
 	uint32_t* CS_Pins;
@@ -63,6 +70,10 @@ struct board_parameters {
 void config_uMPPT(struct board_parameters* board);
 float SPI_readADC(uint8_t uMPPT_ID, struct board_parameters* board);
 float STM_readADC(struct board_parameters* board);
+void ADC_sleepMode(uint8_t uMPPT_ID, struct board_param *board);
+float ADC_readVoltage(uint8_t uMPPT_ID, struct board_param* board);
+float readOutputCurrent();
+float readOutputVoltage();
 void update_MPP_IncCond();
 void update_MPP_HillClimb();
 void updatePWMDutyCycle();

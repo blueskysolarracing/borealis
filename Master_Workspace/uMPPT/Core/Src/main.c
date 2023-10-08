@@ -53,7 +53,23 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
+uint32_t ADC_CH[3] = {ADC_CHANNEL_4, ADC_CHANNEL_9, ADC_CHANNEL_8}; // CH 1, output voltage, output current
+uint32_t PWM_CH[5] = {TIM_CHANNEL_1, TIM_CHANNEL_1, TIM_CHANNEL_4, TIM_CHANNEL_3, TIM_CHANNEL_3};
+TIM_HandleTypeDef *PWM_handlers[5] = {&htim2, &htim21, &htim3, &htim2, &htim3};
 
+uint32_t CS_Pins[4] = {ADC_CS_PV2_Pin, ADC_CS_PV3_Pin,  ADC_CS_PV4_Pin, ADC_CS_PV5_Pin};
+GPIO_TypeDef *CS_Ports[4] = {GPIOC, GPIOC, GPIOC, GPIOD};
+
+struct uMPPT uMPPT_1;
+struct uMPPT uMPPT_2;
+struct uMPPT uMPPT_3;
+struct uMPPT uMPPT_4;
+struct uMPPT uMPPT_5;
+
+struct uMPPT* uMPPT_list[5] = {&uMPPT_1, &uMPPT_2, &uMPPT_3, &uMPPT_4, &uMPPT_5};
+struct board_param board;
+
+uint8_t uMPPT_SPI_inProgress = -1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,8 +130,21 @@ int main(void)
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
 
+  board.hadc_handle = &hadc;
+  board.hspi_handle = &hspi1;
+  board.huart_handle = &huart_handle;
+  board.ADC_channels = ADC_CH;
+  board.CS_Pins = CS_Pins;
+  board.CS_Ports = CS_Ports;
+  board.PWM_timers = PWM_handlers;
+  board.PWM_channels = PWM_CH;
+
+  board.uMPPTs = uMPPT_list;
+
+  config_uMPPT(&board);
+
+  /* USER CODE END 2
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -628,6 +657,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi){
+
+	board.uMPPTs[uMPPT_SPI_inProgress_ID].sleeping = 1;
+	HAL_GPIO_WritePin(board.CS_Ports[uMPPT_SPI_inProgress_ID], board.CS_Pins[uMPPT_SPI_inProgress_ID], GPIO_PIN_SET);
+}
+
 
 /* USER CODE END 4 */
 
