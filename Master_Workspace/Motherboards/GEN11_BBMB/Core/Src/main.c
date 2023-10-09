@@ -363,6 +363,8 @@ int main(void)
   lightsPeriph.FLT_master_TIM = &htim15;
   lightsPeriph.FLT_master_CH = TIM_CHANNEL_1;
   lightsPeriph.hazard_state = LIGHTS_OFF;
+  lightsPeriph.right_indicator_state = LIGHTS_OFF;
+  lightsPeriph.left_indicator_state = LIGHTS_OFF;
 
   //Initial state of lights: all off
   turn_off_indicators(&lightsPeriph, LEFT);
@@ -371,6 +373,10 @@ int main(void)
   turn_off_brake_lights(&lightsPeriph);
   turn_off_fault_indicator(&lightsPeriph);
   turn_off_hazard_lights(&lightsPeriph);
+
+//  lightsPeriph.ind_master_TIM->Instance->ARR = 25599; //Period of ~0.8s (~75 blinks per second) assuming 32MHz clock and 999 prescaler.
+//  lightsPeriph.ind_master_TIM->Instance->CCR1 = 12800; //On-time of 50%
+//  HAL_TIM_PWM_Start(lightsPeriph.ind_master_TIM, lightsPeriph.ind_master_CH);
 
   //--- COMMS ---//
   buart_main = B_uartStart(&huart4);
