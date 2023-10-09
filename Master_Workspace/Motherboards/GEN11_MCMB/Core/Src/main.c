@@ -2110,7 +2110,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				} else {
 					res = motor->setForward(motor);
 				}
-				res = motor->setRegen(motor, targetPower, targetRegenStrength);
+				res = motor->setRegen(motor, /*targetPower*/ 0, targetRegenStrength);
 			}
 			break;
 	}

@@ -1648,9 +1648,9 @@ static void pedalTask(const void* p) {
 			accelValue = 0;
 		}
 #else
-    vTaskSuspendAll();
+		vTaskSuspendAll();
 		accelValue = encoder_accel_value;
-    xTaskResumeAll();
+		xTaskResumeAll();
 #endif
 		//Bound acceleration value
 		if (accelValue < 0){ //Deadzone of 15
