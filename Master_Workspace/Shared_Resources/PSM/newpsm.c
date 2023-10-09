@@ -22,7 +22,7 @@ void config_PSM(struct PSM_P* PSM){
 	 */
 
 	uint8_t config_buffer[3] = {(CONFIG << 2), 0b00000000, 0b01000000};
-	uint8_t adc_config_buffer[3] = {(ADC_CONFIG << 2), 0b10111001, 0b00100010};
+	uint8_t adc_config_buffer[3] = {(ADC_CONFIG << 2), 0b11111001, 0b00100010};
 	uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001001, 0b11000100}; // Max current set as 50A
 	//uint8_t shunt_cal_buffer[3] = {(SHUNT_CAL << 2), 0b00001011, 0b10111000}; // Max current set as 60A
 
@@ -314,7 +314,7 @@ void test_config(struct PSM_P* PSM, SPI_HandleTypeDef* spi_handle, UART_HandleTy
 	}
 
 	// adc config register
-	uint8_t spi_frame1[3] = {(0x1 << 2), 0b11111001, 0b00100010};
+	uint8_t spi_frame1[3] = {(0x1 << 2), 0b10111001, 0b00100010};
 	HAL_SPI_Transmit(PSM->spi_handle, spi_frame1, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 
 	spi_frame1[0]++;

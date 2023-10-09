@@ -208,6 +208,8 @@ int main(void)
 //
 //  if (config_PSM(&psmPeriph, &hspi2, &huart2, "1234", 2000) == -1){ //2000ms timeout
 //	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
+
+
 //  }
 
   //--- COMMS ---//
