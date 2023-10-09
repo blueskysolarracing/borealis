@@ -1604,7 +1604,7 @@ static void pedalTask(const void* p) {
 #ifdef USE_PEDAL_ACCEL
 	float accel_reading_threshold = 55.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 #else
-	float accel_reading_threshold = 0.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+	float accel_reading_threshold = 35.0; //Threshold at which the pedal won't respond (on 0-256 scale)
 #endif
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
@@ -1705,11 +1705,11 @@ static void pedalTask(const void* p) {
 			}
 #endif
 			else if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
-				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+//				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetPower = (uint16_t) accelValue;
 				motorTargetRegenStrength = 0;
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
-        detailed_data.motor_accel_value = motorTargetPower;
 			} else { //Not in cruise and pedal isn't pressed, turn off motor
 				motorTargetPower = (uint16_t) 0;
 				motorState = STANDBY;
@@ -1759,6 +1759,8 @@ static void pedalTask(const void* p) {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
 			 }
 		 }
+	    detailed_data.motor_accel_value = motorTargetPower;
+
 
 		xTaskResumeAll();
 		osDelay(PEDALS_MEASUREMENT_INTERVAL);

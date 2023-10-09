@@ -67,8 +67,8 @@ void drawP1Default_new(/*int value[4]*/){
 						common_data.battery_power,
 						(short)(default_data.P1_speed_kph)};
 
-	char labelsP1[2][14] = {0};
-	int labelsP1L = 2;
+	char labelsP1[1][14] = {0};
+	int labelsP1L = 1;
 	char* labelspeed = "km/h";
 
 	glcd_tiny_set_font(Font5x7, 5, 7, 32, 127);
@@ -89,12 +89,14 @@ void drawP1Default_new(/*int value[4]*/){
 			abs(detailed_data.P1_motor_current),
 			abs(detailed_data.P1_motor_current * 10) % 10
 		);
-		sprintf(
-			labelsP1[1],
-			"MT: %c%3d\0",
-		       	(detailed_data.P1_motor_temperature >= 0 ? '+' : '-'),
-			abs(detailed_data.P1_motor_temperature)
-		);
+//		sprintf(
+//			labelsP1[1],
+//			"MT: %c%3d\0",
+//		       	(detailed_data.P1_motor_temperature >= 0 ? '+' : '-'),
+//			abs(detailed_data.P1_motor_temperature)
+//		);
+		char accel_reading[9] = {0};
+		sprintf(accel_reading, "AC: %3d", detailed_data.motor_accel_value);
 
 //	} else {
 //		if (common_data.battery_relay_state == OPEN) sprintf(labelsP1[0], "BR: OPEN\0");
@@ -124,6 +126,12 @@ void drawP1Default_new(/*int value[4]*/){
 		y+=15;
 	}
 
+	// draw motor accel
+	for (int i = 0; accel_reading[i] != '\0' && i < sizeof(accel_reading); i++) {
+		glcd_tiny_draw_char_xy(i*6, correct_Y(y), accel_reading[i]);
+	}
+	y+=15;
+
 	// draw chase message
 	if (xTaskGetTickCount() - detailed_data.last_chase_msg_time < 60000) {
 		int j = 0;
@@ -133,6 +141,7 @@ void drawP1Default_new(/*int value[4]*/){
 		}
 		y+=15;
 	}
+
 
 	// draw icons
 	y = 52;
@@ -599,48 +608,55 @@ void drawP2Default(/*int value[4]*/){
 	uint8_t y = 3;
 	glcd_set_font(JetBrains_Mono13x20, 13, 20, 'A', 'Z');
 
-	char* state;
+//	char* state;
+	char state[7] = {0};
 	uint8_t stateL;
 
 	switch(value[1]){
 	case 1:
-		state = "ACCEL";
+//		state = "ACCEL";
+		sprintf(state, "ACCEL", value[4]);
 		stateL = 5;
 		break;
 	case 2:
-		state = "CRUIZE";
+//		state = "CRUIZE";
+		sprintf(state, "CRUISE");
 		stateL = 6;
 		break;
 	case 3:
-		state = "REGEN";
+//		state = "REGEN";
+		sprintf(state, "REGEN");
 		stateL = 5;
 		break;
 	case 4:
-		state = "IDLE";
+//		state = "IDLE";
+		sprintf(state, "IDLE");
 		stateL = 4;
 		break;
 	case 5:
-		state = "NOACT"; // Regen wanted, but not activated due to high battery voltage
+//		state = "NOACT"; // Regen wanted, but not activated due to high battery voltage
+		sprintf(state, "NOACT");
 		stateL = 8;
 		break;
 	default:
-		state = "OFF";
+//		state = "OFF";
+		sprintf(state, "OFF");
 		stateL = 3;
 		break;
 	}
 
-	for(int i = 0; i < stateL; i++){
+	for(int i = 0; state[i] != '\0'; i++){
 		glcd_draw_char_xy(49+i*13, 25, state[i]);
 	}
 
 	// if case accel, write the accel value on top of the ACCEL word
-	if (value[1] == 1) {
-		char accelString[3] = {0};
-		sprintf(accelString, "%3d", value[4]);
-		for(int i = 0; i < 2; i++){
-			glcd_tiny_draw_char_xy(49+(i*6), correct_Y(10), accelString[i]);
-		}
-	}
+//	if (value[1] == 1) {
+//		char accelString[4] = {0};
+//		sprintf(accelString, "%3d", value[4]);
+//		for(int i = 0; accelString[i] != '\0'; i++){
+//			glcd_tiny_draw_char_xy(49+(i*6), correct_Y(10), accelString[i]);
+//		}
+//	}
 
 	glcd_draw_char_xy(49, correct_Y(45), 'V');
 	glcd_draw_char_xy(62, correct_Y(45), 'F');
