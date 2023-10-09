@@ -234,7 +234,7 @@ static int mitsubaMotor_setReverse(MotorInterface* interface)
 static int mitsubaMotor_setAccelOrRegen(MotorInterface* interface, uint32_t val)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (val != 0 && (!mitsubaMotor_isOn(interface))) {
+	if (/*val != 0 && */(!mitsubaMotor_isOn(interface))) {
 		return 0;
 	}
 	uint16_t wiperValue;
@@ -252,7 +252,7 @@ static int mitsubaMotor_setAccelOrRegen(MotorInterface* interface, uint32_t val)
 static int mitsubaMotor_setRegenStrength(MotorInterface* interface, uint32_t val)
 {
 	MitsubaMotor* self = (MitsubaMotor*)interface->implementation;
-	if (val != 0 && (!mitsubaMotor_isOn(interface))) {
+	if (/*val != 0 && */(!mitsubaMotor_isOn(interface))) {
 		return 0;
 	}
 	uint16_t wiperValue;
