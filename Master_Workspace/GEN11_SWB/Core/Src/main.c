@@ -55,14 +55,15 @@ ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
 
+TIM_HandleTypeDef htim3;
+
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 int16_t counter = 0;
-uint8_t bstate = 0;
-uint8_t astate = 0;
-static int outputVal = 0;
+uint8_t newAccValue = 0;
+//static int outputVal = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -72,6 +73,7 @@ static void MX_I2C1_Init(void);
 static void MX_UART4_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 //static void switchStateTask(void const* pv);
 
@@ -82,25 +84,25 @@ uint8_t getSwitchState(uint8_t whichByte){
 	//Accelerator rotary encoder
 	switch (whichByte){
 	case 0:
-		//switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) << 0;
-		//switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6;
-		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7;
-
-		//	switchState[0] = (switchState[0] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) & 0b00000001); //Bit 0 - OK
-		//	switchState[0] = (switchState[0] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1) & 0b00000010); //Bit 1 - OK
-		//	switchState[0] = (switchState[0] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2) & 0b00000100); //Bit 2 - OK
-		//	switchState[0] = (switchState[0] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3) & 0b00001000); //Bit 3 - OK
-		//	switchState[0] = (switchState[0] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4) & 0b00010000); //Bit 4 - OK
-		//	switchState[0] = (switchState[0] & ~0b00100000) | ((HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5) & 0b00100000); //Bit 5 - OK
-		//	switchState[0] = (switchState[0] & ~0b01000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6) & 0b01000000); //Bit 6 - OK
-		//	switchState[0] = (switchState[0] & ~0b10000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7) & 0b10000000); //Bit 7 - OK
-		switchState[0] = ~switchState[0];
-		return switchState[0];
+//		//switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) << 0;
+//		//switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1;
+//		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2;
+//		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3;
+//		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4;
+//		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5;
+//		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6;
+//		switchState[0] |= HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7;
+//
+//		//	switchState[0] = (switchState[0] & ~0b00000001) | (HAL_GPIO_ReadPin(GPIOC, ACC1_Pin) & 0b00000001); //Bit 0 - OK
+//		//	switchState[0] = (switchState[0] & ~0b00000010) | ((HAL_GPIO_ReadPin(GPIOC, ACC2_Pin) << 1) & 0b00000010); //Bit 1 - OK
+//		//	switchState[0] = (switchState[0] & ~0b00000100) | ((HAL_GPIO_ReadPin(GPIOC, ACC3_Pin) << 2) & 0b00000100); //Bit 2 - OK
+//		//	switchState[0] = (switchState[0] & ~0b00001000) | ((HAL_GPIO_ReadPin(GPIOC, ACC4_Pin) << 3) & 0b00001000); //Bit 3 - OK
+//		//	switchState[0] = (switchState[0] & ~0b00010000) | ((HAL_GPIO_ReadPin(GPIOC, ACC5_Pin) << 4) & 0b00010000); //Bit 4 - OK
+//		//	switchState[0] = (switchState[0] & ~0b00100000) | ((HAL_GPIO_ReadPin(GPIOC, ACC6_Pin) << 5) & 0b00100000); //Bit 5 - OK
+//		//	switchState[0] = (switchState[0] & ~0b01000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC7_Pin) << 6) & 0b01000000); //Bit 6 - OK
+//		//	switchState[0] = (switchState[0] & ~0b10000000) | ((HAL_GPIO_ReadPin(GPIOC, ACC8_Pin) << 7) & 0b10000000); //Bit 7 - OK
+//		switchState[0] = ~switchState[0];
+//		return switchState[0];
 
 	case 1:
 		//-- BYTE 1 = [x, x, x, CRUISE_SIGNAL_Pin, HORN_SIGNAL_Pin, RAD_SIGNAL_Pin, R_SIGNAL_Pin, L_SIGNAL_Pin] --//
@@ -184,11 +186,15 @@ int main(void)
   MX_UART4_Init();
   MX_USART2_UART_Init();
   MX_ADC1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   uint8_t oldSwitchState[3] = {0, 0, 0};
   uint8_t newSwitchState[3] = {0, 0, 0};
   uint8_t oldRegenValue = 0;
   uint8_t oldAccValue = 0;
+
 
   /* USER CODE END 2 */
 
@@ -202,7 +208,7 @@ int main(void)
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
 	uint8_t newRegenValue = 0;
-	uint8_t newAccValue = 0;
+	//uint8_t newAccValue = 0;
 
 	float regenTotalReading = 0;
 
@@ -219,6 +225,7 @@ int main(void)
 	#endif
 
 	#ifdef USE_ACC_ENC
+		counter = (TIM3->CNT);
 		if (counter>255){
 			newAccValue = 255;
 		}
@@ -228,7 +235,6 @@ int main(void)
 		else{
 			newAccValue = counter;
 		}
-
 	#endif
 
 	if ((oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2]) || (oldRegenValue != newRegenValue) || (oldAccValue != newAccValue)){ //If any bit has changed, send data
@@ -248,54 +254,54 @@ int main(void)
 		#endif
 
 
-		#ifdef USE_ACC_ENC
-			static uint8_t started = 0;
-			static int currentValue = 0;
-			int positiveTurn = 0;
-			int negativeTurn = 0;
-			int difference = 0;
-			//static int outputVal = 0;
-			int accValTemp = newAccValue == 255 ? currentValue : newAccValue;
-			if(!started){
-				started++;
-				currentValue = accValTemp;
-			} else{
-				positiveTurn = (currentValue + 63) % 128;
-				negativeTurn = (currentValue - 64) % 128;
-				if(positiveTurn > currentValue){
-					if(accValTemp <= positiveTurn && accValTemp >= currentValue){
-						difference = accValTemp - currentValue;
-					} else {
-						if(accValTemp < currentValue){
-							difference = accValTemp - currentValue;
-						} else {
-							difference = -(128 -(accValTemp - currentValue));
-						}
-					}
-				} else {
-					if(accValTemp <= currentValue && accValTemp >= negativeTurn){
-						difference = -(currentValue - accValTemp);
-					} else {
-						if(currentValue < accValTemp){
-							difference = accValTemp - currentValue;
-						} else {
-							difference = 128 - (currentValue - accValTemp);
-						}
-					}
-				}
-				difference = difference < 0 ? -difference * difference : difference * difference;
-				outputVal += difference;
-		//		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
-				currentValue = accValTemp;
-				if(outputVal < 0){
-					outputVal = 0;
-				} else if (outputVal > 255){
-					outputVal = 255;
-				}
-			}
-		#endif
+//		#ifdef USE_ACC_ENC
+//			static uint8_t started = 0;
+//			static int currentValue = 0;
+//			int positiveTurn = 0;
+//			int negativeTurn = 0;
+//			int difference = 0;
+//			//static int outputVal = 0;
+//			int accValTemp = newAccValue == 255 ? currentValue : newAccValue;
+//			if(!started){
+//				started++;
+//				currentValue = accValTemp;
+//			} else{
+//				positiveTurn = (currentValue + 63) % 128;
+//				negativeTurn = (currentValue - 64) % 128;
+//				if(positiveTurn > currentValue){
+//					if(accValTemp <= positiveTurn && accValTemp >= currentValue){
+//						difference = accValTemp - currentValue;
+//					} else {
+//						if(accValTemp < currentValue){
+//							difference = accValTemp - currentValue;
+//						} else {
+//							difference = -(128 -(accValTemp - currentValue));
+//						}
+//					}
+//				} else {
+//					if(accValTemp <= currentValue && accValTemp >= negativeTurn){
+//						difference = -(currentValue - accValTemp);
+//					} else {
+//						if(currentValue < accValTemp){
+//							difference = accValTemp - currentValue;
+//						} else {
+//							difference = 128 - (currentValue - accValTemp);
+//						}
+//					}
+//				}
+//				difference = difference < 0 ? -difference * difference : difference * difference;
+//				outputVal += difference;
+//		//		sprintf(buf2, "c=%d,w=%d,d=%d,o=%d\r\n", currentValue, accValTemp, difference, outputVal);
+//				currentValue = accValTemp;
+//				if(outputVal < 0){
+//					outputVal = 0;
+//				} else if (outputVal > 255){
+//					outputVal = 255;
+//				}
+//			}
+//		#endif
 
-		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, outputVal}; // last byte could be used for CRC (optional)
+		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, newAccValue}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
@@ -314,7 +320,7 @@ int main(void)
 	oldRegenValue = newRegenValue;
 	oldAccValue = newAccValue;
 
-	//HAL_Delay(15); //Wait for 15ms; could be replaced with power down sleep
+	HAL_Delay(50); //Wait for 50ms; could be replaced with power down sleep
   }
   /* USER CODE END 3 */
 }
@@ -472,6 +478,55 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_CENTERALIGNED1;
+  htim3.Init.Period = 256;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 10;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 10;
+  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
   * @brief UART4 Initialization Function
   * @param None
   * @retval None
@@ -605,21 +660,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC6 PC7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /*Configure GPIO pin : PD2 */
   GPIO_InitStruct.Pin = GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 }
 
@@ -645,21 +690,7 @@ static void MX_GPIO_Init(void)
 //		osDelay(1000);
 //	}
 //
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	if(GPIO_Pin == GPIO_PIN_7){
-		if (bstate == 0){
-			counter++;
-		}
-		else{
-			bstate = 0;
-		}
-	}
-	if(GPIO_Pin == GPIO_PIN_6){
-		counter--;
-		bstate = 1;
 
-	}
-}
 /* USER CODE END 4 */
 
 /**
@@ -673,13 +704,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
+//
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+//
   /* USER CODE END Callback 1 */
 }
 
