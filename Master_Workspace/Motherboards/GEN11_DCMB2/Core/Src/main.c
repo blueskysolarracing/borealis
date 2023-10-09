@@ -62,7 +62,7 @@
 #define REGEN_PEDAL_SLOPE 0.25 //Resistance per degree, empirically found with delta-resistance / delta-angle
 #define PEDALS_MEASUREMENT_INTERVAL 20 //Measure pedals every PEDALS_MEASUREMENT_INTERVAL ms
 #define ADC_NUM_AVG 30.0
-#define USE_ADC_REGEN
+// #define USE_ADC_REGEN
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -74,7 +74,7 @@ enum CRUISE_MODE {
 #define MAX_VFM 8 //Maximum VFM setting
 #define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
-#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 255 // regen value when pressing the regen button on the steering wheel
+#define REGEN_DEFAULT_VALUE_STEERING_WHEEL 150 // regen value when pressing the regen button on the steering wheel
 #define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
 #define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
 
@@ -174,6 +174,7 @@ typedef enum {
 	REGEN_NA
 } MOTORSTATE;
 uint16_t motorTargetPower = 0; // value from 0 - 256
+uint16_t motorTargetRegenStrength = 0; // value from 0 - 256
 uint8_t brakeStatus = 0;
 uint8_t motorState = 0;
 uint8_t fwdRevState = 0;
@@ -184,6 +185,7 @@ uint8_t motorTargetSpeed = 0; // maintain current speed of car when cruise contr
 uint8_t brakePressed = 0;
 
 uint8_t start_steering_wheel_constant_regen = 0; // 1 is on, 0 is off
+uint8_t encoder_accel_value = 0; // 0 to 255
 
 typedef enum {
 	BRAKE_PRESSED,
@@ -1599,7 +1601,11 @@ static void pedalTask(const void* p) {
 	float accel_r_0 = 0.3607; //Resistance when pedal is unpressed (kR)
 	float accel_reading_upper_bound = 56800.0; //ADC reading corresponding to 0% power request
 	float accel_reading_lower_bound = 22200.0; //ADC reading corresponding to 100% power request
-	float accel_reading_threshold = 40.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+#ifdef USE_PEDAL_ACCEL
+	float accel_reading_threshold = 55.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+#else
+	float accel_reading_threshold = 35.0; //Threshold at which the pedal won't respond (on 0-256 scale)
+#endif
 	uint8_t brakeState = BRAKE_RELEASED;
 	uint8_t prevBrakeState = brakeState;
     uint8_t bufh2[2] = {DCMB_LIGHTCONTROL_ID, 0x00}; //[DATA ID, LIGHT INSTRUCTION]
@@ -1622,6 +1628,8 @@ static void pedalTask(const void* p) {
 		}
 
 #endif
+
+#ifdef USE_PEDAL_ACCEL
 		//--- PEDALS ADC READINGS ---//
 		for (int i = 0; i < ADC_NUM_AVG; i++){
 			vTaskSuspendAll();
@@ -1631,7 +1639,25 @@ static void pedalTask(const void* p) {
 			accelReading += currentVal;
 			xTaskResumeAll();
 		}
-
+		//Compute value on 0-256 scale
+		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
+		rawAccelReading = accelReading/ADC_NUM_AVG;
+		//Try to catch if accel pedal cable is cut
+		//Since pedal pot is pull-up, if the cable is cut, the ADC reading will be very low
+		if ((accelReading/ADC_NUM_AVG) < 5000){
+			accelValue = 0;
+		}
+#else
+		vTaskSuspendAll();
+		accelValue = encoder_accel_value;
+		xTaskResumeAll();
+#endif
+		//Bound acceleration value
+		if (accelValue < 0){ //Deadzone of 15
+			accelValue = 0;
+		} else if (accelValue > 256 ){
+			accelValue = 256;
+		}
 		// Check if brake is pressed or car is going to regen
 		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 || start_steering_wheel_constant_regen || start_adc_regen) {
 			brakeState = BRAKE_PRESSED;
@@ -1653,21 +1679,7 @@ static void pedalTask(const void* p) {
 		    B_tcpSend(btcp, bufh2, sizeof(bufh2));
 		}
 
-		//Compute value on 0-256 scale
-		accelValue = 256 - round(((accelReading/ADC_NUM_AVG) - accel_reading_lower_bound) / (accel_reading_upper_bound - accel_reading_lower_bound) * 256);
-		rawAccelReading = accelReading/ADC_NUM_AVG;
-		//Bound acceleration value
-		if (accelValue < 0){ //Deadzone of 15
-			accelValue = 0;
-		} else if (accelValue > 256 ){
-			accelValue = 256;
-		}
 
-		//Try to catch if accel pedal cable is cut
-		//Since pedal pot is pull-up, if the cable is cut, the ADC reading will be very low
-		if ((accelReading/ADC_NUM_AVG) < 5000){
-			accelValue = 0;
-		}
 
 		// setting global motorTargetPower, motorState
 		vTaskSuspendAll();
@@ -1676,19 +1688,26 @@ static void pedalTask(const void* p) {
 		if (motorState != CRUISE){
 #ifdef USE_ADC_REGEN
 			if (start_adc_regen) {
-				motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				// motorTargetPower = (uint16_t)steering_wheel_variable_regen_value;
+				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetRegenStrength = (uint16_t)steering_wheel_variable_regen_value;
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 			}
 #else
 			if (start_steering_wheel_constant_regen) {
-				motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
+				// motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
+				// motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetPower = 200;
+				motorTargetRegenStrength = REGEN_DEFAULT_VALUE_STEERING_WHEEL;
 				motorState = REGEN;
 				default_data.P2_motor_state = REGEN;
 			}
 #endif
 			else if (accelValue >= accel_reading_threshold && brakeState == BRAKE_RELEASED) {
-				motorTargetPower = (uint16_t) (accelValue - accel_reading_threshold) * (1.0 + accel_reading_threshold/255.0);
+//				motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
+				motorTargetPower = (uint16_t) accelValue;
+				motorTargetRegenStrength = 0;
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
 			} else { //Not in cruise and pedal isn't pressed, turn off motor
@@ -1700,6 +1719,7 @@ static void pedalTask(const void* p) {
 		} else {
 			if (brakeState == BRAKE_PRESSED) {
 				motorTargetPower = (uint16_t) 0;
+				motorTargetRegenStrength = 0;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
@@ -1709,6 +1729,7 @@ static void pedalTask(const void* p) {
 		if (ignitionState != IGNITION_ON){
 			motorState = OFF;
 			motorTargetPower = (uint16_t) 0;
+			motorTargetRegenStrength = 0;
 			default_data.P2_motor_state = OFF;
 		}
 
@@ -1738,6 +1759,8 @@ static void pedalTask(const void* p) {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
 			 }
 		 }
+	    detailed_data.motor_accel_value = motorTargetPower;
+
 
 		xTaskResumeAll();
 		osDelay(PEDALS_MEASUREMENT_INTERVAL);
@@ -2058,6 +2081,7 @@ void steeringWheelTask(const void *pv){
 			//Update variable regen value
 			steering_wheel_variable_regen_value = rxBuf[5];
 #endif
+		encoder_accel_value = rxBuf[6];
 		}
 		xTaskResumeAll(); // exit critical section
 
@@ -2497,7 +2521,8 @@ void motorDataTimer(TimerHandle_t xTimer){
 	if (ignitionState != IGNITION_ON){ //overrides original motor state if IGNITION is not on
 		motorState = OFF;
 		motorTargetPower = (uint16_t) 0;
-    motorTargetSpeed = 0;
+		motorTargetRegenStrength = (uint16_t) 0;
+    	motorTargetSpeed = 0;
 		default_data.P2_motor_state = OFF;
 	}
 
@@ -2523,6 +2548,7 @@ void motorDataTimer(TimerHandle_t xTimer){
 	buf[2] = digitalButtons;
 	buf[3] = default_data.P2_VFM;
 	packi16(&buf[4], (uint16_t) motorTargetPower);
+	packi16(&buf[6], (uint16_t) motorTargetRegenStrength);
 	buf[8] = motorTargetSpeed;
 
 	B_tcpSend(btcp, buf, sizeof(buf));

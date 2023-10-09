@@ -159,10 +159,11 @@ enum motorPowerState {
 
 MOTORSTATE motorState; //see below for description
 //	[0] OFF (not reacting to any input)
-//	[1] PEDAL (motor power controlled by accelerator pedal)
+//	[1] PEDAL (motor power controlled by accelOrRegenerator pedal)
 //	[2] CRUISE (DCMB sends target speed to MCMB, which runs a control loop to maintain target speed). Note: It is also possible to set it to maintain constant power
-//	[3] REGEN (When regen pedal is pressed; has priority over others). DCMB controls motor state
+//	[3] regenStrength (When regenStrength pedal is pressed; has priority over others). DCMB controls motor state
 uint16_t targetPower = 0; // Note: this is not in watts, it is from 0 - 256, for POT
+uint16_t targetRegenStrength = 0;
 uint8_t targetSpeed = 0;
 float batteryVoltage = 0;
 
@@ -178,8 +179,8 @@ uint8_t past_vfm_pos = 0;
 long lastDcmbPacket = 0;
 float temperature = 0;
 uint8_t speedTarget;
-float prevKmPerHour = 0;
 float kmPerHour = 0;
+float emaKmPerHour = 0;  // Exponential Moving Average of speed
 
 MotorInterface* motor;
 MitsubaMotor mitsuba;
@@ -438,20 +439,20 @@ int main(void)
   mitsuba.MT0Port = GPIOE;
   mitsuba.MT0Pin = GPIO_PIN_3;
 
-  mitsuba.cs0AccelPort = GPIOK;
-  mitsuba.cs0AccelPin = GPIO_PIN_2;
-  mitsuba.cs1RegenPort = GPIOG;
-  mitsuba.cs1RegenPin = GPIO_PIN_2;
+  mitsuba.cs0accelOrRegenPort = GPIOK;
+  mitsuba.cs0accelOrRegenPin = GPIO_PIN_2;
+  mitsuba.cs1regenStrengthPort = GPIOG;
+  mitsuba.cs1regenStrengthPin = GPIO_PIN_2;
   mitsuba.potSpiPtr = &hspi3;
 
   motor = mitsubaMotor_init(&mitsuba);
 
-//  //Gen11 regen write below:
+//  //Gen11 regenStrength write below:
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(255, GPIOG, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(0, GPIOG, GPIO_PIN_2, &hspi3);
 ////
-//  //Gen11 accel write below:
+//  //Gen11 accelOrRegen write below:
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(255, GPIOK, GPIO_PIN_2, &hspi3);
 //  MCP4161_Pot_Write(0, GPIOK, GPIO_PIN_2, &hspi3);
@@ -1980,7 +1981,7 @@ float getTemperature(ADC_HandleTypeDef *hadcPtr) {
 
 // Function to implement PI controller for cruise control
 float PIControllerUpdate(float setpoint, float measured){
-  //Returns a float between -255 (full regen) and 255 (full accel) to modulate motor power to maintain zero error (desired speed)
+  //Returns a float between -255 (full regenStrength) and 255 (full accelOrRegen) to modulate motor power to maintain zero error (desired speed)
 
 	float error = setpoint - measured;
 	// Proportional term
@@ -2037,24 +2038,12 @@ static void motorTmr(TimerHandle_t xTimer){
 		motor->turnOff(motor);
 		gearUp = 0;
 		gearDown = 0;
-		if (motor->isAccel(motor)) {
-			res = motor->setAccel(motor, 0); // turns off accel
-		}
-		if (motor->isRegen(motor)) {
-			res = motor->setRegen(motor, 0); // turns off regen
-		}
 		return;
 	}
 
 	switch (motorState) {
 		case OFF:
 			motor->turnOff(motor);
-			if (motor->isAccel(motor)) {
-				res = motor->setAccel(motor, 0); // turns off accel
-			}
-			if (motor->isRegen(motor)) {
-				res = motor->setRegen(motor, 0); // turns off regen
-			}
 			return; //return instead of break here, since no need for VFM gear change
 		case STANDBY:
 			if (!motor->isOn(motor)) {
@@ -2066,13 +2055,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				} else {
 					res = motor->setForward(motor);
 				}
-
-				if (motor->isAccel(motor)) {
-					res = motor->setAccel(motor, 0); // turns off accel
-				}
-				if (motor->isRegen(motor)) {
-					res = motor->setRegen(motor, 0); // turns off regen
-				}
+				motor->setZero(motor);
 			}
 			break;
 
@@ -2085,9 +2068,6 @@ static void motorTmr(TimerHandle_t xTimer){
 					res = motor->setReverse(motor);
 				} else {
 					res = motor->setForward(motor);
-				}
-				if (motor->isRegen(motor)) {
-					res = motor->setRegen(motor, 0);
 				}
 				res = motor->setAccel(motor, targetPower);
 			}
@@ -2109,17 +2089,12 @@ static void motorTmr(TimerHandle_t xTimer){
 					res = motor->setAccel(motor, targetPower);
 
 				} else if (CRUISE_MODE == CONSTANT_SPEED){
-				  //TODO: Might need to add hysteresis to PI is it switches between regen and accel too quickly
-				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, prevKmPerHour);
-				  if (cruise_control_PI_output < 0.0){
-					res = motor->setAccel(motor, (uint8_t)0);
-//					res = motor->setRegen(motor, (uint8_t)(-1.0*cruise_control_PI_output)); //Regen outout from PI is negative, so need to flip back
-				  }else if (cruise_control_PI_output > 0.0){
-					res = motor->setRegen(motor, (uint8_t)0);
-					res = motor->setAccel(motor, (uint8_t)cruise_control_PI_output);
-				  }else{
-					res = motor->setAccel(motor, (uint8_t)0);
-					res = motor->setRegen(motor, (uint8_t)0);
+				  //TODO: Might need to add hysteresis to PI is it switches between regenStrength and accelOrRegen too quickly
+				  float cruise_control_PI_output = PIControllerUpdate(targetSpeed, emaKmPerHour);
+				  if (cruise_control_PI_output <= 0.0){
+					res = motor->setAccel(motor, 0);
+				  } else {
+					res = motor->setAccel(motor, (uint32_t)cruise_control_PI_output);
 				  }
 				}
 			}
@@ -2135,10 +2110,7 @@ static void motorTmr(TimerHandle_t xTimer){
 				} else {
 					res = motor->setForward(motor);
 				}
-				if (motor->isAccel(motor)) {
-					res = motor->setAccel(motor, 0);
-				}
-				res = motor->setRegen(motor, targetPower);
+				res = motor->setRegen(motor, /*targetPower*/ 0, targetRegenStrength);
 			}
 			break;
 	}
@@ -2197,10 +2169,12 @@ static void spdTmr(TimerHandle_t xTimer){
 	float meterPerSecond = pwm_in.frequency / 16.0 * WHEEL_DIA * 3.14159;
 	kmPerHour = meterPerSecond / 1000.0 * 3600.0;
 
-	// Send frequency to DCMB (for now)
-	buf[1] = (uint8_t) round(kmPerHour);
+	const float alpha = 0.5; // 0.0 < alpha < 1.0. A smaller alpha will provide more smoothing, but react slower to changes.
 
-	prevKmPerHour = kmPerHour;
+	// Update the exponential moving average
+    emaKmPerHour = alpha * kmPerHour + (1 - alpha) * emaKmPerHour;
+
+    buf[1] = (uint8_t) round(emaKmPerHour);
 
 	B_tcpSend(btcp, buf, 4);
 }
@@ -2230,6 +2204,7 @@ void serialParse(B_tcpPacket_t *pkt){
 		if(pkt->data[0] == DCMB_MOTOR_CONTROL_STATE_ID){
 			motorState = pkt->data[1];
 			targetPower = unpacku16(&pkt->data[4]);
+			targetRegenStrength = unpacku16(&pkt->data[6]);
 			targetSpeed = pkt->data[8];
 			vfm_pos = pkt->data[3];
 
