@@ -129,20 +129,11 @@ uint16_t readAlert(struct PSM_P * PSM){
 }
 
 void resetPSM(struct PSM_P * PSM){
-	// not implemented, for device reset
-	HAL_Delay(0);
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_SET);
 
 	uint8_t buffer[3] = {0x0, 0b10000000, 0b00000000}; // Device Reset Settings
-	if (HAL_SPI_Transmit(PSM->spi_handle, buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT) != HAL_OK) {
-		//data could not be written! transmit some error message to the computer
-		while(1){
-			// just idle here
-		}
-	}
-
-	HAL_Delay(0);
+	HAL_SPI_Transmit(PSM->spi_handle, buffer, 3, MAX_SPI_TRANSMIT_TIMEOUT);
 	HAL_GPIO_WritePin(PSM->CSPort, PSM->CSPin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(PSM->LVDSPort, PSM->LVDSPin, GPIO_PIN_RESET);
 

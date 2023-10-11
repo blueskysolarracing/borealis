@@ -1735,6 +1735,11 @@ void PSMTaskHandler(void * parameters){
 		voltage = readPSM(&psmPeriph, VBUS, 3);
 		current = readPSM(&psmPeriph, CURRENT, 3);
 
+		if(current == BBMB_CURRENT_OFFSET){
+			resetPSM(&psmPeriph);
+			config_PSM(&psmPeriph);
+		}
+
 		vTaskSuspendAll();
 
 		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
