@@ -4,12 +4,12 @@
  *  Created on: Jul 22, 2023
  *      Author: tonyh
  */
+
 #include "uMPPT.h"
 
-extern uint8_t uMPPT_SPI_inProgress_ID = -1;
+extern uint8_t uMPPT_SPI_inProgress_ID;
 
-
-void config_uMPPT(struct board_param* board){
+void config_uMPPT(struct board_parameters* board){
 
 	for(int i = 0; i < NUM_UMPPT; i++){
 		board->uMPPTs[i]->uMPPT_ID = i;
@@ -30,44 +30,38 @@ void config_uMPPT(struct board_param* board){
 		ADC_sleepMode(i, board);
 	}
 	//Start PWM
-	for (int i = 0; i < NUM_UMPPT; i++){
-		HAL_TIM_PWM_Start(board->PWM_TIM[i], board->PWM_CHANNEL[i]);
-	}
+//	for (int i = 0; i < NUM_UMPPT; i++){
+//		HAL_TIM_PWM_Start(board->PWM_timers[i], board->PWM_channels[i]);
+//	}
 }
 
-void ADC_sleepMode(uint8_t uMPPT_ID, struct board_param *board){
+void ADC_sleepMode(uint8_t uMPPT_ID, struct board_parameters *board){
 
-	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_RESET);
+	if(uMPPT_ID == 0){
+		return;
+	}
+
+	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID-1], board->CS_Pins[uMPPT_ID-1], GPIO_PIN_RESET);
 	uint8_t garbage[2] = {0, 0};
 
-	if(HAL_SPI_Receive_IT(board->hspi_handle, garbage, 2)){
-		uMPPT_SPI_inProgressID = uMPPT_ID;
-	}
-
-	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_SET);
+	HAL_SPI_Receive_DMA(board->hspi_handle, garbage, 1);
+	uMPPT_SPI_inProgress_ID = uMPPT_ID;
+//	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID-1], board->CS_Pins[uMPPT_ID-1], GPIO_PIN_SET);
 
 }
 
-float ADC_readVoltage(uint8_t uMPPT_ID, struct board_param* board){
+float ADC_readVoltage(uint8_t uMPPT_ID, struct board_parameters* board){
 
-	uint8_t voltage = {0, 0};
+	uint8_t voltage[2] = {0, 0};
 
 	// Read from first channel on STM ADC
 	if(uMPPT_ID == 0){
-
+		voltage[1] = 0;
+		return;
 	}
 
 	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_RESET);
-	
-	if(HAL_SPI_Receive(board->hspi_handle, voltage, 1, 100) == HAL_OK){
-
-		if(DEBUG_MODE){
-			char print_buf[100];
-			sprintf(print_buf, "ADC reading for CH %d: 0x%x%x\n", uMPPT_ID, voltage[0], voltage[1]);
-			HAL_UART_Transmit(board->huart_handle, (uint8_t*) print_buf, strlen(print_buf), 10);
-		}
-	}
-
+	HAL_SPI_Receive(board->hspi_handle, voltage, 1, 100);
 	HAL_GPIO_WritePin(board->CS_Ports[uMPPT_ID], board->CS_Pins[uMPPT_ID], GPIO_PIN_SET);
 	uint16_t raw_voltage = (voltage[0] << 8) | (voltage[1]);
 
@@ -83,7 +77,8 @@ float readOutputVoltage(){
 
 }
 
-void update_MPP_HillClimb(struct board_param *board, struct uMPPT *target_uMPPT){
+/*
+void update_MPP_HillClimb(struct board_parameters *board, struct uMPPT *target_uMPPT){
 	uint8_t found_MPP = 0;
 
 	target_uMPPT->MPPT_in_progress = 1;
@@ -137,7 +132,7 @@ void update_MPP_HillClimb(struct board_param *board, struct uMPPT *target_uMPPT)
 
 }
 
-void updatePWMDutyCycle(struct board_param * board, struct uMPPT *target_uMPPT, float new_duty_cycle){
+void updatePWMDutyCycle(struct board_parameters * board, struct uMPPT *target_uMPPT, float new_duty_cycle){
 	//Bound PWM duty cycle
 	if (new_duty_cycle < MIN_PWM_DUTY_CYCLE){ new_duty_cycle = MIN_PWM_DUTY_CYCLE; }
 	else if (new_duty_cycle > MAX_PWM_DUTY_CYCLE){ new_duty_cycle = MAX_PWM_DUTY_CYCLE; }
@@ -153,7 +148,7 @@ void updatePWMDutyCycle(struct board_param * board, struct uMPPT *target_uMPPT, 
 	target_uMPPT->pwm_duty_cycle = new_duty_cycle;
 }
 
-void updatePWMFreq(struct uMPPT *target_uMPPT, struct board_param* board, float new_freq){ //Frequency in kHz
+void updatePWMFreq(struct uMPPT *target_uMPPT, struct board_parameters* board, float new_freq){ //Frequency in kHz
 	//Wrapper function to update the PWM frequency of the given uMPPT
 	uint8_t i = target_uMPPT->pwm_num;
 
@@ -173,5 +168,5 @@ void updatePWMFreq(struct uMPPT *target_uMPPT, struct board_param* board, float 
 		updatePWMDutyCycle(target_uMPPT, board, target_uMPPT->pwm_duty_cycle);
 	}
 }
-
+*/
 

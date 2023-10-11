@@ -1,0 +1,13 @@
+main.c:106:5:main	1
+main.c:184:6:SystemClock_Config	4
+main.c:235:13:MX_ADC_Init	5
+main.c:307:13:MX_SPI1_Init	2
+main.c:345:13:MX_TIM2_Init	7
+main.c:408:13:MX_TIM3_Init	8
+main.c:475:13:MX_TIM6_Init	3
+main.c:513:13:MX_TIM21_Init	6
+main.c:572:13:MX_USART2_UART_Init	2
+main.c:605:13:MX_DMA_Init	1
+main.c:626:13:MX_GPIO_Init	1
+main.c:685:6:HAL_SPI_RxHalfCpltCallback	1
+main.c:699:6:Error_Handler	1

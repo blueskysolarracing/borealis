@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "uMPPT.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,6 +43,7 @@
 ADC_HandleTypeDef hadc;
 
 SPI_HandleTypeDef hspi1;
+DMA_HandleTypeDef hdma_spi1_rx;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -67,9 +68,9 @@ struct uMPPT uMPPT_4;
 struct uMPPT uMPPT_5;
 
 struct uMPPT* uMPPT_list[5] = {&uMPPT_1, &uMPPT_2, &uMPPT_3, &uMPPT_4, &uMPPT_5};
-struct board_param board;
+struct board_parameters board;
 
-uint8_t uMPPT_SPI_inProgress = -1;
+uint8_t uMPPT_SPI_inProgress_ID = -1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,6 +90,12 @@ static void MX_TIM6_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+float substring_voltage0 = 0;
+float substring_voltage1 = 0;
+float substring_voltage2 = 0;
+float substring_voltage3 = 0;
+float substring_voltage4 = 0;
 
 /* USER CODE END 0 */
 
@@ -130,21 +137,20 @@ int main(void)
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
-
-  board.hadc_handle = &hadc;
-  board.hspi_handle = &hspi1;
-  board.huart_handle = &huart_handle;
-  board.ADC_channels = ADC_CH;
   board.CS_Pins = CS_Pins;
   board.CS_Ports = CS_Ports;
+  board.hspi_handle = &hspi1;
+  board.huart_handle = &huart2;
   board.PWM_timers = PWM_handlers;
   board.PWM_channels = PWM_CH;
-
+  board.ADC_channels = ADC_CH;
+  board.hadc_handle = &hadc;
   board.uMPPTs = uMPPT_list;
 
   config_uMPPT(&board);
 
-  /* USER CODE END 2
+  /* USER CODE END 2 */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -152,6 +158,21 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+//	  substring_voltage1 = ADC_readVoltage(1, &board);
+//	  ADC_sleepMode(1, &board);
+//	  HAL_Delay(1);
+//
+//	  substring_voltage2 = ADC_readVoltage(2, &board);
+//	  ADC_sleepMode(2, &board);
+////	  HAL_Delay(1);
+//
+	  substring_voltage3 = ADC_readVoltage(3, &board);
+//	  ADC_sleepMode(3, &board);
+//	  HAL_Delay(1);
+//
+//	  substring_voltage4 = ADC_readVoltage(4, &board);
+//	  ADC_sleepMode(4, &board);
+
   }
   /* USER CODE END 3 */
 }
@@ -301,7 +322,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -588,6 +609,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Channel2_3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
   /* DMA1_Channel4_5_6_7_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel4_5_6_7_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel4_5_6_7_IRQn);
@@ -658,10 +682,11 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi){
+void HAL_SPI_RxHalfCpltCallback(SPI_HandleTypeDef *hspi){
 
-	board.uMPPTs[uMPPT_SPI_inProgress_ID].sleeping = 1;
+	board.uMPPTs[uMPPT_SPI_inProgress_ID]->sleeping = 1;
 	HAL_GPIO_WritePin(board.CS_Ports[uMPPT_SPI_inProgress_ID], board.CS_Pins[uMPPT_SPI_inProgress_ID], GPIO_PIN_SET);
+	uMPPT_SPI_inProgress_ID = 0;
 }
 
 

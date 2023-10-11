@@ -1,0 +1,5 @@
+uMPPT.c:12:6:config_uMPPT	3
+uMPPT.c:38:6:ADC_sleepMode	2
+uMPPT.c:53:7:ADC_readVoltage	2
+uMPPT.c:72:7:readOutputCurrent	1
+uMPPT.c:76:7:readOutputVoltage	1

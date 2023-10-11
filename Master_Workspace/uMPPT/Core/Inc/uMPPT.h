@@ -18,8 +18,6 @@
 #define ADC_CONV_FACTOR				(float) 8192
 #define DEBUG_MODE					0
 
-
-
 struct uMPPT {
 
 	uint8_t uMPPT_ID;
@@ -70,8 +68,8 @@ struct board_parameters {
 void config_uMPPT(struct board_parameters* board);
 float SPI_readADC(uint8_t uMPPT_ID, struct board_parameters* board);
 float STM_readADC(struct board_parameters* board);
-void ADC_sleepMode(uint8_t uMPPT_ID, struct board_param *board);
-float ADC_readVoltage(uint8_t uMPPT_ID, struct board_param* board);
+void ADC_sleepMode(uint8_t uMPPT_ID, struct board_parameters *board);
+float ADC_readVoltage(uint8_t uMPPT_ID, struct board_parameters* board);
 float readOutputCurrent();
 float readOutputVoltage();
 void update_MPP_IncCond();
