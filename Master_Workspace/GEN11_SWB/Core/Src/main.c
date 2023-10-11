@@ -61,8 +61,8 @@ UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-int16_t counter = 0;
-uint8_t newAccValue = 0;
+uint16_t counter = 0;
+uint16_t newAccelValue = 0;
 //static int outputVal = 0;
 /* USER CODE END PV */
 
@@ -193,8 +193,12 @@ int main(void)
   uint8_t oldSwitchState[3] = {0, 0, 0};
   uint8_t newSwitchState[3] = {0, 0, 0};
   uint8_t oldRegenValue = 0;
-  uint8_t oldAccValue = 0;
+  uint16_t oldAccelValue = 0;
+  
 
+	uint16_t counterMaxValue = 0xFFFF; // 65535
+	uint8_t maxAcc = 255;
+	uint16_t maxAllowedTurnCount = 5000;
 
   /* USER CODE END 2 */
 
@@ -208,7 +212,7 @@ int main(void)
 	newSwitchState[1] = getSwitchState(1);
 	newSwitchState[2] = getSwitchState(2);
 	uint8_t newRegenValue = 0;
-	//uint8_t newAccValue = 0;
+	//uint8_t newAccelValue = 0;
 
 	float regenTotalReading = 0;
 
@@ -226,18 +230,63 @@ int main(void)
 
 	#ifdef USE_ACC_ENC
 		counter = (TIM3->CNT);
-		if (counter>255){
-			newAccValue = 255;
+		newAccelValue = counter;
+		// compute the difference between the current and previous value.
+		int diff = newAccelValue - oldAccelValue;
+		uint8_t accelNegativeDiff = 0;
+		uint8_t accelPositiveDiff = 0;
+		if (diff > 0 && diff <= maxAllowedTurnCount){
+			// increment detected
+			accelNegativeDiff = 0;
+			if (diff < maxAcc) {
+				accelPositiveDiff = diff;
+			} else {
+				accelPositiveDiff = maxAcc;
+			}
+		} else if (diff > 0 && diff > maxAllowedTurnCount) {
+			// decrement detected, with value wrapping around
+			accelPositiveDiff = 0;
+			int actualDiff = oldAccelValue + counterMaxValue - newAccelValue + 1;
+			if (actualDiff < maxAcc) {
+				accelNegativeDiff = actualDiff;
+			} else {
+				accelNegativeDiff = maxAcc;
+			}
+		} else if (diff < 0 && (-diff) <= maxAllowedTurnCount) {
+			// decrement detected
+			accelPositiveDiff = 0;
+			if ((-diff) < maxAcc) {
+				accelNegativeDiff = -diff;
+			} else {
+				accelNegativeDiff = maxAcc;
+			}
+		} else if (diff < 0 && (-diff) > maxAllowedTurnCount){
+			// increment detected, with value wrapping around
+			accelNegativeDiff = 0;
+			int actualDiff = counterMaxValue - oldAccelValue + newAccelValue + 1;
+			if (actualDiff < maxAcc) {
+				accelPositiveDiff = actualDiff;
+			} else {
+				accelPositiveDiff = maxAcc;
+			}
+		} else {
+			accelNegativeDiff = 0;
+			accelPositiveDiff = 0;
 		}
-		else if (counter<0){
-			newAccValue = 0;
-		}
-		else{
-			newAccValue = counter;
-		}
+		// note that counter wraps around at 65535 as it is 16-bit
+
+//		if (counter>255){
+//			newAccelValue = 255;
+//		}
+//		else if (counter<0){
+//			newAccelValue = 0;
+//		}
+//		else{
+//			newAccelValue = counter;
+//		}
 	#endif
 
-	if ((oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2]) || (oldRegenValue != newRegenValue) || (oldAccValue != newAccValue)){ //If any bit has changed, send data
+	if ((oldSwitchState[1] != newSwitchState[1]) || (oldSwitchState[2] != newSwitchState[2]) || (oldRegenValue != newRegenValue) || (oldAccelValue != newAccelValue)){ //If any bit has changed, send data
 
 		//Map regen range from 52-115 to 0-255
 		uint8_t mappedRegenValue = 0;
@@ -261,7 +310,7 @@ int main(void)
 //			int negativeTurn = 0;
 //			int difference = 0;
 //			//static int outputVal = 0;
-//			int accValTemp = newAccValue == 255 ? currentValue : newAccValue;
+//			int accValTemp = newAccelValue == 255 ? currentValue : newAccelValue;
 //			if(!started){
 //				started++;
 //				currentValue = accValTemp;
@@ -301,7 +350,7 @@ int main(void)
 //			}
 //		#endif
 
-		uint8_t buf[7] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, newAccValue}; // last byte could be used for CRC (optional)
+		uint8_t buf[8] = {BSSR_SERIAL_START, 0x03, newSwitchState[0], newSwitchState[1], newSwitchState[2], mappedRegenValue, accelPositiveDiff, accelNegativeDiff}; // last byte could be used for CRC (optional)
 		uint8_t rx_buf[2];
 
 		//do { //Keep sending data until acknowledge is received from DCMB
@@ -318,7 +367,7 @@ int main(void)
 	//Update switch state
 	for (int i = 0; i < 3; i++){ oldSwitchState[i] = newSwitchState[i];}
 	oldRegenValue = newRegenValue;
-	oldAccValue = newAccValue;
+	oldAccelValue = newAccelValue;
 
 	HAL_Delay(50); //Wait for 50ms; could be replaced with power down sleep
   }
@@ -340,6 +389,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -352,6 +402,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -385,6 +436,7 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 1 */
 
   /* USER CODE END ADC1_Init 1 */
+
   /** Common config
   */
   hadc1.Instance = ADC1;
@@ -406,6 +458,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
+
   /** Configure the ADC multi-mode
   */
   multimode.Mode = ADC_MODE_INDEPENDENT;
@@ -413,6 +466,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
+
   /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_10;
@@ -459,12 +513,14 @@ static void MX_I2C1_Init(void)
   {
     Error_Handler();
   }
+
   /** Configure Analogue filter
   */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
     Error_Handler();
   }
+
   /** Configure Digital filter
   */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
@@ -497,8 +553,8 @@ static void MX_TIM3_Init(void)
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 0;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_CENTERALIGNED1;
-  htim3.Init.Period = 256;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
@@ -745,4 +801,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
