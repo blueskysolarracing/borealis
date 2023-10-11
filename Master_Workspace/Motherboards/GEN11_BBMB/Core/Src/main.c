@@ -1963,9 +1963,9 @@ void fault_state_setter(void* parameters) {
 
 		if (battery_overvoltage || battery_undervoltage || battery_overtemperature || battery_undertemperature
 					|| battery_overcurrent || motor_overtemperature) {
-			batteryState = FAULTED;
+			// batteryState = FAULTED;
 			if (run_faulted_routine) {
-				battery_faulted_routine();
+				// battery_faulted_routine();
 				run_faulted_routine = 0;
 			}
 			run_unfaulted_routine = 1;
