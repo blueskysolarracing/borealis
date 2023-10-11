@@ -1943,7 +1943,7 @@ void fault_state_setter(void* parameters) {
 				if (temperature > HV_BATT_OT_THRESHOLD) {
 					battery_overtemperature = 1;
 				} else if (temperature < HV_BATT_UT_THRESHOLD) {
-					battery_undertemperature = 1;
+					// battery_undertemperature = 1;
 				}
 			}
 		}
