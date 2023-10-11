@@ -1672,6 +1672,9 @@ static void pedalTask(const void* p) {
 			if (brakeState == BRAKE_PRESSED) {
 				// turn on brake lights
 				bufh2[1] = 0b01001000;
+				vTaskSuspendAll();
+				encoder_accel_value = 0;
+				xTaskResumeAll();
 			} else {
 				// turn off brake lights
 				bufh2[1] = 0b00001000;
@@ -1759,7 +1762,7 @@ static void pedalTask(const void* p) {
 				  HAL_GPIO_WritePin(GPIOI, BACKUP_SCREEN_CTRL_Pin, GPIO_PIN_RESET); //Disable screen
 			 }
 		 }
-	    detailed_data.motor_accel_value = motorTargetPower;
+	    detailed_data.motor_accel_value = accelValue;
 
 
 		xTaskResumeAll();
@@ -2062,7 +2065,7 @@ void steeringWheelTask(const void *pv){
 	uint8_t oldSteeringData[3] = {0, 0, 0};
 	uint8_t emergencyLight = 0;
 
-	uint8_t expectedLen = 7; //must be same length as sent from SWB
+	uint8_t expectedLen = 8; //must be same length as sent from SWB
 	uint8_t rxBuf[expectedLen];
 	for(;;){
 	  	B_uartReadFullMessage(swBuart,  rxBuf,  expectedLen, BSSR_SERIAL_START);
@@ -2081,7 +2084,21 @@ void steeringWheelTask(const void *pv){
 			//Update variable regen value
 			steering_wheel_variable_regen_value = rxBuf[5];
 #endif
-		encoder_accel_value = rxBuf[6];
+//			int new_val = encoder_accel_value + rxBuf[6] * rxBuf[6] / 2 + 1 - (rxBuf[7] * rxBuf[7] / 2 + 1); // (+) positive change and (-) negative change
+			int new_val;
+			int pos_diff = rxBuf[6];
+			int neg_diff = rxBuf[7];
+			if (pos_diff) {
+				new_val = encoder_accel_value + pos_diff * pos_diff / 2 + 1;
+			} else {
+				new_val = encoder_accel_value - (neg_diff * neg_diff / 2 + 1); // (+) positive change and (-) negative change
+			}
+			if (new_val > 255) {
+				new_val = 255;
+			} else if (new_val < 0) {
+				new_val = 0;
+			}
+			encoder_accel_value = (uint16_t)new_val;
 		}
 		xTaskResumeAll(); // exit critical section
 

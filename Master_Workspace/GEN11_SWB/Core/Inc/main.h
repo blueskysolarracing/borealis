@@ -94,6 +94,7 @@ void Error_Handler(void);
 #define TEMP_SDA_GPIO_Port GPIOB
 #define CRUISE_SIGNAL_Pin GPIO_PIN_9
 #define CRUISE_SIGNAL_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
