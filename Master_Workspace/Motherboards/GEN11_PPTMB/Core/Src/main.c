@@ -134,6 +134,7 @@ void turnOnPPTs() {
 TaskHandle_t PSM_handle;
 BaseType_t status;
 uint32_t BBMB_last_packet_tick_count = 0;
+
 /* USER CODE END 0 */
 
 /**
@@ -688,16 +689,16 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void PSMTaskHandler(void * parameters){
 
-	double voltage, current;
+//	double voltage, current;
 
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB));
 
 	while (1){
 
-		voltage = readPSM(&psmPeriph, VBUS, 3);
-		current = readPSM(&psmPeriph, CURRENT, 3);
+		double voltage = readPSM(&psmPeriph, VBUS, 3);
+		double current = readPSM(&psmPeriph, CURRENT, 3);
 
-		if(current == PPTMB_CURRENT_OFFSET){
+		if(current < PPTMB_CURRENT_OFFSET + 0.0001){
 			resetPSM(&psmPeriph);
 			config_PSM(&psmPeriph);
 		}
