@@ -68,7 +68,7 @@
 #define PPTMB_CURRENT_MULTIPLIER				(double) (0.9955)
 #define BBMB_CURRENT_OFFSET						(double) (0.153 * (-1))
 #define MCMB_CURRENT_OFFSET						(double) (0.1178)
-#define PPTMB_CURRENT_OFFSET 					(double) (0.0051) * (-1)
+#define PPTMB_CURRENT_OFFSET 					(double) (0.0515)
 
 #define BBMB_PSM 	0
 #define MCMB_PSM	1
