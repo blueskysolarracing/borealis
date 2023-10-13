@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "psm.h"
+#include "newpsm.h"
 #include "bmisc.h"
 #include "buart.h"
 #include "btcp.h"
@@ -38,6 +38,15 @@
 #define HEARTBEAT_INTERVAL 1000 //Period between heartbeats
 #define TCP_ID PPTMB_ID
 #define CONNECTION_EXPIRY_THRESHOLD 5000 //Number of ticks since last packet received before connection is considered "lost"
+
+enum MPPT {
+	AERL_MPPT,
+	BSSR_MPPT
+};
+
+#define MPPT_DEVICE AERL_MPPT
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,21 +80,13 @@ uint8_t relayCtrlMessage;
 uint8_t batteryState = FAULTED; //Assume battery is faulted
 
 //--- PSM ---//
-struct PSM_Peripheral psmPeriph;
+struct PSM_P psmPeriph;
+struct PSM_FIR_Filter psmFilter;
 
-struct PSM_FIR_Filter psmFilter_string1;
-struct PSM_FIR_Filter psmFilter_string2;
-struct PSM_FIR_Filter psmFilter_string3;
-struct PSM_FIR_Filter psmFilter_HV;
+float PSM_FIR_voltage[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+float PSM_FIR_current[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
 
-float PSM_FIR_voltage_string1[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_string1[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_voltage_string2[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_string2[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_voltage_string3[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_string3[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_voltage_HV[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
-float PSM_FIR_current_HV[PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB] = {0};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -107,12 +108,22 @@ static void arrayRelayTask(void * argument);
 
 //Turn off 12V supply to PPT
 void shutDownPPTs() {
-	HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+	if(MPPT_DEVICE == BSSR_MPPT){
+		HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
+	}
+	else if(MPPT_DEVICE == AERL_MPPT){
+		HAL_GPIO_WritePin(AERL_PPT_EN_GPIO_Port, AERL_PPT_EN_Pin, GPIO_PIN_RESET);
+	}
 }
 
 //Turn on 12V supply to PPT
 void turnOnPPTs() {
-	HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+	if(MPPT_DEVICE == BSSR_MPPT){
+		HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_RESET);
+	}
+	else if(MPPT_DEVICE == AERL_MPPT){
+		HAL_GPIO_WritePin(AERL_PPT_EN_GPIO_Port, AERL_PPT_EN_Pin, GPIO_PIN_SET);
+	}
 }
 /* USER CODE END PFP */
 
@@ -176,49 +187,20 @@ int main(void)
   relay.battery_relay_state = OPEN; //Assume array relays are opened until confirmation is received from PPTMB
   relay.array_relay_state = OPEN; 	//Open array relays at startup
 
-  //--- PSM ---//
-  psmPeriph.CSPin0 = PSM_CS_0_Pin;
-  psmPeriph.CSPin1 = PSM_CS_1_Pin;
-  psmPeriph.CSPin2 = PSM_CS_2_Pin;
-  psmPeriph.CSPin3 = PSM_CS_3_Pin;
-
-  psmPeriph.CSPort0 = PSM_CS_0_GPIO_Port;
-  psmPeriph.CSPort1 = PSM_CS_1_GPIO_Port;
-  psmPeriph.CSPort2 = PSM_CS_2_GPIO_Port;
-  psmPeriph.CSPort3 = PSM_CS_3_GPIO_Port;
-
+  psmPeriph.CSPin = PSM_CS_0_Pin;
+  psmPeriph.CSPort = PSM_CS_0_GPIO_Port;
   psmPeriph.LVDSPort = PSM_LVDS_EN_GPIO_Port;
   psmPeriph.LVDSPin = PSM_LVDS_EN_Pin;
+  psmPeriph.motherboard = PPTMB_PSM;
 
-  //psmPeriph.DreadyPin = PSM_DReady_Pin;
-  //psmPeriph.DreadyPort = PSM_DReady_GPIO_Port;
+  PSM_init(&psmPeriph, &hspi2, &huart2);
+  PSM_FIR_Init(&psmFilter);
 
-  PSM_Init(&psmPeriph, 3); //2nd argument is PSM ID
+  test_config(&psmPeriph, &hspi2, &huart2);
 
-  if (configPSM(&psmPeriph, &hspi2, &huart2, "1234", 2000) == -1){ //2000ms timeout
-	  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET); //Turn on red LED as a warning
-  }
-
-  PSM_FIR_Init(&psmFilter_string1); //Initialize FIR averaging filter for PSM
-  PSM_FIR_Init(&psmFilter_string2); //Initialize FIR averaging filter for PSM
-  PSM_FIR_Init(&psmFilter_string3); //Initialize FIR averaging filter for PSM
-  PSM_FIR_Init(&psmFilter_HV); //Initialize FIR averaging filter for PSM
-
-  psmFilter_string1.buf_voltage = PSM_FIR_voltage_string1;
-  psmFilter_string1.buf_current = PSM_FIR_current_string1;
-  psmFilter_string1.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
-
-  psmFilter_string2.buf_voltage = PSM_FIR_voltage_string2;
-  psmFilter_string2.buf_current = PSM_FIR_current_string2;
-  psmFilter_string2.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
-
-  psmFilter_string3.buf_voltage = PSM_FIR_voltage_string3;
-  psmFilter_string3.buf_current = PSM_FIR_current_string3;
-  psmFilter_string3.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
-
-  psmFilter_HV.buf_voltage = PSM_FIR_voltage_HV;
-  psmFilter_HV.buf_current = PSM_FIR_current_HV;
-  psmFilter_HV.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
+  psmFilter.buf_voltage = PSM_FIR_voltage;
+  psmFilter.buf_current = PSM_FIR_current;
+  psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB;
 
   //--- COMMS ---//
   buart = B_uartStart(&huart4);
@@ -387,7 +369,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
   hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
   hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
@@ -560,6 +542,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(PPT_12V_EN_GPIO_Port, PPT_12V_EN_Pin, GPIO_PIN_SET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(AERL_PPT_EN_GPIO_Port, AERL_PPT_EN_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : RELAY_HS_Pin LED2_Pin LED0_Pin */
   GPIO_InitStruct.Pin = RELAY_HS_Pin|LED2_Pin|LED0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -595,82 +580,58 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(PPT_12V_EN_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : AERL_PPT_EN_Pin */
+  GPIO_InitStruct.Pin = AERL_PPT_EN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(AERL_PPT_EN_GPIO_Port, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
 void PSMTaskHandler(void * parameters){
-	double HV_data_string1[2];
-	double HV_data_string2[2];
-	double HV_data_string3[2];
-	double HV_data_HV[2];
+
+	double voltage, current;
+
 	int delay = pdMS_TO_TICKS(round(1000 / PSM_FIR_FILTER_SAMPLING_FREQ_PPTMB));
 
 	while (1){
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 2, HV_data_string1, 2);
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 3, HV_data_string2, 2);
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 4, HV_data_string3, 2);
-		PSMRead(&psmPeriph, &hspi2, &huart2, 1, 2, 1, HV_data_HV, 2);
+
+		voltage = readPSM(&psmPeriph, VBUS, 3);
+		current = readPSM(&psmPeriph, CURRENT, 3);
 
 		vTaskSuspendAll();
 
-		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[0], VOLTAGE);
-		psmFilter_string1.push(&psmFilter_string1, (float) HV_data_string1[1], CURRENT);
-
-		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[0], VOLTAGE);
-		psmFilter_string2.push(&psmFilter_string2, (float) HV_data_string2[1], CURRENT);
-
-		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[0], VOLTAGE);
-		psmFilter_string3.push(&psmFilter_string3, (float) HV_data_string3[1], CURRENT);
-
-		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[0], VOLTAGE);
-		psmFilter_HV.push(&psmFilter_HV, (float) HV_data_HV[1], CURRENT);
+		psmFilter.push(&psmFilter, (float) voltage, VOLTAGE_MEASUREMENT);
+		psmFilter.push(&psmFilter, (float) current, CURRENT_MEASUREMENT);
 
 		xTaskResumeAll();
 		vTaskDelay(delay);
 	}
 }
 
+
 void measurementSender(TimerHandle_t xTimer){
 	uint8_t busMetrics_HV[3 * 4] = {0};
-	uint8_t busMetrics_PPT[7 * 4] = {0};
+//	uint8_t busMetrics_PPT[7 * 4] = {0};
 
 	busMetrics_HV[0] = PPTMB_BUS_METRICS_ID;
-	busMetrics_PPT[0] = PPTMB_PPT_METRICS_ID;
+	//busMetrics_PPT[0] = PPTMB_PPT_METRICS_ID;
 
 	vTaskSuspendAll();
-	//Get HV average
-	float HV_voltage = psmFilter_HV.get_average(&psmFilter_HV, VOLTAGE);
-	float HV_current = psmFilter_HV.get_average(&psmFilter_HV, CURRENT);
 
-	//Get strings average
-	float string1_voltage = psmFilter_string1.get_average(&psmFilter_string1, VOLTAGE);
-	float string1_current = psmFilter_string1.get_average(&psmFilter_string1, CURRENT);
-
-	float string2_voltage = psmFilter_string2.get_average(&psmFilter_string2, VOLTAGE);
-	float string2_current = psmFilter_string2.get_average(&psmFilter_string2, CURRENT);
-
-	float string3_voltage = psmFilter_string3.get_average(&psmFilter_string3, VOLTAGE);
-	float string3_current = psmFilter_string3.get_average(&psmFilter_string3, CURRENT);
+	float HV_voltage = psmFilter.get_average(&psmFilter, VOLTAGE_MEASUREMENT);
+	float HV_current = psmFilter.get_average(&psmFilter, CURRENT_MEASUREMENT);
 
 	xTaskResumeAll();
 
-	//Build HV packet
 	floatToArray(HV_voltage, busMetrics_HV + 4); // fills 4 - 7 of busMetrics
-	floatToArray(HV_current, busMetrics_HV + 8); // fills 8 - 11 of busMetrics
-
-	//Build string packet
-	floatToArray(string1_voltage, busMetrics_PPT + 4); // fills 4 - 7 of busMetrics
-	floatToArray(string1_current, busMetrics_PPT + 8); // fills 8 - 11 of busMetrics
-
-	floatToArray(string2_voltage, busMetrics_PPT + 12); // fills 12 - 15 of busMetrics
-	floatToArray(string2_current, busMetrics_PPT + 16); // fills 16 - 19 of busMetrics
-
-	floatToArray(string3_voltage, busMetrics_PPT + 20); // fills 20 - 23 of busMetrics
-	floatToArray(string3_current, busMetrics_PPT + 24); // fills 24 - 27 of busMetrics
+	floatToArray(HV_current, busMetrics_HV + 8); // files 8 - 11 of busMetrics
 
 	B_tcpSend(btcp, busMetrics_HV, sizeof(busMetrics_HV));
-	B_tcpSend(btcp, busMetrics_PPT, sizeof(busMetrics_PPT));
 }
+
 
 //void PSMTaskHandler(TimerHandle_t xTimer){
 ////Output of MPPTs

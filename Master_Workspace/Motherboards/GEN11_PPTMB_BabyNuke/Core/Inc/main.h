@@ -83,6 +83,8 @@ void Error_Handler(void);
 #define PSM_CS_2_GPIO_Port GPIOD
 #define PPT_12V_EN_Pin GPIO_PIN_5
 #define PPT_12V_EN_GPIO_Port GPIOG
+#define AERL_PPT_EN_Pin GPIO_PIN_12
+#define AERL_PPT_EN_GPIO_Port GPIOC
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
