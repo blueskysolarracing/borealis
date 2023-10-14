@@ -1969,13 +1969,29 @@ float ADCMapToVolt(float ADCValue) {
 	return ADCValue / ADCResolution * ADCRefVoltage;
 }
 
+float calculate_r_infinity(float R0, float B) {
+	float T0 = 298.15;
+    return R0 * exp(-B / T0);
+}
+
+float calculate_T(float R, float R0, float B) {
+    float r_inf = calculate_r_infinity(R0, B);
+    return B / log(R / r_inf);
+}
+
 //Function to call to get the temperature measured by the tempSensor
 float getTemperature(ADC_HandleTypeDef *hadcPtr) {
 
 	float adc_voltage = ADCMapToVolt(ADC_poll_read(hadcPtr));
 	float resistance = PULL_DOWN_RESISTANCE * 3.316 / adc_voltage - PULL_DOWN_RESISTANCE;
-	float temperature = (-1*COEF_A + sqrtf(COEF_A*COEF_A - 4*COEF_B*(1 - resistance/RESISTANCE_ZERO_DEG))) / (2*COEF_B);
+	// float temperature = (-1*COEF_A + sqrtf(COEF_A*COEF_A - 4*COEF_B*(1 - resistance/RESISTANCE_ZERO_DEG))) / (2*COEF_B);
+	
+	// 100kΩ Glass NTC Thermistor RN3446
+	float R0 = 100.0; // 100 kOhm at 25 deg C
+    float B = 3950.0; // B constant, 3950 Kelvin
 
+	float T = calculate_T(resistance, R0, B);
+    
 	return temperature;
 }
 
