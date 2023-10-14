@@ -75,7 +75,7 @@ enum CRUISE_MODE {
 #define COEF_A 						(3.9083 * 0.001)
 #define COEF_B						(-5.775 * 0.0000001)
 #define COEF_C						(-4.183 * 0.000000000001)
-#define PULL_DOWN_RESISTANCE		200
+#define PULL_DOWN_RESISTANCE		10000
 
 /* USER CODE END PD */
 
