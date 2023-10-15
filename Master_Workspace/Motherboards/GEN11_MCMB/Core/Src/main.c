@@ -32,6 +32,7 @@
 #include "math.h"
 #include "mitsuba_motor.h"
 #include "cQueue.h"
+#include "FLASH_SECTOR_H7.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,7 +54,9 @@
 
 #define MOTOR_STATE_TMR_PERIOD_MS 20 //Interval (in ms) at which the motor state timer runs (also determines the cruise control PI controller timestep)
 
-#define CRUISE_PI_CHASE_CMD_PASSWORD 123 //16-bit unsigned
+#define CRUISE_PI_CHASE_CMD_PASSWORD 123 //16-bit unsigned (not used)
+
+#define CRUISE_PI_FLASH_ADDRESS 0x081E0000
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -75,7 +78,7 @@ enum CRUISE_MODE {
 #define COEF_A 						(3.9083 * 0.001)
 #define COEF_B						(-5.775 * 0.0000001)
 #define COEF_C						(-4.183 * 0.000000000001)
-#define PULL_DOWN_RESISTANCE		200
+#define PULL_DOWN_RESISTANCE		68000
 
 /* USER CODE END PD */
 
@@ -476,6 +479,17 @@ int main(void)
   //psmFilter.buf_current = PSM_FIR_HV_Current; // discarded to use a different filter
   sfq_init(&current_queue);
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
+
+  // override default cruise_control_pi gains from flash if the values stored in flash are not 0 (not used for now. Need more testing for reliability)
+//  	uint8_t rxBuf[16] = {0};
+//	Flash_Read_Data(CRUISE_PI_FLASH_ADDRESS, (uint32_t*)rxBuf, 2);
+//	float k_p = arrayToFloat(rxBuf);
+//	float k_i = arrayToFloat(rxBuf + 4);
+//	float k_d = arrayToFloat(rxBuf + 8);
+//	if (k_p != 0.0) cruise_control_pi.k_p = k_p;
+//	if (k_i != 0.0) cruise_control_pi.k_i = k_i;
+//	if (k_d != 0.0) cruise_control_pi.k_d = k_d;
+
 
 
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
