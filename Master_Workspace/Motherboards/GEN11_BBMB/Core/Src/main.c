@@ -145,6 +145,8 @@ uint8_t battery_undertemperature = 0;
 uint8_t battery_overcurrent = 0;
 uint8_t motor_overtemperature = 0;
 
+uint8_t fault_enable = 1;
+
 float motor_temperature = 0;
 //--- MOTOR ---//
 typedef enum {
@@ -1545,6 +1547,9 @@ void serialParse(B_tcpPacket_t *pkt){
 			if (pkt->data[0] == CHASE_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->data[1]), 200); //Send to lights control task
 			}
+			if (pkt->data[0] == CHASE_FAULT_ENABLE_ID) {
+				fault_enable = pkt->data[1];
+			}
 			break;
 
 		case MCMB_ID:
@@ -1961,14 +1966,16 @@ void fault_state_setter(void* parameters) {
 		xTaskResumeAll();
 
 
-		if (battery_overvoltage || battery_undervoltage || battery_overtemperature || battery_undertemperature
-					|| battery_overcurrent || motor_overtemperature) {
-			batteryState = FAULTED;
-			if (run_faulted_routine) {
-				battery_faulted_routine();
-				run_faulted_routine = 0;
+		if (fault_enable) {
+			if (battery_overvoltage || battery_undervoltage || battery_overtemperature || battery_undertemperature
+						|| battery_overcurrent || motor_overtemperature) {
+				batteryState = FAULTED;
+				if (run_faulted_routine) {
+					battery_faulted_routine();
+					run_faulted_routine = 0;
+				}
+				run_unfaulted_routine = 1;
 			}
-			run_unfaulted_routine = 1;
 		}
 
 		uint8_t buf[] = {BBMB_FAULT_STATE_ID, 0, 0, 0};
