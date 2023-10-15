@@ -2237,18 +2237,17 @@ void serialParse(B_tcpPacket_t *pkt){
     case CHASE_ID:
       if (pkt->data[0] == CHASE_CRUISE_PI_GAIN_ID){
         /*Data format:
-        * [ID, password[1], password[0], UNUSED, 
+        * [ID, 0, 0, UNUSED, 
            k_p[3], k_p[2], k_p[1], k_p[0], 
            k_i[3], k_i[2], k_i[1], k_i[0],
            k_d[3], k_d[2], k_d[1], k_d[0]]
         *
         * NOTE: k_p, k_i and k_d must be multiplied by 100000 before transmission
         */ 
-        if (unpacku16(&pkt->data[1]) == CRUISE_PI_CHASE_CMD_PASSWORD){
-          cruise_control_pi.k_p = (float) unpacku32(&pkt->data[4]) / 100000.0;
-          cruise_control_pi.k_i = (float) unpacku32(&pkt->data[8]) / 100000.0;
-          cruise_control_pi.k_d = (float) unpacku32(&pkt->data[12]) / 100000.0;
-        }
+		if (pkt->data[1] == 1) cruise_control_pi.k_p = (float) unpacku32(&pkt->data[4]) / 100000.0;
+		if (pkt->data[2] == 1) cruise_control_pi.k_i = (float) unpacku32(&pkt->data[8]) / 100000.0;
+		if (pkt->data[3] == 1) cruise_control_pi.k_d = (float) unpacku32(&pkt->data[12]) / 100000.0;
+		B_tcpSend(btcp, pkt->data, pkt->length); // ack
       }
 	}
   xTaskResumeAll();
