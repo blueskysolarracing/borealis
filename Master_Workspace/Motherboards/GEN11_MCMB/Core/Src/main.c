@@ -2251,7 +2251,7 @@ void serialParse(B_tcpPacket_t *pkt){
     case CHASE_ID:
       if (pkt->data[0] == CHASE_CRUISE_PI_GAIN_ID){
         /*Data format:
-        * [ID, 0, 0, UNUSED, 
+        * [ID, update_k_p, update_k_i, update_k_d,
            k_p[3], k_p[2], k_p[1], k_p[0], 
            k_i[3], k_i[2], k_i[1], k_i[0],
            k_d[3], k_d[2], k_d[1], k_d[0]]
