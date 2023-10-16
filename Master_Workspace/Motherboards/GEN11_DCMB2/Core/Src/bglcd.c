@@ -868,9 +868,9 @@ void drawP2Detailed_2(/*int value[5]*/){
     // the motor temp
     y+=23;
     x = 20;
-    glcd_tiny_draw_char_xy(x, correct_Y(y), detailed_data.P1_motor_temperature / 100);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), detailed_data.P1_motor_temperature / 10 % 10);
-    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), detailed_data.P1_motor_temperature % 10);
+    glcd_tiny_draw_char_xy(x, correct_Y(y), detailed_data.P1_motor_temperature / 100 + '0');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), detailed_data.P1_motor_temperature / 10 % 10 + '0');
+    glcd_tiny_draw_char_xy(x+=5, correct_Y(y), detailed_data.P1_motor_temperature % 10 + '0');
     glcd_tiny_draw_char_xy(x+=5, correct_Y(y), 'C');
     // VFM
     y+=23;
