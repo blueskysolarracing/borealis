@@ -362,6 +362,8 @@ int main(void)
   default_data.P2_VFM = 0;
 
   detailed_data.chase_msg[0] = '\0';
+  detailed_data.turn_on_backlight = 0;
+  detailed_data.turn_off_backlight = 0;
 
   // test, store hello world into detailed_data.chase_msg
 	// for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
@@ -2044,6 +2046,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				detailed_data.chase_msg[i] = (char)pkt->data[i + 1];
 			}
 			detailed_data.chase_msg[sizeof(detailed_data.chase_msg) - 1] = '\0';
+			detailed_data.turn_on_backlight = 1;
 		 } else if (pkt->data[0] == CHASE_VMF_ID) {
 			uint8_t vmf_up = pkt->data[1];
 			if (vmf_up) {

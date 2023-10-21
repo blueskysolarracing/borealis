@@ -133,13 +133,30 @@ void drawP1Default_new(/*int value[4]*/){
 	y+=15;
 
 	// draw chase message
-	if (xTaskGetTickCount() - detailed_data.last_chase_msg_time < 60000) {
+	uint32_t diff = 0;
+	uint32_t tick_cnt = xTaskGetTickCount();
+	if (tick_cnt >= detailed_data.last_chase_msg_time) {
+		diff = tick_cnt - detailed_data.last_chase_msg_time;
+	} else {
+		diff = (0xFFFFFFFF - detailed_data.last_chase_msg_time) + tick_cnt + 1;
+	}
+	if (diff < 30000) {
 		int j = 0;
 		while(detailed_data.chase_msg[j] != '\0' && j < sizeof(detailed_data.chase_msg)){
 			glcd_tiny_draw_char_xy(j*6, correct_Y(y), detailed_data.chase_msg[j]);
 			j++;
 		}
 		y+=15;
+		if (detailed_data.turn_on_backlight) {
+			HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_SET); // enable backlight to warn driver
+			detailed_data.turn_on_backlight = 0;
+			detailed_data.turn_off_backlight = 1;
+		}
+	} else {
+		if (detailed_data.turn_off_backlight) {
+			HAL_GPIO_WritePin(DISP_LED_CTRL_GPIO_Port, DISP_LED_CTRL_Pin, GPIO_PIN_RESET); // disable backlight
+			detailed_data.turn_off_backlight = 0;
+		}
 	}
 
 
