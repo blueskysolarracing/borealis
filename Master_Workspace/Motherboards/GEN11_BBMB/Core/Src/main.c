@@ -145,7 +145,7 @@ uint8_t battery_undertemperature = 0;
 uint8_t battery_overcurrent = 0;
 uint8_t motor_overtemperature = 0;
 
-uint8_t fault_enable = 1;
+uint8_t fault_enable = 0;
 
 float motor_temperature = 0;
 //--- MOTOR ---//
@@ -1443,7 +1443,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-	char buf[] = "received from bms-bridge\n";
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
@@ -1549,6 +1548,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			}
 			if (pkt->data[0] == CHASE_FAULT_ENABLE_ID) {
 				fault_enable = pkt->data[1];
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 			}
 			break;
 
