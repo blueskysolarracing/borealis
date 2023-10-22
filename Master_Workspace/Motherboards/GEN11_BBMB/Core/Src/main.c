@@ -461,15 +461,15 @@ int main(void)
   configASSERT(status == pdPASS);// Error checking
 
 
-  TaskHandle_t fault_state_setter_handle;
-  status = xTaskCreate(fault_state_setter,  //Function that implements the task.
-						"measurementSender",  // Text name for the task.
-						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
-						"none",  // Parameter passed into the task.
-						4,  // Priority at which the task is created.
-						&fault_state_setter_handle  // Used to pass out the created task's handle.
-									);
-  configASSERT(status == pdPASS);// Error checking
+//  TaskHandle_t fault_state_setter_handle;
+//  status = xTaskCreate(fault_state_setter,  //Function that implements the task.
+//						"measurementSender",  // Text name for the task.
+//						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+//						"none",  // Parameter passed into the task.
+//						4,  // Priority at which the task is created.
+//						&fault_state_setter_handle  // Used to pass out the created task's handle.
+//									);
+//  configASSERT(status == pdPASS);// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -1495,7 +1495,7 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
-			HAL_UART_Transmit(&huart2, (uint8_t*)buf, sizeof(buf), 100);
+//			HAL_UART_Transmit(&huart2, (uint8_t*)buf, sizeof(buf), 100);
 			BMS_tick_count_last_packet = xTaskGetTickCount();
 
 			//BMS temperature
