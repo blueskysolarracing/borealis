@@ -32,6 +32,7 @@
 #include "math.h"
 #include "mitsuba_motor.h"
 #include "cQueue.h"
+#include "FLASH_SECTOR_H7.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,7 +54,9 @@
 
 #define MOTOR_STATE_TMR_PERIOD_MS 20 //Interval (in ms) at which the motor state timer runs (also determines the cruise control PI controller timestep)
 
-#define CRUISE_PI_CHASE_CMD_PASSWORD 123 //16-bit unsigned
+#define CRUISE_PI_CHASE_CMD_PASSWORD 123 //16-bit unsigned (not used)
+
+#define CRUISE_PI_FLASH_ADDRESS 0x081E0000
 
 //--- MOTOR ---//
 enum CRUISE_MODE {
@@ -75,7 +78,7 @@ enum CRUISE_MODE {
 #define COEF_A 						(3.9083 * 0.001)
 #define COEF_B						(-5.775 * 0.0000001)
 #define COEF_C						(-4.183 * 0.000000000001)
-#define PULL_DOWN_RESISTANCE		200
+#define PULL_DOWN_RESISTANCE		68000
 
 /* USER CODE END PD */
 
@@ -476,6 +479,17 @@ int main(void)
   //psmFilter.buf_current = PSM_FIR_HV_Current; // discarded to use a different filter
   sfq_init(&current_queue);
   psmFilter.buf_size = PSM_FIR_FILTER_SAMPLING_FREQ_MCMB;
+
+  // override default cruise_control_pi gains from flash if the values stored in flash are not 0 (not used for now. Need more testing for reliability)
+//  	uint8_t rxBuf[16] = {0};
+//	Flash_Read_Data(CRUISE_PI_FLASH_ADDRESS, (uint32_t*)rxBuf, 2);
+//	float k_p = arrayToFloat(rxBuf);
+//	float k_i = arrayToFloat(rxBuf + 4);
+//	float k_d = arrayToFloat(rxBuf + 8);
+//	if (k_p != 0.0) cruise_control_pi.k_p = k_p;
+//	if (k_i != 0.0) cruise_control_pi.k_i = k_i;
+//	if (k_d != 0.0) cruise_control_pi.k_d = k_d;
+
 
 
 //  if (configPSM(&psmPeriph, &hspi2, &huart2, "12", 2000) == -1){ //2000ms timeout
@@ -1969,13 +1983,31 @@ float ADCMapToVolt(float ADCValue) {
 	return ADCValue / ADCResolution * ADCRefVoltage;
 }
 
+float calculate_r_infinity(float R0, float B) {
+	float T0 = 298.15;
+    return R0 * exp(-B / T0);
+}
+
+float calculate_T(float R, float R0, float B) {
+    float r_inf = calculate_r_infinity(R0, B);
+    return B / log(R / r_inf);
+}
+
+float adc_voltage;
+float R_T;
+
 //Function to call to get the temperature measured by the tempSensor
 float getTemperature(ADC_HandleTypeDef *hadcPtr) {
+	// 100kΩ Glass NTC Thermistor RN3446
+	float R0 = 100000; //100kR at 25C
+	float beta = 3950;
+	float nominal_temperature = 298.15; //25C in Kelvin
 
-	float adc_voltage = ADCMapToVolt(ADC_poll_read(hadcPtr));
-	float resistance = PULL_DOWN_RESISTANCE * 3.316 / adc_voltage - PULL_DOWN_RESISTANCE;
-	float temperature = (-1*COEF_A + sqrtf(COEF_A*COEF_A - 4*COEF_B*(1 - resistance/RESISTANCE_ZERO_DEG))) / (2*COEF_B);
+	adc_voltage = ADCMapToVolt(ADC_poll_read(hadcPtr));
+	R_T = PULL_DOWN_RESISTANCE * 3.316 / adc_voltage - PULL_DOWN_RESISTANCE;
 
+	temperature = (1/nominal_temperature) + (1/beta)*log(R_T/R0);
+	temperature = 1/temperature;
 	return temperature;
 }
 
@@ -2035,7 +2067,8 @@ static void motorTmr(TimerHandle_t xTimer){
 
 	if(diff > 4000){  //if serialParse stops being called after 4 seconds (this means uart connection is lost)
 
-		motor->turnOff(motor);
+//		motor->turnOff(motor);
+		res = motor->setAccel(motor, 0);
 		gearUp = 0;
 		gearDown = 0;
 		return;
@@ -2221,18 +2254,17 @@ void serialParse(B_tcpPacket_t *pkt){
     case CHASE_ID:
       if (pkt->data[0] == CHASE_CRUISE_PI_GAIN_ID){
         /*Data format:
-        * [ID, password[1], password[0], UNUSED, 
+        * [ID, update_k_p, update_k_i, update_k_d,
            k_p[3], k_p[2], k_p[1], k_p[0], 
            k_i[3], k_i[2], k_i[1], k_i[0],
            k_d[3], k_d[2], k_d[1], k_d[0]]
         *
         * NOTE: k_p, k_i and k_d must be multiplied by 100000 before transmission
         */ 
-        if (unpacku16(&pkt->data[1]) == CRUISE_PI_CHASE_CMD_PASSWORD){
-          cruise_control_pi.k_p = (float) unpacku32(&pkt->data[4]) / 100000.0;
-          cruise_control_pi.k_i = (float) unpacku32(&pkt->data[8]) / 100000.0;
-          cruise_control_pi.k_d = (float) unpacku32(&pkt->data[12]) / 100000.0;
-        }
+		if (pkt->data[1] == 1) cruise_control_pi.k_p = (float) unpacku32(&pkt->data[4]) / 100000.0;
+		if (pkt->data[2] == 1) cruise_control_pi.k_i = (float) unpacku32(&pkt->data[8]) / 100000.0;
+		if (pkt->data[3] == 1) cruise_control_pi.k_d = (float) unpacku32(&pkt->data[12]) / 100000.0;
+		B_tcpSend(btcp, pkt->data, pkt->length); // ack
       }
 	}
   xTaskResumeAll();

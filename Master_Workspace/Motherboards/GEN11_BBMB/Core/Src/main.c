@@ -111,6 +111,9 @@ uint8_t lightInstruction;
 uint8_t efficiency_mode_on = 1;
 uint8_t current_speed_kph;
 float DRL_BRIGHTNESS_DIM = 0.1;
+uint8_t left_indicator_on = 0;
+uint8_t right_indicator_on = 0;
+uint8_t hazard_on = 0;
 
 //--- PSM ---//
 struct PSM_P psmPeriph;
@@ -144,6 +147,8 @@ uint8_t battery_overtemperature = 0;
 uint8_t battery_undertemperature = 0;
 uint8_t battery_overcurrent = 0;
 uint8_t motor_overtemperature = 0;
+
+uint8_t fault_enable = 1;
 
 float motor_temperature = 0;
 //--- MOTOR ---//
@@ -242,6 +247,7 @@ void battery_unfaulted_routine();
 void RelayStateTimer(TimerHandle_t xTimer);
 void dischargeTest(TimerHandle_t xTimer);
 void fault_state_setter();
+void indicatorTimer(TimerHandle_t xTimer);
 
 /* USER CODE END PFP */
 
@@ -367,12 +373,12 @@ int main(void)
   lightsPeriph.left_indicator_state = LIGHTS_OFF;
 
   //Initial state of lights: all off
-  turn_off_indicators(&lightsPeriph, LEFT);
-  turn_off_indicators(&lightsPeriph, RIGHT);
+//  turn_off_indicators(&lightsPeriph, LEFT);
+//  turn_off_indicators(&lightsPeriph, RIGHT);
   turn_off_DRL(&lightsPeriph);
   turn_off_brake_lights(&lightsPeriph);
   turn_off_fault_indicator(&lightsPeriph);
-  turn_off_hazard_lights(&lightsPeriph);
+//  turn_off_hazard_lights(&lightsPeriph);
 
 //  lightsPeriph.ind_master_TIM->Instance->ARR = 25599; //Period of ~0.8s (~75 blinks per second) assuming 32MHz clock and 999 prescaler.
 //  lightsPeriph.ind_master_TIM->Instance->CCR1 = 12800; //On-time of 50%
@@ -394,6 +400,7 @@ int main(void)
   configASSERT(xTimerStart(xTimerCreate("HeartbeatHandler",  pdMS_TO_TICKS(HEARTBEAT_INTERVAL / 2), pdTRUE, (void *)0, HeartbeatHandler), 0)); //Heartbeat handler
   configASSERT(xTimerStart(xTimerCreate("dischargeTest",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, dischargeTest), 0));
   configASSERT(xTimerStart(xTimerCreate("relayStateTimer",  pdMS_TO_TICKS(RELAY_STATE_TIMER_INTERVAL), pdTRUE, (void *)0, RelayStateTimer), 0));
+  configASSERT(xTimerStart(xTimerCreate("indicatorTimer",  pdMS_TO_TICKS(250), pdTRUE, (void *)0, indicatorTimer), 0));
 
 
   //--- RELAYS ---//
@@ -459,15 +466,15 @@ int main(void)
   configASSERT(status == pdPASS);// Error checking
 
 
-  TaskHandle_t fault_state_setter_handle;
-  status = xTaskCreate(fault_state_setter,  //Function that implements the task.
-						"measurementSender",  // Text name for the task.
-						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
-						"none",  // Parameter passed into the task.
-						4,  // Priority at which the task is created.
-						&fault_state_setter_handle  // Used to pass out the created task's handle.
-									);
-  configASSERT(status == pdPASS);// Error checking
+//  TaskHandle_t fault_state_setter_handle;
+//  status = xTaskCreate(fault_state_setter,  //Function that implements the task.
+//						"measurementSender",  // Text name for the task.
+//						200, 		 // 200 words *4(bytes/word) = 800 bytes allocated for task's stack
+//						"none",  // Parameter passed into the task.
+//						4,  // Priority at which the task is created.
+//						&fault_state_setter_handle  // Used to pass out the created task's handle.
+//									);
+//  configASSERT(status == pdPASS);// Error checking
 
   /* USER CODE END RTOS_THREADS */
 
@@ -754,7 +761,6 @@ static void MX_TIM2_Init(void)
 
   TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
 
@@ -766,10 +772,6 @@ static void MX_TIM2_Init(void)
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -785,22 +787,9 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -1228,6 +1217,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(RELAY_PRECHARGE_GPIO_Port, RELAY_PRECHARGE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, left_indicator_Pin|right_indicator_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BMS_WKUP_GPIO_Port, BMS_WKUP_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -1320,6 +1312,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(RELAY_DISCHARGE_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : left_indicator_Pin right_indicator_Pin */
+  GPIO_InitStruct.Pin = left_indicator_Pin|right_indicator_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PH2 PH3 PH4 PH5
                            PH7 PH8 PH12 PH13
@@ -1441,7 +1440,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void serialParse(B_tcpPacket_t *pkt){
-	char buf[] = "received from bms-bridge\n";
 	switch(pkt->senderID){
 		case PPTMB_ID: //Parse data from PPTMB
 			if (pkt->data[0] == PPTMB_RELAYS_STATE_ID){ //Update relay state from PPTMB
@@ -1494,7 +1492,6 @@ void serialParse(B_tcpPacket_t *pkt){
 			break;
 
 		case BMS_ID: //Parse data from BMS (comes from btcp_bms)
-			HAL_UART_Transmit(&huart2, (uint8_t*)buf, sizeof(buf), 100);
 			BMS_tick_count_last_packet = xTaskGetTickCount();
 
 			//BMS temperature
@@ -1544,6 +1541,10 @@ void serialParse(B_tcpPacket_t *pkt){
 		case CHASE_ID:
 			if (pkt->data[0] == CHASE_LIGHTCONTROL_ID){
 				xQueueSend(lightsCtrl, &(pkt->data[1]), 200); //Send to lights control task
+			}
+			if (pkt->data[0] == CHASE_FAULT_ENABLE_ID) {
+				fault_enable = pkt->data[1];
+				B_tcpSend(btcp_main, pkt->data, pkt->length);
 			}
 			break;
 
@@ -1621,6 +1622,21 @@ void RelayStateTimer(xTimerHandle xTimer) {
 	B_tcpSend(btcp_main, buf, sizeof(buf));
 }
 
+void indicatorTimer(TimerHandle_t xTimer) {
+	if (left_indicator_on && !hazard_on) {
+		HAL_GPIO_TogglePin(left_indicator_GPIO_Port, left_indicator_Pin);
+	} else if (right_indicator_on && !hazard_on) {
+		HAL_GPIO_TogglePin(right_indicator_GPIO_Port, right_indicator_Pin);
+	} else if (hazard_on) {
+		HAL_GPIO_TogglePin(left_indicator_GPIO_Port, left_indicator_Pin);
+		HAL_GPIO_WritePin(right_indicator_GPIO_Port, right_indicator_Pin, HAL_GPIO_ReadPin(left_indicator_GPIO_Port, left_indicator_Pin));
+	} else if (!left_indicator_on && !hazard_on) {
+		HAL_GPIO_WritePin(left_indicator_GPIO_Port, left_indicator_Pin, GPIO_PIN_RESET);
+	} else if (!right_indicator_on && !hazard_on) {
+		HAL_GPIO_WritePin(right_indicator_GPIO_Port, right_indicator_Pin, GPIO_PIN_RESET);
+	}
+}
+
 void lightsTask(void * argument){
 	uint8_t buf_get[10];
 	float indicator_brightness = 0.20; //Don't go over 40%
@@ -1654,9 +1670,21 @@ void lightsTask(void * argument){
 		switch(light_id){ // mask 0b0011 1110 to isolate light
 			case INDICATOR_LIGHTS: // Indicator
 				if ((light_msg & 0x40) >> 6 == LIGHTS_OFF){ //Turn off
-					turn_off_indicators(&lightsPeriph, (int)(light_msg & 0x01)); // masking last bit for left or right
+//					turn_off_indicators(&lightsPeriph, (int)(light_msg & 0x01)); // masking last bit for left or right
+					if ((light_msg & 0x01) == LEFT) {
+						left_indicator_on = 0;
+					}
+					if ((light_msg & 0x01) == RIGHT) {
+						right_indicator_on = 0;
+					}
 				} else { //Turn on
-					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), indicator_brightness); // masking last bit for left or right
+//					turn_on_indicators(&lightsPeriph, (int)(light_msg & 0x01), indicator_brightness); // masking last bit for left or right
+					if ((light_msg & 0x01) == LEFT) {
+						left_indicator_on = 1;
+					}
+					if ((light_msg & 0x01) == RIGHT) {
+						right_indicator_on = 1;
+					}
 				}
 				break;
 
@@ -1683,9 +1711,11 @@ void lightsTask(void * argument){
 
 			case HAZARD_LIGHTS: // hazard light
 				if ((light_msg & 0x40) != 0x00){
-					turn_on_hazard_lights(&lightsPeriph, hazard_brightness);
+//					turn_on_hazard_lights(&lightsPeriph, hazard_brightness);
+					hazard_on = 1;
 				} else {
-					turn_off_hazard_lights(&lightsPeriph);
+//					turn_off_hazard_lights(&lightsPeriph);
+					hazard_on = 0;
 				}
 				break;
 
@@ -1961,14 +1991,16 @@ void fault_state_setter(void* parameters) {
 		xTaskResumeAll();
 
 
-		if (battery_overvoltage || battery_undervoltage || battery_overtemperature || battery_undertemperature
-					|| battery_overcurrent || motor_overtemperature) {
-			batteryState = FAULTED;
-			if (run_faulted_routine) {
-				battery_faulted_routine();
-				run_faulted_routine = 0;
+		if (fault_enable) {
+			if (battery_overvoltage || battery_undervoltage || battery_overtemperature || battery_undertemperature
+						|| battery_overcurrent || motor_overtemperature) {
+				batteryState = FAULTED;
+				if (run_faulted_routine) {
+					battery_faulted_routine();
+					run_faulted_routine = 0;
+				}
+				run_unfaulted_routine = 1;
 			}
-			run_unfaulted_routine = 1;
 		}
 
 		uint8_t buf[] = {BBMB_FAULT_STATE_ID, 0, 0, 0};

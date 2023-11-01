@@ -96,6 +96,8 @@ struct disp_detailed_frame{
 
 	char chase_msg[12]; // 11 chars + null terminator
 	uint32_t last_chase_msg_time;
+	uint8_t turn_on_backlight;
+	uint8_t turn_off_backlight;
 
 	uint8_t motor_accel_value;
 };

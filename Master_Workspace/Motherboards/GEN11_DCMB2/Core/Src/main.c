@@ -75,8 +75,8 @@ enum CRUISE_MODE {
 #define CRUISE_MODE CONSTANT_SPEED //Specifies how how cruise control should work (maintains constant motorTargetPower or maintains motorTargetSpeed)
 /* ^ Need to update in MCMB as well ^ */
 #define REGEN_DEFAULT_VALUE_STEERING_WHEEL 150 // regen value when pressing the regen button on the steering wheel
-#define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled
-#define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD 4
+#define REGEN_BATTERY_VOLTAGE_THRESHOLD 120 // voltage above which regen should be disabled (not used)
+#define REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD (4.15f)
 
 //--- SPB/SWB ---//
 #define BSSR_SPB_SWB_ACK 0x77 //Acknowledge signal sent back from DCMB upon reception of data from SPB/SWB (77 is BSSR team number :D)
@@ -184,7 +184,7 @@ uint8_t vfmDownState = 0;
 uint8_t motorTargetSpeed = 0; // maintain current speed of car when cruise control is enabled by pressing on the steering wheel
 uint8_t brakePressed = 0;
 
-uint8_t start_steering_wheel_constant_regen = 0; // 1 is on, 0 is off
+uint8_t steering_wheel_constant_regen_button_pressed = 0; // 1 is on, 0 is off
 uint8_t encoder_accel_value = 0; // 0 to 255
 
 typedef enum {
@@ -362,6 +362,8 @@ int main(void)
   default_data.P2_VFM = 0;
 
   detailed_data.chase_msg[0] = '\0';
+  detailed_data.turn_on_backlight = 0;
+  detailed_data.turn_off_backlight = 0;
 
   // test, store hello world into detailed_data.chase_msg
 	// for (int i = 0; i < sizeof(detailed_data.chase_msg) - 1; i++) {
@@ -1626,7 +1628,18 @@ static void pedalTask(const void* p) {
 			}
 			start_adc_regen = 0;
 		}
-
+#else
+    	if (steering_wheel_constant_regen_button_pressed
+    			&& -REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0
+				&& detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD
+		) {
+    		start_adc_regen = 1;
+		} else {
+			if (steering_wheel_constant_regen_button_pressed) {
+				default_data.P2_motor_state = REGEN_NA;
+			}
+			start_adc_regen = 0;
+		}
 #endif
 
 #ifdef USE_PEDAL_ACCEL
@@ -1659,7 +1672,7 @@ static void pedalTask(const void* p) {
 			accelValue = 256;
 		}
 		// Check if brake is pressed or car is going to regen
-		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 || start_steering_wheel_constant_regen || start_adc_regen) {
+		if (HAL_GPIO_ReadPin(brakeDetect_GPIO_Port, brakeDetect_Pin) == 0 || steering_wheel_constant_regen_button_pressed || start_adc_regen) {
 			brakeState = BRAKE_PRESSED;
 		} else {
 			brakeState = BRAKE_RELEASED;
@@ -1672,9 +1685,9 @@ static void pedalTask(const void* p) {
 			if (brakeState == BRAKE_PRESSED) {
 				// turn on brake lights
 				bufh2[1] = 0b01001000;
-				vTaskSuspendAll();
-				encoder_accel_value = 0;
-				xTaskResumeAll();
+//				vTaskSuspendAll();
+//				encoder_accel_value = 0;
+//				xTaskResumeAll();
 			} else {
 				// turn off brake lights
 				bufh2[1] = 0b00001000;
@@ -1698,7 +1711,7 @@ static void pedalTask(const void* p) {
 				default_data.P2_motor_state = REGEN;
 			}
 #else
-			if (start_steering_wheel_constant_regen) {
+			if (steering_wheel_constant_regen_button_pressed) {
 				// motorTargetPower = REGEN_DEFAULT_VALUE_STEERING_WHEEL;  // can change to any value we want
 				// motorTargetPower = (uint16_t) ((accelValue - accel_reading_threshold) / (256.0 - accel_reading_threshold) * 256.0);
 				motorTargetPower = 200;
@@ -1713,15 +1726,15 @@ static void pedalTask(const void* p) {
 				motorTargetRegenStrength = 0;
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
-			} else { //Not in cruise and pedal isn't pressed, turn off motor
-				motorTargetPower = (uint16_t) 0;
+			} else if(accelValue < accel_reading_threshold || brakeState == BRAKE_PRESSED) { //Not in cruise and pedal isn't pressed, turn off motor
+				motorTargetPower = (uint16_t) 2;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
 		// Braking exits CRUISE mode if enabled.
 		} else {
 			if (brakeState == BRAKE_PRESSED) {
-				motorTargetPower = (uint16_t) 0;
+				motorTargetPower = (uint16_t) 1;
 				motorTargetRegenStrength = 0;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
@@ -2033,6 +2046,7 @@ void serialParse(B_tcpPacket_t *pkt){
 				detailed_data.chase_msg[i] = (char)pkt->data[i + 1];
 			}
 			detailed_data.chase_msg[sizeof(detailed_data.chase_msg) - 1] = '\0';
+			detailed_data.turn_on_backlight = 1;
 		 } else if (pkt->data[0] == CHASE_VMF_ID) {
 			uint8_t vmf_up = pkt->data[1];
 			if (vmf_up) {
@@ -2198,12 +2212,9 @@ void steeringWheelTask(const void *pv){
 #ifndef USE_ADC_REGEN
 			//Middle button pressed - Holding it causes regen
 			if (~oldMiddleButton && (steeringData[2] & (1 << 4))){ // 0 --> 1 transition
-				// if (-REGEN_BATTERY_VOLTAGE_THRESHOLD <= batteryVoltage && batteryVoltage <= REGEN_BATTERY_VOLTAGE_THRESHOLD){
-				if (-REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD <= detailed_data.max_voltage / 10.0 && detailed_data.max_voltage / 10.0 <= REGEN_BATTERY_CELL_VOLTAGE_THRESHOLD) {
-					start_steering_wheel_constant_regen = 1;
-				}
+				steering_wheel_constant_regen_button_pressed = 1;
 			} else if (oldMiddleButton && ~(steeringData[2] & (1 << 4))){ // 1 --> 0 transition
-				start_steering_wheel_constant_regen = 0;
+				steering_wheel_constant_regen_button_pressed = 0;
 			}
 			oldMiddleButton = (steeringData[2] & (1 << 4));
 #endif
