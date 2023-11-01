@@ -2067,7 +2067,8 @@ static void motorTmr(TimerHandle_t xTimer){
 
 	if(diff > 4000){  //if serialParse stops being called after 4 seconds (this means uart connection is lost)
 
-		motor->turnOff(motor);
+//		motor->turnOff(motor);
+		res = motor->setAccel(motor, 0);
 		gearUp = 0;
 		gearDown = 0;
 		return;
