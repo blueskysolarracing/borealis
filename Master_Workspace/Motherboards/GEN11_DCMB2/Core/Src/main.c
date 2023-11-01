@@ -1685,9 +1685,9 @@ static void pedalTask(const void* p) {
 			if (brakeState == BRAKE_PRESSED) {
 				// turn on brake lights
 				bufh2[1] = 0b01001000;
-				vTaskSuspendAll();
-				encoder_accel_value = 0;
-				xTaskResumeAll();
+//				vTaskSuspendAll();
+//				encoder_accel_value = 0;
+//				xTaskResumeAll();
 			} else {
 				// turn off brake lights
 				bufh2[1] = 0b00001000;
@@ -1726,15 +1726,15 @@ static void pedalTask(const void* p) {
 				motorTargetRegenStrength = 0;
 				motorState = PEDAL;
 				default_data.P2_motor_state = PEDAL;
-			} else { //Not in cruise and pedal isn't pressed, turn off motor
-				motorTargetPower = (uint16_t) 0;
+			} else if(accelValue < accel_reading_threshold || brakeState == BRAKE_PRESSED) { //Not in cruise and pedal isn't pressed, turn off motor
+				motorTargetPower = (uint16_t) 2;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
 			}
 		// Braking exits CRUISE mode if enabled.
 		} else {
 			if (brakeState == BRAKE_PRESSED) {
-				motorTargetPower = (uint16_t) 0;
+				motorTargetPower = (uint16_t) 1;
 				motorTargetRegenStrength = 0;
 				motorState = STANDBY;
 				default_data.P2_motor_state = STANDBY;
