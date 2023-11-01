@@ -69,6 +69,10 @@ void Error_Handler(void);
 #define ESD_DETECT_GPIO_Port GPIOI
 #define RELAY_DISCHARGE_Pin GPIO_PIN_13
 #define RELAY_DISCHARGE_GPIO_Port GPIOI
+#define left_indicator_Pin GPIO_PIN_0
+#define left_indicator_GPIO_Port GPIOA
+#define right_indicator_Pin GPIO_PIN_1
+#define right_indicator_GPIO_Port GPIOA
 #define BMS_FLT_Pin GPIO_PIN_4
 #define BMS_FLT_GPIO_Port GPIOJ
 #define BMS_NO_FLT_Pin GPIO_PIN_12
